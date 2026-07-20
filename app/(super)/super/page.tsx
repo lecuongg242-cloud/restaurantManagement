@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { hasSupabaseEnv } from "@/lib/env";
 import { SetupNotice } from "@/components/setup-notice";
@@ -75,15 +76,20 @@ export default async function SuperAdminPage({
         </h2>
         <ul className="flex flex-col gap-2">
           {(tenants ?? []).map((t) => (
-            <li
-              key={t.id}
-              className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
-            >
-              <div>
-                <span className="font-medium">{t.name}</span>
-                <span className="ml-2 font-mono text-sm opacity-60">/r/{t.slug}</span>
-              </div>
-              <span className="text-sm opacity-70">{t.status}</span>
+            <li key={t.id}>
+              <Link
+                href={`/r/${t.slug}/admin/staff`}
+                className="flex items-center justify-between rounded-lg border border-border px-4 py-3 transition-colors hover:border-foreground"
+              >
+                <div>
+                  <span className="font-medium">{t.name}</span>
+                  <span className="ml-2 font-mono text-sm opacity-60">/r/{t.slug}</span>
+                </div>
+                <span className="flex items-center gap-3 text-sm opacity-70">
+                  {t.status}
+                  <span aria-hidden>→</span>
+                </span>
+              </Link>
             </li>
           ))}
         </ul>
