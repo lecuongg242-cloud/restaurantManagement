@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Không lint repos tham khảo và tooling của Claude:
+    "_tmp/**",
+    ".claude/**",
   ]),
 ]);
 
