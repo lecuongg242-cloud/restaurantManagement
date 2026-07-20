@@ -49,11 +49,27 @@ export async function registerWithInvite(
   });
   if (createErr) {
     if (/already|registered|exists/i.test(createErr.message)) {
-      return {
-        error: "Email này đã có tài khoản — hãy dùng tab 'Đã có tài khoản'.",
-      };
+      // Có thể là user "mồ côi" do signUp cũ bị rate limit (tạo xong nhưng chưa
+      // xác nhận email). Lời mời chứng minh quyền với email này → đặt lại mật
+      // khẩu + xác nhận. User ĐÃ xác nhận thì không đụng — bắt dùng tab đăng nhập.
+      const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      const existing = list?.users.find((u) => u.email === cleanEmail);
+      if (existing && !existing.email_confirmed_at) {
+        const { error: fixErr } = await admin.auth.admin.updateUserById(
+          existing.id,
+          { password, email_confirm: true }
+        );
+        if (fixErr) {
+          return { error: "Không kích hoạt được tài khoản: " + fixErr.message };
+        }
+      } else {
+        return {
+          error: "Email này đã có tài khoản — hãy dùng tab 'Đã có tài khoản'.",
+        };
+      }
+    } else {
+      return { error: "Không tạo được tài khoản: " + createErr.message };
     }
-    return { error: "Không tạo được tài khoản: " + createErr.message };
   }
 
   // Đăng nhập bằng session người dùng rồi chấp nhận lời mời qua RPC (RLS thực thi)
