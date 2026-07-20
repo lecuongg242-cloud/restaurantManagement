@@ -1,5 +1,10 @@
 # Nhật ký thay đổi
 
+## 21/07/2026 (tiếp)
+- **XÁC NHẬN LÀM P2** → build xong cả 3 plan trên branch `dev`: 02-01 migration 0002 (6 bảng, CHECK giá, composite FK, RLS, RPC resolve_table_by_qr, view tenant_public_info, bucket menu-images 2MB/MIME) + admin menu + menu khách realtime; 02-02 khu vực/bàn + QR + trang in A4; 02-03 wizard onboarding 4 bước.
+- Mở rộng `scripts/test-rls.mjs` thêm ~30 assertions P2 (RLS 6 bảng, anon, RPC 1/0/0, composite FK, CHECK, storage bucket). Chạy trên DB dev: **P1 43/43 PASS** (không regression); mục P2 chờ áp migration 0002 — cần Chủ dự án `supabase login`/access token (chi tiết trong báo cáo).
+- Báo cáo vòng 1 → `40-KiemTra/BaoCao-P2-20260721.md`.
+
 ## 21/07/2026
 - **Chủ dự án XÁC NHẬN LƯU hồ sơ P2** (bản thiết kế chi tiết + danh sách cam kết 12 tiêu chí, sau vòng góp ý v0.2) → nâng lên v1.0, ĐÃ DUYỆT. Chờ "XÁC NHẬN LÀM" để bắt đầu build P2 (3 plan: 02-01 CRUD menu + trang menu khách; 02-02 khu vực/bàn + QR + in; 02-03 onboarding + đo nghiệm thu).
 
