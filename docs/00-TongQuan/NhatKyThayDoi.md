@@ -1,5 +1,10 @@
 # Nhật ký thay đổi
 
+## 20/07/2026 (đêm)
+- **XÁC NHẬN LÀM P1** → build xong cả 4 plan (commits `d0516bc` → `1d40124` trên branch `dev`): scaffold Next.js 16, schema + RLS + test suite, auth + mời/khóa, design system + style-guide.
+- QD-002: chốt design system (palette đỏ/vàng, font Be Vietnam Pro/Inter/JetBrains Mono).
+- Báo cáo vòng 1 → `40-KiemTra/BaoCao-P1-20260720.md`: 2/10 tiêu chí ĐẠT có bằng chứng, 8/10 chờ hạ tầng Supabase/Vercel/GitHub (việc của Chủ dự án).
+
 ## 20/07/2026 (tối — muộn)
 - **Chủ dự án XÁC NHẬN LƯU hồ sơ P1** (bản thiết kế chi tiết + danh sách cam kết, sau 4 điểm cập nhật) → nâng lên v1.0, ĐÃ DUYỆT. Chờ "XÁC NHẬN LÀM" để bắt đầu build.
 
