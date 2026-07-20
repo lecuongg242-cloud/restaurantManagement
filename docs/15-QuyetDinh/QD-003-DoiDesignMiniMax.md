@@ -18,6 +18,9 @@ Chủ dự án cung cấp DESIGN-minimax.md (phân tích design system minimax.i
 - **KDS dark** (tự định nghĩa vì hệ gốc thiếu): nền #0a0a0a, surface #181e25 (primary-soft), chữ trắng, hairline #333.
 - Hero display 80px chỉ dùng cho trang marketing sau này; app vận hành dùng từ heading-lg trở xuống.
 
+3b. ĐIỀU CHỈNH (20/07/2026, cùng ngày)
+Chủ dự án không muốn nút đen → primary CTA đổi sang **brand-blue #1456f0** (chữ trắng ~5.8:1, đạt AA), cả light lẫn KDS dark. Black-pill của hệ gốc không dùng; đen chỉ còn là màu chữ ink và nền KDS/footer.
+
 4. HỆ QUẢ DỰ KIẾN
 - Tích cực: giao diện premium, nhất quán, dễ đọc; token 3 lớp giữ nguyên nên chỉ đổi giá trị + bo góc.
 - Tiêu cực: bỏ palette đỏ/vàng "ngon miệng" của QD-002 → app khách bớt "màu ẩm thực"; bù bằng ảnh món chất lượng (Do của hệ: ảnh làm việc của màu). Style-guide và mọi UI P1 phải cập nhật đồng bộ.

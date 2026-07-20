@@ -37,7 +37,9 @@
   --background: var(--mm-white);
   --foreground: var(--mm-black);
   --surface: var(--mm-surface);
-  --primary: var(--mm-black);
+  /* Primary CTA: brand-blue thay black-pill của hệ gốc (yêu cầu Chủ dự án 20/07/2026).
+     Chữ trắng trên #1456f0 đạt ~5.8:1 (AA). */
+  --primary: var(--mm-blue);
   --on-primary: var(--mm-white);
   --accent: var(--mm-coral);
   --muted: var(--mm-steel);
@@ -73,8 +75,8 @@
   --background: var(--mm-black);
   --foreground: var(--mm-white);
   --surface: var(--mm-primary-soft);
-  --primary: var(--mm-white);
-  --on-primary: var(--mm-black);
+  --primary: var(--mm-blue);
+  --on-primary: var(--mm-white);
   --border: #333333;
   --border-soft: #2a2a2a;
   --muted: var(--mm-muted);

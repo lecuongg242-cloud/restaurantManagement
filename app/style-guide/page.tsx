@@ -1,5 +1,5 @@
 const SEMANTIC_COLORS = [
-  ["--primary", "Primary — nút pill đen, CTA chủ đạo"],
+  ["--primary", "Primary — nút pill brand-blue, CTA chủ đạo"],
   ["--background", "Canvas — nền trắng editorial"],
   ["--surface", "Surface — panel xám nhạt"],
   ["--foreground", "Ink — chữ chính (gần đen)"],
@@ -45,8 +45,8 @@ export default function StyleGuidePage() {
           Hệ thống nhà hàng
         </h1>
         <p className="mt-3 max-w-lg text-lg text-muted">
-          Style guide — ngôn ngữ MiniMax chuyển thể (QD-003). Canvas trắng, pill
-          đen, hairline, một typeface: Be Vietnam Pro.
+          Style guide — ngôn ngữ MiniMax chuyển thể (QD-003). Canvas trắng, nút
+          pill brand-blue, hairline, một typeface: Be Vietnam Pro.
         </p>
         <div className="mt-5 flex gap-3">
           <button className="min-h-11 cursor-pointer rounded-full bg-primary px-6 text-sm font-semibold text-on-primary transition-opacity duration-200 hover:opacity-85">
