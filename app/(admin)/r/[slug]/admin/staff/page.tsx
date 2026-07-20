@@ -56,18 +56,18 @@ export default async function StaffPage({
       </header>
 
       {err && (
-        <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {err}
         </p>
       )}
       {invited && (
-        <div className="rounded-lg bg-green-500/10 px-3 py-3 text-sm">
+        <div className="rounded-lg bg-success-bg px-3 py-3 text-sm">
           <p className="mb-2 font-medium">Gửi link này cho {email}:</p>
           <CopyLink path={`/invite/${invited}`} />
         </div>
       )}
 
-      <section className="rounded-xl border border-foreground/15 p-4">
+      <section className="rounded-2xl border border-border p-4">
         <h2 className="mb-3 font-semibold">Mời nhân viên</h2>
         <form action={inviteStaff} className="flex flex-col gap-3 sm:flex-row">
           <input type="hidden" name="slug" value={slug} />
@@ -76,13 +76,13 @@ export default async function StaffPage({
             type="email"
             required
             placeholder="Email nhân viên"
-            className="min-h-11 flex-1 rounded-lg border border-foreground/20 bg-transparent px-3 text-base outline-none focus:border-foreground/60"
+            className="min-h-11 flex-1 rounded-lg border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
           />
           <select
             name="role"
             required
             defaultValue="waiter"
-            className="min-h-11 rounded-lg border border-foreground/20 bg-transparent px-3 text-base outline-none"
+            className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 text-base outline-none"
           >
             {Object.entries(ROLE_LABELS)
               .filter(([r]) => r !== "owner")
@@ -92,7 +92,7 @@ export default async function StaffPage({
                 </option>
               ))}
           </select>
-          <button className="min-h-11 rounded-lg bg-foreground px-4 font-medium text-background">
+          <button className="min-h-11 cursor-pointer rounded-full bg-primary px-4 font-medium text-on-primary">
             Gửi lời mời
           </button>
         </form>
@@ -105,7 +105,7 @@ export default async function StaffPage({
             {invites!.map((inv) => (
               <li
                 key={inv.id}
-                className="flex flex-col gap-2 rounded-lg border border-foreground/15 px-4 py-3"
+                className="flex flex-col gap-2 rounded-lg border border-border px-4 py-3"
               >
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -117,7 +117,7 @@ export default async function StaffPage({
                   <form action={revokeInvite}>
                     <input type="hidden" name="slug" value={slug} />
                     <input type="hidden" name="id" value={inv.id} />
-                    <button className="min-h-9 rounded-md border border-red-500/40 px-3 text-sm text-red-600">
+                    <button className="min-h-9 cursor-pointer rounded-full border border-destructive/40 px-3 text-sm text-destructive">
                       Thu hồi
                     </button>
                   </form>
@@ -142,8 +142,8 @@ export default async function StaffPage({
                 key={m.user_id}
                 className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
                   disabled
-                    ? "border-red-500/30 opacity-60"
-                    : "border-foreground/15"
+                    ? "border-destructive/30 opacity-60"
+                    : "border-border"
                 }`}
               >
                 <div>
@@ -165,10 +165,10 @@ export default async function StaffPage({
                       value={disabled ? "active" : "disabled"}
                     />
                     <button
-                      className={`min-h-9 rounded-md border px-3 text-sm ${
+                      className={`min-h-9 cursor-pointer rounded-full border px-3 text-sm ${
                         disabled
-                          ? "border-green-600/40 text-green-700"
-                          : "border-red-500/40 text-red-600"
+                          ? "border-success/40 text-success"
+                          : "border-destructive/40 text-destructive"
                       }`}
                     >
                       {disabled ? "Mở khóa" : "Khóa"}

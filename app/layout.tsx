@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Be_Vietnam_Pro } from "next/font/google";
+import { JetBrains_Mono, Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 
-const fontSans = Inter({
-  variable: "--font-inter",
-  subsets: ["latin", "vietnamese"],
-});
-
-const fontHeading = Be_Vietnam_Pro({
+// Một typeface duy nhất (QD-003): Be Vietnam Pro thay DM Sans của hệ gốc
+// vì DM Sans không có subset vietnamese.
+const fontSans = Be_Vietnam_Pro({
   variable: "--font-be-vietnam",
-  weight: ["500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin", "vietnamese"],
 });
 
@@ -32,7 +29,7 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${fontSans.variable} ${fontHeading.variable} ${fontMono.variable} h-full antialiased`}
+      className={`${fontSans.variable} ${fontMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

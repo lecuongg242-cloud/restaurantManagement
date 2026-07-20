@@ -52,7 +52,7 @@ export default async function ChoosePage({
       <div className="w-full max-w-sm">
         <h1 className="mb-4 text-center text-2xl font-bold">Chọn nơi làm việc</h1>
         {err && (
-          <p role="alert" className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">
+          <p role="alert" className="mb-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {ERR_MESSAGES[err] ?? "Không truy cập được."}
           </p>
         )}
@@ -61,7 +61,7 @@ export default async function ChoosePage({
             <li>
               <Link
                 href="/super"
-                className="block rounded-lg border border-foreground/20 px-4 py-3 font-medium hover:border-foreground/60"
+                className="block rounded-lg border border-border px-4 py-3 font-medium hover:border-foreground"
               >
                 Quản trị SaaS (super-admin)
               </Link>
@@ -73,7 +73,7 @@ export default async function ChoosePage({
               <li key={tenant.slug}>
                 <Link
                   href={homeFor(m.role, tenant.slug)}
-                  className="block rounded-lg border border-foreground/20 px-4 py-3 hover:border-foreground/60"
+                  className="block rounded-lg border border-border px-4 py-3 hover:border-foreground"
                 >
                   <span className="font-medium">{tenant.name}</span>
                   <span className="ml-2 text-sm opacity-60">({m.role})</span>
@@ -82,7 +82,7 @@ export default async function ChoosePage({
             );
           })}
           {!isSuper && active.length === 0 && (
-            <li className="rounded-lg border border-dashed border-foreground/30 px-4 py-3 text-sm opacity-70">
+            <li className="rounded-lg border border-dashed border-border px-4 py-3 text-sm opacity-70">
               Bạn chưa thuộc nhà hàng nào. Hãy nhờ quản lý gửi lời mời.
             </li>
           )}

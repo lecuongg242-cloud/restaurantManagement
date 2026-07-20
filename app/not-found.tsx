@@ -10,7 +10,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/"
-        className="rounded-lg bg-foreground px-5 py-2.5 font-medium text-background"
+        className="rounded-full bg-primary px-6 py-2.5 font-medium text-on-primary"
       >
         Về trang chủ
       </Link>

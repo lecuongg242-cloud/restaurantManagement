@@ -10,7 +10,7 @@ export function CopyLink({ path }: { path: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <code className="flex-1 overflow-x-auto rounded-md bg-foreground/5 px-2 py-1.5 text-xs">
+      <code className="flex-1 overflow-x-auto rounded-md bg-primary/5 px-2 py-1.5 text-xs">
         {url}
       </code>
       <button
@@ -20,7 +20,7 @@ export function CopyLink({ path }: { path: string }) {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
         }}
-        className="min-h-9 shrink-0 rounded-md border border-foreground/20 px-3 text-sm font-medium"
+        className="min-h-9 shrink-0 cursor-pointer rounded-full border border-border px-3 text-sm font-medium"
       >
         {copied ? "Đã copy ✓" : "Copy"}
       </button>

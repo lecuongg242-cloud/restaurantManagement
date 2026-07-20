@@ -27,12 +27,12 @@ export default async function SuperAdminPage({
       </header>
 
       {err && (
-        <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {err}
         </p>
       )}
       {invited && (
-        <div className="rounded-lg bg-green-500/10 px-3 py-3 text-sm">
+        <div className="rounded-lg bg-success-bg px-3 py-3 text-sm">
           <p className="mb-2 font-medium">
             Đã tạo nhà hàng. Gửi link này cho {email}:
           </p>
@@ -40,30 +40,30 @@ export default async function SuperAdminPage({
         </div>
       )}
 
-      <section className="rounded-xl border border-foreground/15 p-4">
+      <section className="rounded-2xl border border-border p-4">
         <h2 className="mb-3 font-semibold">Tạo nhà hàng mới</h2>
         <form action={createTenant} className="flex flex-col gap-3">
           <input
             name="name"
             required
             placeholder="Tên nhà hàng (VD: Phở Bà Ba)"
-            className="min-h-11 rounded-lg border border-foreground/20 bg-transparent px-3 text-base outline-none focus:border-foreground/60"
+            className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
           />
           <input
             name="slug"
             required
             pattern="[a-z0-9][a-z0-9-]{1,48}[a-z0-9]"
             placeholder="slug (VD: pho-ba-ba)"
-            className="min-h-11 rounded-lg border border-foreground/20 bg-transparent px-3 font-mono text-base outline-none focus:border-foreground/60"
+            className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 font-mono text-base outline-none focus:border-ring"
           />
           <input
             name="owner_email"
             type="email"
             required
             placeholder="Email chủ nhà hàng"
-            className="min-h-11 rounded-lg border border-foreground/20 bg-transparent px-3 text-base outline-none focus:border-foreground/60"
+            className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
           />
-          <button className="min-h-11 rounded-lg bg-foreground font-medium text-background">
+          <button className="min-h-11 cursor-pointer rounded-full bg-primary font-medium text-on-primary">
             Tạo và gửi lời mời owner
           </button>
         </form>
@@ -77,7 +77,7 @@ export default async function SuperAdminPage({
           {(tenants ?? []).map((t) => (
             <li
               key={t.id}
-              className="flex items-center justify-between rounded-lg border border-foreground/15 px-4 py-3"
+              className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
             >
               <div>
                 <span className="font-medium">{t.name}</span>

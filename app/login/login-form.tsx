@@ -46,7 +46,7 @@ export function LoginForm() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="min-h-11 rounded-lg border border-foreground/20 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground/60"
+          className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -57,18 +57,18 @@ export function LoginForm() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="min-h-11 rounded-lg border border-foreground/20 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground/60"
+          className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
         />
       </label>
       {error && (
-        <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
       <button
         type="submit"
         disabled={loading}
-        className="min-h-11 rounded-lg bg-foreground font-medium text-background disabled:opacity-60"
+        className="min-h-11 cursor-pointer rounded-full bg-primary font-medium text-on-primary disabled:opacity-60"
       >
         {loading ? "Đang đăng nhập..." : "Đăng nhập"}
       </button>

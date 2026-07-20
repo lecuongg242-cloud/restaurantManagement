@@ -11,13 +11,13 @@ export default function HomePage() {
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Link
           href="/login"
-          className="rounded-lg bg-foreground px-5 py-2.5 font-medium text-background"
+          className="rounded-full bg-primary px-6 py-2.5 font-medium text-on-primary"
         >
           Đăng nhập nhân viên
         </Link>
         <Link
           href="/style-guide"
-          className="rounded-lg border border-foreground/20 px-5 py-2.5 font-medium"
+          className="rounded-full border border-foreground px-6 py-2.5 font-medium"
         >
           Style guide
         </Link>

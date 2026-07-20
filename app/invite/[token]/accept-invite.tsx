@@ -78,7 +78,7 @@ export function AcceptInvite({ token }: { token: string }) {
           Đang đăng nhập: <span className="font-medium">{loggedInEmail}</span>
         </p>
         {error && (
-          <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">
+          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
           </p>
         )}
@@ -87,7 +87,7 @@ export function AcceptInvite({ token }: { token: string }) {
             setError(null);
             accept();
           }}
-          className="min-h-11 rounded-lg bg-foreground font-medium text-background"
+          className="min-h-11 cursor-pointer rounded-full bg-primary font-medium text-on-primary"
         >
           Chấp nhận lời mời
         </button>
@@ -106,14 +106,14 @@ export function AcceptInvite({ token }: { token: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-2 rounded-lg border border-foreground/20 p-1 text-sm font-medium">
+      <div className="grid grid-cols-2 gap-2 rounded-full border border-border p-1 text-sm font-medium">
         {(["login", "register"] as const).map((m) => (
           <button
             key={m}
             type="button"
             onClick={() => setMode(m)}
-            className={`min-h-9 rounded-md ${
-              mode === m ? "bg-foreground text-background" : "opacity-70"
+            className={`min-h-9 cursor-pointer rounded-full ${
+              mode === m ? "bg-primary text-on-primary" : "opacity-70"
             }`}
           >
             {m === "login" ? "Đã có tài khoản" : "Tạo tài khoản mới"}
@@ -127,7 +127,7 @@ export function AcceptInvite({ token }: { token: string }) {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="min-h-11 rounded-lg border border-foreground/20 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground/60"
+          className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -139,18 +139,18 @@ export function AcceptInvite({ token }: { token: string }) {
           autoComplete={mode === "login" ? "current-password" : "new-password"}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="min-h-11 rounded-lg border border-foreground/20 bg-transparent px-3 py-2 text-base outline-none focus:border-foreground/60"
+          className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
         />
       </label>
       {error && (
-        <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">
+        <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
       <button
         type="submit"
         disabled={loading}
-        className="min-h-11 rounded-lg bg-foreground font-medium text-background disabled:opacity-60"
+        className="min-h-11 cursor-pointer rounded-full bg-primary font-medium text-on-primary disabled:opacity-60"
       >
         {loading ? "Đang xử lý..." : "Tiếp tục và chấp nhận lời mời"}
       </button>
