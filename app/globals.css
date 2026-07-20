@@ -1,26 +1,99 @@
 @import "tailwindcss";
 
+/* =====================================================================
+   DESIGN TOKENS — 3 lớp (QD-002)
+   Lớp 1: primitive (--red-*, --gold-*...) — không dùng trực tiếp trong UI
+   Lớp 2: semantic (--background, --primary...) — UI dùng lớp này
+   Lớp 3: component nhẹ (--btn-*, --card-*) — khi component cần riêng
+   ===================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* --- Lớp 1: primitive --- */
+  --red-600: #dc2626;
+  --red-400: #f87171;
+  --red-50: #fef2f2;
+  --red-950: #450a0a;
+  --red-200: #fecaca;
+  --gold-700: #a16207;
+  --neutral-0: #ffffff;
+  --neutral-50: #fafafa;
+  --neutral-200: #e5e5e5;
+  --neutral-600: #525252;
+  --neutral-900: #171717;
+  --neutral-950: #0a0a0a;
+  --green-600: #16a34a;
+  --amber-500: #f59e0b;
+
+  /* --- Lớp 2: semantic (mặc định = khu khách, ấm) --- */
+  --background: var(--red-50);
+  --foreground: var(--red-950);
+  --surface: var(--neutral-0);
+  --primary: var(--red-600);
+  --on-primary: var(--neutral-0);
+  --secondary: var(--red-400);
+  --accent: var(--gold-700);
+  --muted: var(--neutral-600);
+  --border: var(--red-200);
+  --destructive: var(--red-600);
+  --success: var(--green-600);
+  --warning: var(--amber-500);
+  --ring: var(--red-600);
+
+  /* --- Lớp 3: component --- */
+  --btn-radius: 0.5rem;
+  --card-radius: 0.75rem;
+  --touch-target: 2.75rem; /* 44px — tiêu chí ORDER-05 */
+}
+
+/* Khu staff (POS/admin): nền trung tính, đọc nhanh, đỡ mỏi mắt */
+[data-surface="staff"] {
+  --background: var(--neutral-50);
+  --foreground: var(--neutral-900);
+  --border: var(--neutral-200);
+}
+
+/* KDS: dark mode mặc định cho môi trường bếp */
+[data-surface="kds"] {
+  --background: var(--neutral-950);
+  --foreground: var(--neutral-50);
+  --surface: var(--neutral-900);
+  --border: #333333;
+  --muted: #a3a3a3;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-ring: var(--ring);
   --font-sans: var(--font-inter);
+  --font-heading: var(--font-be-vietnam);
   --font-mono: var(--font-jetbrains);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-be-vietnam), var(--font-inter), system-ui, sans-serif;
+}
+
+/* Tôn trọng người dùng giảm chuyển động */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

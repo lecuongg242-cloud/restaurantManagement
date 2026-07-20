@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { hasSupabaseEnv } from "@/lib/env";
+import { SetupNotice } from "@/components/setup-notice";
 
 export default async function AdminPage({
   params,
@@ -7,6 +9,7 @@ export default async function AdminPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  if (!hasSupabaseEnv()) return <SetupNotice />;
   const supabase = await createClient();
   const { data: tenant } = await supabase
     .from("tenants")

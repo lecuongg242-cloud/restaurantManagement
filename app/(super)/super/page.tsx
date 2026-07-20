@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { hasSupabaseEnv } from "@/lib/env";
+import { SetupNotice } from "@/components/setup-notice";
 import { createTenant } from "./actions";
 import { CopyLink } from "@/components/copy-link";
 
@@ -8,6 +10,7 @@ export default async function SuperAdminPage({
   searchParams: Promise<{ invited?: string; email?: string; err?: string }>;
 }) {
   const { invited, email, err } = await searchParams;
+  if (!hasSupabaseEnv()) return <SetupNotice />;
   const supabase = await createClient();
   const { data: tenants } = await supabase
     .from("tenants")

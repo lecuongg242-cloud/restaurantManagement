@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 
 const fontSans = Inter({
   variable: "--font-inter",
+  subsets: ["latin", "vietnamese"],
+});
+
+const fontHeading = Be_Vietnam_Pro({
+  variable: "--font-be-vietnam",
+  weight: ["500", "600", "700"],
   subsets: ["latin", "vietnamese"],
 });
 
@@ -26,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${fontSans.variable} ${fontMono.variable} h-full antialiased`}
+      className={`${fontSans.variable} ${fontHeading.variable} ${fontMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

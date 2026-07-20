@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { hasSupabaseEnv } from "@/lib/env";
+import { SetupNotice } from "@/components/setup-notice";
 
 const ERR_MESSAGES: Record<string, string> = {
   forbidden: "Vai trò của bạn không được vào khu vực đó.",
@@ -21,6 +23,7 @@ export default async function ChoosePage({
   searchParams: Promise<{ err?: string }>;
 }) {
   const { err } = await searchParams;
+  if (!hasSupabaseEnv()) return <SetupNotice />;
   const supabase = await createClient();
   const {
     data: { user },

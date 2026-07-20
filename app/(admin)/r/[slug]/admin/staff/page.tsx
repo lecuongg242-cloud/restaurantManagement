@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { hasSupabaseEnv } from "@/lib/env";
+import { SetupNotice } from "@/components/setup-notice";
 import { CopyLink } from "@/components/copy-link";
 import { inviteStaff, revokeInvite, setMembershipStatus } from "./actions";
 
@@ -19,6 +21,7 @@ export default async function StaffPage({
 }) {
   const { slug } = await params;
   const { invited, email, err } = await searchParams;
+  if (!hasSupabaseEnv()) return <SetupNotice />;
   const supabase = await createClient();
 
   const { data: tenant } = await supabase
