@@ -46,7 +46,7 @@ export function LoginForm() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
+          className="min-h-11 rounded-lg border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -57,7 +57,7 @@ export function LoginForm() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
+          className="min-h-11 rounded-lg border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
         />
       </label>
       {error && (

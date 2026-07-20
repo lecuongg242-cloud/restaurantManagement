@@ -47,21 +47,21 @@ export default async function SuperAdminPage({
             name="name"
             required
             placeholder="Tên nhà hàng (VD: Phở Bà Ba)"
-            className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
+            className="min-h-11 rounded-lg border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
           />
           <input
             name="slug"
             required
             pattern="[a-z0-9][a-z0-9-]{1,48}[a-z0-9]"
             placeholder="slug (VD: pho-ba-ba)"
-            className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 font-mono text-base outline-none focus:border-ring"
+            className="min-h-11 rounded-lg border border-border bg-transparent px-3 font-mono text-base outline-none focus:border-ring"
           />
           <input
             name="owner_email"
             type="email"
             required
             placeholder="Email chủ nhà hàng"
-            className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
+            className="min-h-11 rounded-lg border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
           />
           <button className="min-h-11 cursor-pointer rounded-full bg-primary font-medium text-on-primary">
             Tạo và gửi lời mời owner

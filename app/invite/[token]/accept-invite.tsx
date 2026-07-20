@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { registerWithInvite } from "./actions";
 
 const ERR_MAP: Record<string, string> = {
   INVITE_INVALID: "Lời mời không tồn tại hoặc đã bị thu hồi.",
@@ -52,19 +53,26 @@ export function AcceptInvite({ token }: { token: string }) {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    if (mode === "register") {
+      // Server action: token là bằng chứng xác thực → tạo tài khoản trực tiếp,
+      // không gửi email xác nhận (tránh rate limit SMTP), rồi tự accept + redirect.
+      const result = await registerWithInvite(token, email, password);
+      if (result?.error) {
+        setError(result.error);
+        setLoading(false);
+      }
+      return;
+    }
+
     const supabase = createClient();
-    const cred = { email: email.trim().toLowerCase(), password };
-    const { error } =
-      mode === "login"
-        ? await supabase.auth.signInWithPassword(cred)
-        : await supabase.auth.signUp(cred);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
     if (error) {
       setLoading(false);
-      setError(
-        mode === "login"
-          ? "Email hoặc mật khẩu không đúng."
-          : "Không tạo được tài khoản: " + error.message
-      );
+      setError("Email hoặc mật khẩu không đúng.");
       return;
     }
     await accept();
@@ -127,7 +135,7 @@ export function AcceptInvite({ token }: { token: string }) {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
+          className="min-h-11 rounded-lg border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
         />
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium">
@@ -139,7 +147,7 @@ export function AcceptInvite({ token }: { token: string }) {
           autoComplete={mode === "login" ? "current-password" : "new-password"}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
+          className="min-h-11 rounded-lg border border-border bg-transparent px-3 py-2 text-base outline-none focus:border-ring"
         />
       </label>
       {error && (

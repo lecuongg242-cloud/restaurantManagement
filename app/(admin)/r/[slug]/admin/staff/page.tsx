@@ -82,7 +82,7 @@ export default async function StaffPage({
             name="role"
             required
             defaultValue="waiter"
-            className="min-h-11 cursor-pointer rounded-full border border-border bg-transparent px-3 text-base outline-none"
+            className="min-h-11 rounded-lg border border-border bg-transparent px-3 text-base outline-none"
           >
             {Object.entries(ROLE_LABELS)
               .filter(([r]) => r !== "owner")
