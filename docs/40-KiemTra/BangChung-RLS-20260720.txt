@@ -1,0 +1,60 @@
+
+> restaurant-system@0.1.0 test:rls
+> node scripts/test-rls.mjs
+
+== Seed dữ liệu test ==
+
+== 1. Ma trận cách ly tenant (5 vai trò tenant A vs tenant B) ==
+  ✓ aOwner: thấy tenant A
+  ✓ aOwner: KHÔNG thấy tenant B
+  ✓ aOwner: KHÔNG đọc được memberships tenant B
+  ✓ aOwner: KHÔNG ghi được membership vào tenant B
+  ✓ aOwner: KHÔNG tạo được lời mời cho tenant B
+  ✓ aOwner: KHÔNG sửa được tenant B
+  ✓ aManager: thấy tenant A
+  ✓ aManager: KHÔNG thấy tenant B
+  ✓ aManager: KHÔNG đọc được memberships tenant B
+  ✓ aManager: KHÔNG ghi được membership vào tenant B
+  ✓ aManager: KHÔNG tạo được lời mời cho tenant B
+  ✓ aManager: KHÔNG sửa được tenant B
+  ✓ aCashier: thấy tenant A
+  ✓ aCashier: KHÔNG thấy tenant B
+  ✓ aCashier: KHÔNG đọc được memberships tenant B
+  ✓ aCashier: KHÔNG ghi được membership vào tenant B
+  ✓ aCashier: KHÔNG tạo được lời mời cho tenant B
+  ✓ aCashier: KHÔNG sửa được tenant B
+  ✓ aWaiter: thấy tenant A
+  ✓ aWaiter: KHÔNG thấy tenant B
+  ✓ aWaiter: KHÔNG đọc được memberships tenant B
+  ✓ aWaiter: KHÔNG ghi được membership vào tenant B
+  ✓ aWaiter: KHÔNG tạo được lời mời cho tenant B
+  ✓ aWaiter: KHÔNG sửa được tenant B
+  ✓ aKitchen: thấy tenant A
+  ✓ aKitchen: KHÔNG thấy tenant B
+  ✓ aKitchen: KHÔNG đọc được memberships tenant B
+  ✓ aKitchen: KHÔNG ghi được membership vào tenant B
+  ✓ aKitchen: KHÔNG tạo được lời mời cho tenant B
+  ✓ aKitchen: KHÔNG sửa được tenant B
+
+== 2. Super-admin ==
+  ✓ super: thấy cả 2 tenant
+  ✓ super: tạo được tenant
+  ✓ owner thường: KHÔNG tạo được tenant
+
+== 3. Luồng mời (tenant_invitations) ==
+  ✓ owner A: tạo được lời mời
+  ✓ sai email: KHÔNG chấp nhận được lời mời
+  ✓ người được mời (trước khi chấp nhận): chưa thấy tenant A
+  ✓ đúng email: chấp nhận lời mời thành công
+  ✓ lời mời đã dùng: KHÔNG dùng lại được
+  ✓ sau khi chấp nhận: thấy tenant A
+  ✓ lời mời hết hạn: bị từ chối
+
+== 4. Khóa nhân viên (2 tầng, đúng tenant) ==
+  ✓ waiter A (trước khi khóa): thấy tenant A
+  ✓ waiter A (sau khi khóa, session cũ): RLS trả 0 dòng
+  ✓ cùng user, tenant B vẫn active: thấy tenant B
+
+== Dọn dữ liệu test ==
+
+KẾT QUẢ: 43 PASS / 0 FAIL

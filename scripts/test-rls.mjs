@@ -169,7 +169,8 @@ async function main() {
     const { data: expired } = await admin.from("tenant_invitations")
       .insert({
         tenant_id: tA.id, email: EMAILS.invitee, role: "waiter",
-        invited_by: ids.aOwner, expires_at: new Date(Date.now() - 1000).toISOString(),
+        // Lùi hẳn 1 giờ để miễn nhiễm lệch đồng hồ client/DB
+        invited_by: ids.aOwner, expires_at: new Date(Date.now() - 3600_000).toISOString(),
       }).select().single();
     const invitee = await signIn(EMAILS.invitee);
     const { error } = await invitee.rpc("accept_invitation", { p_token: expired.token });
