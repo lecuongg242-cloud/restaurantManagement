@@ -1,5 +1,11 @@
 # Nhật ký thay đổi
 
+## 20/07/2026 (tối — muộn)
+- **Chủ dự án XÁC NHẬN LƯU hồ sơ P1** (bản thiết kế chi tiết + danh sách cam kết, sau 4 điểm cập nhật) → nâng lên v1.0, ĐÃ DUYỆT. Chờ "XÁC NHẬN LÀM" để bắt đầu build.
+
+## 20/07/2026 (tối)
+- Cập nhật hồ sơ P1 theo 4 góp ý của Chủ dự án: (1) ma trận phân quyền kiểm thử 6 tài khoản (super-admin + 5 vai trò); (2) thêm bảng + luồng `tenant_invitations`, chỉ tạo membership khi chấp nhận hợp lệ; (3) làm rõ khóa nhân viên chặn 2 tầng middleware + RLS ngay request kế tiếp, chỉ tenant tương ứng; (4) thêm quy định cấm sửa DB production thủ công và cấm tắt/bỏ qua RLS. Đồng bộ AUTH-03 trong 00-Requirements.md.
+
 ## 20/07/2026 (chiều)
 - **Chủ dự án XÁC NHẬN LƯU bản thiết kế tổng quát** → nâng lên v1.0, trạng thái ĐÃ DUYỆT.
 - Sinh spec chi tiết: `20-DanhSachYeuCau/00-Requirements.md` (41 yêu cầu V1, traceability 6 giai đoạn), `00-TongQuan/Roadmap.md` (P1–P6 + tiêu chí thành công từng giai đoạn).

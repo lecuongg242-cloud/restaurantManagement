@@ -1,7 +1,7 @@
 # BẢN THIẾT KẾ CHI TIẾT — P1: Nền tảng
 
-> **Trạng thái: BẢN NHÁP** — chờ Chủ dự án "XÁC NHẬN LƯU" trước khi build.
-> Phiên bản: 0.1 — 20/07/2026 · Yêu cầu phủ: TENANT-01, TENANT-02, AUTH-01..04, OPS-01, OPS-02
+> **Trạng thái: ĐÃ DUYỆT** — Chủ dự án "XÁC NHẬN LƯU" ngày 20/07/2026 (sau 4 điểm cập nhật).
+> Phiên bản: 1.0 — 20/07/2026 · Yêu cầu phủ: TENANT-01, TENANT-02, AUTH-01..04, OPS-01, OPS-02
 
 ## Mục đích
 Dựng khung dự án chạy trên 3 môi trường, với đăng nhập/phân quyền và cách ly dữ liệu tenant được chứng minh bằng test — nền móng cho mọi giai đoạn sau.
@@ -29,7 +29,8 @@ restaurant-system/
 
 - `tenants(id, slug unique, name, logo_url, status, created_at)`
 - `profiles(id = auth.users.id, full_name, phone)`
-- `memberships(tenant_id, user_id, role, status)` — role ∈ {owner, manager, cashier, waiter, kitchen}; 1 user có thể thuộc nhiều tenant
+- `memberships(tenant_id, user_id, role, status)` — role ∈ {owner, manager, cashier, waiter, kitchen}; status ∈ {active, disabled}; 1 user có thể thuộc nhiều tenant
+- `tenant_invitations(id, tenant_id, email, role, token unique, status, expires_at, invited_by, created_at)` — status ∈ {pending, accepted, expired, revoked}; lời mời hết hạn sau 7 ngày
 - `super_admins(user_id)` — danh sách chủ SaaS
 - Hàm SQL `current_tenant_ids()` + `has_role(tenant_id, roles[])` dùng trong mọi policy
 
@@ -46,8 +47,16 @@ restaurant-system/
   - `/r/[slug]/admin/*` → owner, manager
   - `/r/[slug]/pos/*` → cashier, waiter, manager, owner
   - `/r/[slug]/kds/*` → kitchen, manager, owner
-- Owner mời nhân viên: tạo membership + gửi magic-link; khóa = `memberships.status = 'disabled'` (middleware + RLS cùng chặn)
-- Màn hình: đăng nhập, chọn tenant (nếu thuộc nhiều), danh sách nhân viên (mời/khóa), trang tạo tenant của super-admin
+- **Luồng mời nhân viên (qua `tenant_invitations`, KHÔNG tạo membership trực tiếp)**:
+  1. Owner/manager nhập email + vai trò → tạo bản ghi `tenant_invitations` (pending) + gửi link chứa token
+  2. Người được mời mở link → đăng ký hoặc đăng nhập bằng đúng email được mời
+  3. Hệ thống xác thực token còn hạn + đúng email → **khi đó mới tạo `memberships`** (active) và chuyển invitation sang accepted
+  4. Lời mời hết hạn/đã thu hồi → trang báo lỗi rõ ràng, không tạo membership; owner thu hồi được lời mời pending
+- **Khóa nhân viên**: đặt `memberships.status = 'disabled'` → có hiệu lực **ngay từ request tiếp theo** trên cả 2 tầng:
+  - *Middleware*: mỗi request kiểm membership của tenant đang truy cập; disabled → chặn route, đẩy về trang đăng nhập kèm thông báo
+  - *RLS*: mọi policy đều điều kiện `status = 'active'` → kể cả gọi API trực tiếp (bỏ qua UI) cũng không đọc/ghi được dữ liệu tenant đó
+  - Chỉ chặn đúng tenant bị khóa; membership active ở tenant khác của cùng user không bị ảnh hưởng
+- Màn hình: đăng nhập, chọn tenant (nếu thuộc nhiều), danh sách nhân viên (mời/thu hồi lời mời/khóa), trang chấp nhận lời mời, trang tạo tenant của super-admin
 
 ## 4. Ba môi trường & pipeline (OPS-01)
 
@@ -60,6 +69,10 @@ restaurant-system/
 
 - Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server-only) — đặt trong Vercel env theo môi trường + `.env.local`; có `.env.example` không chứa giá trị thật (OPS-02)
 - GitHub Actions: lint + typecheck + test RLS trên mọi PR; migration tự chạy theo branch
+
+**Quy định bất di bất dịch về database:**
+- **KHÔNG sửa database production thủ công** (SQL editor, dashboard, script ad-hoc). Mọi thay đổi schema/dữ liệu hệ thống đi qua migration → PR → pipeline. Trường hợp khẩn cấp phải lập Quyết định (QD-00X) ghi rõ lý do + lệnh đã chạy, và bổ sung migration tương ứng ngay sau đó.
+- **KHÔNG tắt/bỏ qua RLS** dưới mọi hình thức: không `disable row level security`, không tạo policy `USING (true)` cho bảng nghiệp vụ, không dùng service-role key để lách RLS trong luồng nghiệp vụ. Service-role chỉ dùng cho tác vụ hệ thống server-side có kiểm soát (migration, seed, job) và phải ghi chú rõ tại chỗ dùng.
 
 ## 5. Design system (nền cho toàn bộ UI)
 
@@ -76,6 +89,9 @@ restaurant-system/
 
 ## 7. Kiểm tra & bằng chứng
 
-- Test RLS tự động: với 2 tenant + 6 user mẫu, chạy ma trận truy vấn chéo → 0 truy cập trái phép
-- Video/ảnh: đăng nhập từng vai trò thấy đúng màn hình; tạo tenant từ super-admin
+- Test RLS tự động: với 2 tenant + bộ user mẫu, chạy ma trận truy vấn chéo → 0 truy cập trái phép
+- Ma trận phân quyền **6 tài khoản**: super-admin + 5 vai trò tenant (owner, manager, cashier, waiter, kitchen) × 4 khu vực (super/admin/pos/kds) — đúng 100%
+- Test luồng mời: lời mời pending → chấp nhận → có membership; lời mời hết hạn/thu hồi → không tạo membership
+- Test khóa: user đang đăng nhập bị khóa → request kế tiếp bị chặn ở cả middleware (route) lẫn RLS (API trực tiếp)
+- Video/ảnh: đăng nhập từng vai trò thấy đúng màn hình; tạo tenant từ super-admin; luồng mời nhân viên đầy đủ
 - Log CI xanh trên cả `dev` và `main`

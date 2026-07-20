@@ -16,7 +16,7 @@
 
 - [ ] **AUTH-01**: Nhân viên đăng nhập bằng email + mật khẩu (Supabase Auth); phiên giữ sau khi refresh
 - [ ] **AUTH-02**: 5 vai trò: owner, manager, cashier, waiter, kitchen — mỗi vai trò chỉ thấy đúng màn hình của mình
-- [ ] **AUTH-03**: Owner mời/khóa tài khoản nhân viên; nhân viên bị khóa mất truy cập ngay
+- [ ] **AUTH-03**: Owner mời nhân viên qua luồng lời mời (`tenant_invitations`, hết hạn 7 ngày, chấp nhận hợp lệ mới có membership); khóa nhân viên có hiệu lực ngay từ request tiếp theo (middleware + RLS, chỉ tenant tương ứng)
 - [ ] **AUTH-04**: Khách KHÔNG cần đăng nhập (QR gọi món, đặt bàn, đặt món online)
 
 ### MENU — Thực đơn
