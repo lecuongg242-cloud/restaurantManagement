@@ -1,0 +1,6 @@
+_tmp/
+node_modules/
+.env*
+!.env.example
+.vercel/
+.next/
