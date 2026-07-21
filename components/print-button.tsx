@@ -6,7 +6,7 @@ export function PrintButton({ className }: { className?: string }) {
       onClick={() => window.print()}
       className={
         className ??
-        "min-h-11 cursor-pointer rounded-full bg-primary px-5 font-medium text-on-primary"
+        "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-on-primary transition-opacity duration-200 hover:opacity-85"
       }
     >
       In / Lưu PDF

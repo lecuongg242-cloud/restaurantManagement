@@ -4,6 +4,34 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasSupabaseEnv } from "@/lib/env";
 import { SetupNotice } from "@/components/setup-notice";
+import { eyebrow } from "@/lib/ui";
+
+const SECTIONS = [
+  {
+    href: "menu",
+    title: "Menu",
+    desc: "Danh mục, món, giá, ảnh, hết món",
+    dot: "bg-id-customer",
+  },
+  {
+    href: "tables",
+    title: "Khu vực & bàn",
+    desc: "Sơ đồ khu vực, bàn, in mã QR",
+    dot: "bg-id-pos",
+  },
+  {
+    href: "staff",
+    title: "Nhân viên",
+    desc: "Mời, phân vai trò, khóa tài khoản",
+    dot: "bg-id-admin",
+  },
+  {
+    href: "onboarding",
+    title: "Thiết lập nhà hàng",
+    desc: "Wizard 4 bước cho nhà hàng mới",
+    dot: "bg-id-online",
+  },
+] as const;
 
 export default async function AdminPage({
   params,
@@ -40,40 +68,43 @@ export default async function AdminPage({
     }
   }
 
-  const card =
-    "rounded-card border border-border p-4 hover:border-foreground";
-
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-6">
-      <header>
-        <h1 className="text-2xl font-bold">
-          Quản trị — {tenant?.name ?? slug}
+      <header className="pt-2">
+        <p className={eyebrow}>
+          <span className="h-2 w-2 rounded-full bg-id-admin" />
+          Quản trị
+        </p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">
+          {tenant?.name ?? slug}
         </h1>
-        <p className="text-sm opacity-70">Dành cho chủ nhà hàng và quản lý.</p>
+        <p className="mt-1 text-sm text-muted">
+          Dành cho chủ nhà hàng và quản lý.
+        </p>
       </header>
       <nav className="grid gap-3 sm:grid-cols-2">
-        <Link href={`/r/${slug}/admin/menu`} className={card}>
-          <h2 className="font-semibold">Menu</h2>
-          <p className="text-sm opacity-70">Danh mục, món, giá, ảnh, hết món</p>
-        </Link>
-        <Link href={`/r/${slug}/admin/tables`} className={card}>
-          <h2 className="font-semibold">Khu vực &amp; bàn</h2>
-          <p className="text-sm opacity-70">Sơ đồ khu vực, bàn, in mã QR</p>
-        </Link>
-        <Link href={`/r/${slug}/admin/staff`} className={card}>
-          <h2 className="font-semibold">Nhân viên</h2>
-          <p className="text-sm opacity-70">Mời, phân vai trò, khóa tài khoản</p>
-        </Link>
-        <Link href={`/r/${slug}/admin/onboarding`} className={card}>
-          <h2 className="font-semibold">Thiết lập nhà hàng</h2>
-          <p className="text-sm opacity-70">Wizard 4 bước cho nhà hàng mới</p>
-        </Link>
+        {SECTIONS.map((s) => (
+          <Link
+            key={s.href}
+            href={`/r/${slug}/admin/${s.href}`}
+            className="group rounded-2xl border border-border p-5 transition-colors duration-200 hover:border-foreground"
+          >
+            <p className="flex items-center gap-2 font-semibold">
+              <span className={`h-2 w-2 rounded-full ${s.dot}`} />
+              {s.title}
+              <span className="ml-auto text-muted transition-transform duration-200 group-hover:translate-x-0.5">
+                →
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-muted">{s.desc}</p>
+          </Link>
+        ))}
       </nav>
       <a
         href={`/r/${slug}`}
         target="_blank"
         rel="noopener"
-        className="text-sm underline opacity-70"
+        className="self-start text-sm font-medium underline underline-offset-2 transition-opacity duration-200 hover:opacity-70"
       >
         Xem menu như khách ↗
       </a>

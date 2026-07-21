@@ -63,19 +63,21 @@ export default async function PrintQrPage({
         @page { size: A4; margin: 10mm; }
       `}</style>
 
-      <header className="no-print mb-6 flex items-center justify-between gap-3">
+      <header className="no-print mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">In QR bàn — {tenant.name}</h1>
-          <p className="text-sm opacity-70">
+          <h1 className="text-3xl font-bold tracking-tight">
+            In QR bàn — {tenant.name}
+          </h1>
+          <p className="mt-1 text-sm text-muted">
             {cards.length} bàn · In hoặc lưu PDF, cắt theo đường đứt dán từng
             bàn.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2.5">
           <PrintButton />
           <Link
             href={`/r/${slug}/admin/tables`}
-            className="text-sm underline opacity-70"
+            className="inline-flex min-h-11 cursor-pointer items-center rounded-full border border-border bg-background px-5 text-sm font-semibold transition-colors duration-200 hover:border-foreground"
           >
             ← Bàn
           </Link>

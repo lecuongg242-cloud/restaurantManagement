@@ -5,6 +5,7 @@ import { hasSupabaseEnv } from "@/lib/env";
 import { SetupNotice } from "@/components/setup-notice";
 import { ConfirmButton } from "@/components/confirm-button";
 import { siteOrigin, tableQrDataUrl } from "@/lib/qr";
+import { btn, input, alertError, eyebrow } from "@/lib/ui";
 import {
   createArea,
   renameArea,
@@ -55,65 +56,65 @@ export default async function TablesAdminPage({
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6">
-      <header className="flex items-baseline justify-between gap-3">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Khu vực & bàn — {tenant.name}</h1>
-          <p className="text-sm opacity-70">
+          <p className={eyebrow}>
+            <span className="h-2 w-2 rounded-full bg-id-admin" />
+            Quản trị · {tenant.name}
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">
+            Khu vực &amp; bàn
+          </h1>
+          <p className="mt-1 text-sm text-muted">
             Mỗi bàn có mã QR riêng. Đổi tên bàn không làm QR đã in mất hiệu lực.
           </p>
         </div>
-        <div className="flex shrink-0 gap-3">
+        <div className="flex shrink-0 gap-2.5">
           {(tables ?? []).length > 0 && (
-            <Link
-              href={`/r/${slug}/admin/tables/print`}
-              className="flex min-h-11 items-center rounded-full bg-primary px-4 text-sm font-medium text-on-primary"
-            >
+            <Link href={`/r/${slug}/admin/tables/print`} className={btn.primary}>
               In toàn bộ QR
             </Link>
           )}
-          <Link
-            href={`/r/${slug}/admin`}
-            className="flex min-h-11 items-center text-sm underline opacity-70"
-          >
+          <Link href={`/r/${slug}/admin`} className={btn.tertiary}>
             ← Quản trị
           </Link>
         </div>
       </header>
 
       {err && (
-        <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p role="alert" className={alertError}>
           {err}
         </p>
       )}
 
-      <section className="rounded-card border border-border p-4">
-        <h2 className="mb-3 font-semibold">Thêm khu vực</h2>
-        <form action={createArea} className="flex gap-3">
+      <section className="rounded-2xl border border-border p-5">
+        <h2 className="mb-3 text-lg font-semibold">Thêm khu vực</h2>
+        <form action={createArea} className="flex gap-2.5">
           <input type="hidden" name="slug" value={slug} />
           <input
             name="name"
             required
             placeholder="Ví dụ: Tầng 1, Sân vườn…"
-            className="min-h-11 flex-1 rounded-input border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
+            className={input}
           />
-          <button className="min-h-11 cursor-pointer rounded-full bg-primary px-4 font-medium text-on-primary">
-            Thêm
-          </button>
+          <button className={btn.primary}>Thêm</button>
         </form>
       </section>
 
       {(areas ?? []).length === 0 && (
-        <p className="rounded-card border border-dashed border-border p-6 text-center opacity-70">
-          Chưa có khu vực nào. Tạo khu vực (ví dụ &quot;Tầng 1&quot;) rồi thêm
-          bàn hàng loạt.
-        </p>
+        <div className="flex flex-col items-center gap-1 rounded-2xl border border-dashed border-border px-6 py-12 text-center">
+          <p className="font-semibold">Chưa có khu vực nào</p>
+          <p className="text-sm text-muted">
+            Tạo khu vực (ví dụ &quot;Tầng 1&quot;) rồi thêm bàn hàng loạt.
+          </p>
+        </div>
       )}
 
       {(areas ?? []).map((area) => {
         const areaTables = (tables ?? []).filter((t) => t.area_id === area.id);
         return (
-          <section key={area.id} className="rounded-card border border-border p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
+          <section key={area.id} className="rounded-2xl border border-border p-5">
+            <div className="mb-4 flex items-center justify-between gap-2">
               <form action={renameArea} className="flex flex-1 items-center gap-2">
                 <input type="hidden" name="slug" value={slug} />
                 <input type="hidden" name="id" value={area.id} />
@@ -121,11 +122,10 @@ export default async function TablesAdminPage({
                   name="name"
                   defaultValue={area.name}
                   required
-                  className="min-h-9 flex-1 rounded-input border border-transparent bg-transparent px-2 font-semibold outline-none focus:border-ring"
+                  aria-label="Tên khu vực"
+                  className="min-h-10 w-full max-w-72 rounded-lg border border-transparent bg-transparent px-2 text-lg font-semibold outline-none transition-colors duration-200 hover:border-border focus:border-ring focus:ring-2 focus:ring-ring/25"
                 />
-                <button className="min-h-9 cursor-pointer rounded-full border border-border px-3 text-sm">
-                  Đổi tên
-                </button>
+                <button className={btn.smTertiary}>Đổi tên</button>
               </form>
               <form action={deleteArea}>
                 <input type="hidden" name="slug" value={slug} />
@@ -136,18 +136,18 @@ export default async function TablesAdminPage({
                       ? `Xóa khu vực "${area.name}" sẽ xóa cả ${areaTables.length} bàn (QR các bàn này hết hiệu lực). Chắc chắn?`
                       : `Xóa khu vực "${area.name}"?`
                   }
-                  className="min-h-9 cursor-pointer rounded-full border border-destructive/40 px-3 text-sm text-destructive"
+                  className={btn.smDanger}
                 >
                   Xóa
                 </ConfirmButton>
               </form>
             </div>
 
-            <ul className="grid gap-3 sm:grid-cols-2">
+            <ul className="grid gap-2.5 sm:grid-cols-2">
               {areaTables.map((t) => (
                 <li
                   key={t.id}
-                  className="flex items-center gap-3 rounded-input border border-border-soft p-3"
+                  className="flex items-center gap-3.5 rounded-xl border border-border-soft p-3 transition-colors duration-200 hover:border-border"
                 >
                   <Image
                     src={qrByTable.get(t.id)!}
@@ -155,37 +155,38 @@ export default async function TablesAdminPage({
                     width={64}
                     height={64}
                     unoptimized
-                    className="h-16 w-16 shrink-0"
+                    className="h-16 w-16 shrink-0 rounded-md"
                   />
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <form action={renameTable} className="flex items-center gap-1">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <form action={renameTable} className="flex items-center gap-1.5">
                       <input type="hidden" name="slug" value={slug} />
                       <input type="hidden" name="id" value={t.id} />
-                      <span className="text-sm opacity-60">Bàn</span>
+                      <span className="text-sm text-muted">Bàn</span>
                       <input
                         name="name"
                         defaultValue={t.name}
                         required
-                        className="min-h-9 w-16 rounded-input border border-transparent bg-transparent px-1 font-medium outline-none focus:border-ring"
+                        aria-label={`Tên bàn ${t.name}`}
+                        className="min-h-9 w-16 rounded-lg border border-transparent bg-transparent px-1.5 font-semibold outline-none transition-colors duration-200 hover:border-border focus:border-ring focus:ring-2 focus:ring-ring/25"
                       />
-                      <button className="min-h-9 cursor-pointer rounded-full border border-border px-2 text-xs">
+                      <button className="inline-flex min-h-9 cursor-pointer items-center rounded-full border border-border px-3 text-xs font-semibold transition-colors duration-200 hover:border-foreground">
                         Lưu
                       </button>
                     </form>
-                    <div className="flex gap-2 text-xs">
+                    <div className="flex items-center gap-3 text-[13px] font-medium">
                       <a
                         href={qrByTable.get(t.id)!}
                         download={`qr-${slug}-${area.name}-ban-${t.name}.png`}
-                        className="underline opacity-70"
+                        className="flex min-h-8 items-center text-foreground underline underline-offset-2 transition-opacity duration-200 hover:opacity-70"
                       >
                         Tải PNG
                       </a>
-                      <form action={deleteTable}>
+                      <form action={deleteTable} className="flex">
                         <input type="hidden" name="slug" value={slug} />
                         <input type="hidden" name="id" value={t.id} />
                         <ConfirmButton
                           message={`Xóa bàn "${t.name}"? QR đã in của bàn này sẽ hết hiệu lực.`}
-                          className="cursor-pointer text-destructive underline"
+                          className="flex min-h-8 cursor-pointer items-center text-destructive underline underline-offset-2 transition-opacity duration-200 hover:opacity-70"
                         >
                           Xóa bàn
                         </ConfirmButton>
@@ -196,7 +197,10 @@ export default async function TablesAdminPage({
               ))}
             </ul>
 
-            <form action={bulkCreateTables} className="mt-3 flex items-center gap-2">
+            <form
+              action={bulkCreateTables}
+              className="mt-4 flex flex-wrap items-center gap-2.5 border-t border-border-soft pt-4"
+            >
               <input type="hidden" name="slug" value={slug} />
               <input type="hidden" name="area_id" value={area.id} />
               <span className="text-sm">Thêm</span>
@@ -207,12 +211,11 @@ export default async function TablesAdminPage({
                 max={100}
                 defaultValue={1}
                 required
-                className="min-h-11 w-20 rounded-input border border-border bg-transparent px-3 text-base outline-none focus:border-ring"
+                aria-label="Số bàn cần tạo"
+                className={`${input} tabular w-20 shrink-0 font-mono`}
               />
-              <span className="text-sm">bàn (đánh số tự động)</span>
-              <button className="min-h-11 cursor-pointer rounded-full border border-border px-4 text-sm font-medium">
-                Tạo bàn
-              </button>
+              <span className="text-sm">bàn, đánh số tự động</span>
+              <button className={btn.tertiary}>Tạo bàn</button>
             </form>
           </section>
         );

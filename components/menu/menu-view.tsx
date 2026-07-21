@@ -94,73 +94,86 @@ export function MenuView({
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col">
-      <header className="flex items-center gap-3 p-4 pb-2">
+      <header className="flex items-center gap-3 px-4 pb-3 pt-5">
         {tenant.logo_url && (
           <Image
             src={tenant.logo_url}
             alt=""
-            width={48}
-            height={48}
-            className="h-12 w-12 rounded-input object-cover"
+            width={52}
+            height={52}
+            className="h-13 w-13 shrink-0 rounded-xl object-cover"
           />
         )}
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-bold">{tenant.name}</h1>
-          <p className="truncate text-xs opacity-60">
-            {[tenant.address, tenant.phone].filter(Boolean).join(" · ")}
-          </p>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl font-bold tracking-tight">
+            {tenant.name}
+          </h1>
+          {(tenant.address || tenant.phone) && (
+            <p className="truncate text-[13px] text-muted">
+              {[tenant.address, tenant.phone].filter(Boolean).join(" · ")}
+            </p>
+          )}
         </div>
         {tableName && (
-          <span className="ml-auto shrink-0 rounded-full bg-id-customer/10 px-3 py-1 text-sm font-medium text-id-customer">
+          <span className="shrink-0 rounded-full bg-id-customer px-3.5 py-1.5 text-[13px] font-semibold text-white">
             Bàn {tableName}
           </span>
         )}
       </header>
 
       {offline && (
-        <p className="mx-4 mb-2 rounded-input bg-warning/10 px-3 py-2 text-sm text-warning">
+        <p className="mx-4 mb-2 rounded-lg bg-warning/10 px-3 py-2 text-sm font-medium text-amber-700">
           Mất kết nối, đang thử lại…
         </p>
       )}
 
       {visible.length === 0 ? (
-        <p className="flex flex-1 items-center justify-center p-8 text-center opacity-60">
-          Nhà hàng chưa đăng món nào. Bạn quay lại sau nhé!
-        </p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
+          <p className="text-lg font-semibold">Menu đang được chuẩn bị</p>
+          <p className="max-w-60 text-sm text-muted">
+            Nhà hàng chưa đăng món nào. Bạn quay lại sau nhé!
+          </p>
+        </div>
       ) : (
         <>
           {/* Thanh danh mục dính, cuộn ngang */}
-          <nav className="sticky top-0 z-10 flex gap-2 overflow-x-auto border-b border-border-soft bg-background px-4 py-2">
-            {visible.map((c) => (
-              <a
-                key={c.id}
-                href={`#cat-${c.id}`}
-                className="flex min-h-11 shrink-0 items-center rounded-full border border-border px-4 text-sm font-medium"
-              >
-                {c.name}
-              </a>
-            ))}
+          <nav className="sticky top-0 z-10 border-b border-border-soft bg-background/95 backdrop-blur">
+            <div className="flex gap-2 overflow-x-auto px-4 py-2.5 [scrollbar-width:none]">
+              {visible.map((c) => (
+                <a
+                  key={c.id}
+                  href={`#cat-${c.id}`}
+                  className="flex min-h-10 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-semibold transition-colors duration-200 hover:border-foreground"
+                >
+                  {c.name}
+                </a>
+              ))}
+            </div>
           </nav>
 
-          <div className="flex flex-col gap-6 p-4">
+          <div className="flex flex-col gap-7 px-4 py-5 pb-10">
             {visible.map((c) => (
               <section key={c.id} id={`cat-${c.id}`} className="scroll-mt-16">
-                <h2 className="mb-2 text-lg font-bold">{c.name}</h2>
-                <ul className="flex flex-col gap-2">
+                <h2 className="mb-3 text-xl font-bold tracking-tight">
+                  {c.name}
+                </h2>
+                <ul className="flex flex-col gap-2.5">
                   {c.items.map((item) => (
                     <li key={item.id}>
                       <button
                         onClick={() => setSelected(item)}
-                        className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-card border border-border p-3 text-left"
+                        className="flex min-h-11 w-full cursor-pointer items-center gap-3.5 rounded-2xl border border-border bg-background p-3 text-left transition-colors duration-200 hover:border-foreground"
                       >
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">{item.name}</p>
+                        <div className="min-w-0 flex-1 self-start py-0.5">
+                          <p className="font-semibold leading-snug">
+                            {item.name}
+                          </p>
                           {item.description && (
-                            <p className="line-clamp-2 text-sm opacity-60">
+                            <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-muted">
                               {item.description}
                             </p>
                           )}
-                          <p className="mt-1 text-sm font-semibold">
+                          <p className="tabular mt-1.5 font-mono text-[15px] font-medium">
                             {formatVnd(item.price)}
                           </p>
                         </div>
@@ -168,9 +181,9 @@ export function MenuView({
                           <Image
                             src={item.image_url}
                             alt=""
-                            width={80}
-                            height={80}
-                            className="h-20 w-20 shrink-0 rounded-input object-cover"
+                            width={88}
+                            height={88}
+                            className="h-22 w-22 shrink-0 rounded-xl object-cover"
                             loading="lazy"
                           />
                         )}
@@ -180,6 +193,10 @@ export function MenuView({
                 </ul>
               </section>
             ))}
+
+            <p className="text-center text-xs text-muted">
+              Quét QR tại bàn để gọi món — tính năng mở ở giai đoạn tiếp theo.
+            </p>
           </div>
         </>
       )}
@@ -187,52 +204,59 @@ export function MenuView({
       {/* Bottom sheet chi tiết món */}
       {selected && (
         <div
-          className="fixed inset-0 z-20 flex items-end bg-black/40"
+          className="fixed inset-0 z-20 flex items-end bg-black/40 backdrop-blur-[2px] [animation:fade-in_150ms_ease-out]"
           onClick={() => setSelected(null)}
         >
           <div
             role="dialog"
             aria-label={selected.name}
-            className="max-h-[85dvh] w-full overflow-y-auto rounded-t-feature bg-background p-5"
+            className="max-h-[85dvh] w-full overflow-y-auto rounded-t-feature bg-background px-5 pb-6 pt-3 [animation:sheet-in_220ms_ease-out]"
             onClick={(e) => e.stopPropagation()}
           >
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
             {selected.image_url && (
               <Image
                 src={selected.image_url}
                 alt=""
                 width={640}
                 height={360}
-                className="mb-4 max-h-56 w-full rounded-card object-cover"
+                className="mb-4 max-h-56 w-full rounded-2xl object-cover"
               />
             )}
             <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-xl font-bold">{selected.name}</h3>
-              <span className="shrink-0 font-semibold">
+              <h3 className="text-xl font-bold tracking-tight">
+                {selected.name}
+              </h3>
+              <span className="tabular shrink-0 font-mono text-lg font-semibold">
                 {formatVnd(selected.price)}
               </span>
             </div>
             {selected.description && (
-              <p className="mt-1 text-sm opacity-70">{selected.description}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">
+                {selected.description}
+              </p>
             )}
 
             {selected.groups.map((g) => (
-              <div key={g.id} className="mt-4">
+              <div key={g.id} className="mt-5">
                 <p className="text-sm font-semibold">
                   {g.name}
-                  <span className="ml-2 font-normal opacity-60">
+                  <span className="ml-2 font-normal text-muted">
                     {g.selection === "single" ? "chọn 1" : "chọn nhiều"}
                     {g.is_required && " · bắt buộc"}
                   </span>
                 </p>
-                <ul className="mt-1 flex flex-wrap gap-2">
+                <ul className="mt-2 flex flex-wrap gap-2">
                   {g.options.map((o) => (
                     <li
                       key={o.id}
-                      className="rounded-full border border-border px-3 py-1 text-sm"
+                      className="rounded-full border border-border px-3.5 py-1.5 text-sm"
                     >
                       {o.name}
                       {o.price_delta > 0 && (
-                        <span className="opacity-60"> +{formatVnd(o.price_delta)}</span>
+                        <span className="tabular ml-1 font-mono text-[13px] text-muted">
+                          +{formatVnd(o.price_delta)}
+                        </span>
                       )}
                     </li>
                   ))}
@@ -240,13 +264,13 @@ export function MenuView({
               </div>
             ))}
 
-            <p className="mt-5 rounded-input bg-surface px-3 py-2 text-center text-sm opacity-70">
-              Gọi món qua QR sẽ mở ở giai đoạn tiếp theo — hiện bạn có thể gọi
+            <p className="mt-6 rounded-lg bg-surface px-3.5 py-2.5 text-center text-[13px] text-muted">
+              Gọi món qua QR mở ở giai đoạn tiếp theo — hiện bạn có thể gọi
               nhân viên để đặt món.
             </p>
             <button
               onClick={() => setSelected(null)}
-              className="mt-3 min-h-11 w-full cursor-pointer rounded-full border border-border font-medium"
+              className="mt-3 flex min-h-11 w-full cursor-pointer items-center justify-center rounded-full border border-foreground text-sm font-semibold transition-colors duration-200 hover:bg-surface"
             >
               Đóng
             </button>

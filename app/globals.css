@@ -120,6 +120,28 @@ h1, h2 {
   line-height: 1.15;
 }
 
+/* Ảnh: viền trong trung tính để mép ảnh không lẫn vào nền */
+img {
+  outline: 1px solid rgb(0 0 0 / 0.08);
+  outline-offset: -1px;
+}
+[data-surface="kds"] img {
+  outline-color: rgb(255 255 255 / 0.1);
+}
+
+/* Bottom sheet menu khách: vào nhẹ từ dưới, backdrop mờ dần */
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Số liệu/giá tiền không nhảy bề rộng khi thay đổi */
+.tabular { font-variant-numeric: tabular-nums; }
+
 /* Tôn trọng người dùng giảm chuyển động */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
