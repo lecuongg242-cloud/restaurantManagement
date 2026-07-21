@@ -1,0 +1,56 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+
+type NavItem = { key: string; label: string; href?: string };
+
+/** Sidebar nav (client) — tự tô đậm mục đang mở theo pathname. */
+export function AdminNav({ base }: { base: string }) {
+  const pathname = usePathname();
+  const items: NavItem[] = [
+    { key: "dashboard", label: "Tổng quan", href: base },
+    { key: "staff", label: "Nhân viên", href: `${base}/staff` },
+    { key: "data-scope", label: "Phạm vi dữ liệu", href: `${base}/data-scope` },
+    { key: "menu", label: "Thực đơn" },
+    { key: "tables", label: "Bàn & QR" },
+    { key: "reservations", label: "Đặt bàn" },
+    { key: "online", label: "Đơn online" },
+    { key: "settings", label: "Cài đặt" },
+  ];
+
+  const isActive = (href?: string) => {
+    if (!href) return false;
+    if (href === base) return pathname === base;
+    return pathname === href || pathname.startsWith(href + "/");
+  };
+
+  return (
+    <nav className="flex flex-1 flex-col gap-xxs p-sm">
+      {items.map((item) =>
+        item.href ? (
+          <Link
+            key={item.key}
+            href={item.href}
+            className={cn(
+              "rounded-md px-md py-sm text-sm text-slate hover:bg-surface",
+              isActive(item.href) && "bg-cream font-medium text-ink"
+            )}
+          >
+            {item.label}
+          </Link>
+        ) : (
+          <span
+            key={item.key}
+            className="flex items-center justify-between rounded-md px-md py-sm text-sm text-muted"
+            title="Sắp có ở plan sau"
+          >
+            {item.label}
+            <span className="text-[10px] uppercase tracking-wide text-stone">chờ</span>
+          </span>
+        )
+      )}
+    </nav>
+  );
+}

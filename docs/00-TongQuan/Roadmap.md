@@ -28,6 +28,8 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 - 01-04 **Bộ test RLS tự động** (A ⊥ B) + 2 tenant demo + trang `/admin/data-scope` (bằng chứng cách ly bấm được) + CI. → *test:* `npm run test:rls` xanh + 2 owner thấy 2 phạm vi khác nhau.
 **Nghiệm thu:** app chạy local/dev cùng codebase · super-admin tạo tenant, owner vào `/r/[slug]` · test RLS: A ⊥ B · `/style-guide` render design system + 4 profile.
 
+**Trạng thái (21/07/2026):** Code 4 plan hoàn tất; `npm run build`/`lint` xanh; migration 0001–0003 đã áp Supabase dev; seed 2 tenant demo + super-admin; **`npm run test:rls` 6/6 PASS** (TENANT-02 đạt bằng test tự động). Còn lại: checkpoint bấm-tay trên trình duyệt cho 01-01..01-04 (mô tả ở từng `*-SUMMARY.md`). Tick ô P1 sau khi các checkpoint browser được "approved".
+
 ## P2 — Dữ liệu nhà hàng
 **Mục tiêu:** Chủ nhà hàng tự cấu hình đủ dữ liệu để sẵn sàng phục vụ.
 **Phụ thuộc:** P1.

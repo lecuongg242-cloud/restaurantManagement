@@ -16,18 +16,18 @@
 ## TENANT — Đa tenant & SaaS
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
-| TENANT-01 | Super-admin tạo tenant | Super-admin tạo nhà hàng + owner; owner đăng nhập đúng tenant tại `/r/[slug]` | P1 | ☐ |
-| TENANT-02 | Cách ly tenant (RLS) | Bộ test tự động: user tenant A không đọc/ghi bất kỳ dữ liệu tenant B | P1 | ☐ |
+| TENANT-01 | Super-admin tạo tenant | Super-admin tạo nhà hàng + owner; owner đăng nhập đúng tenant tại `/r/[slug]` | P1 | ◐ |
+| TENANT-02 | Cách ly tenant (RLS) | Bộ test tự động: user tenant A không đọc/ghi bất kỳ dữ liệu tenant B | P1 | ☑ (test:rls 6/6 PASS, 01-04) |
 | TENANT-03 | Onboarding ≤ 15 phút | 1 người ngoài team tạo nhà hàng + 10 món + 5 bàn + in QR trong ≤ 15 phút (đo thật) | P2 | ☐ |
-| TENANT-04 | Định tuyến slug, chừa subdomain | `/r/[slug]` hoạt động; `tenants.subdomain` + nhánh middleware viết sẵn (tắt) | P1 | ☐ |
+| TENANT-04 | Định tuyến slug, chừa subdomain | `/r/[slug]` hoạt động; `tenants.subdomain` + nhánh middleware viết sẵn (tắt) | P1 | ◐ |
 
 ## AUTH — Đăng nhập & phân quyền
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
-| AUTH-01 | Owner/manager email | Đăng nhập Supabase email/mật khẩu vào đúng tenant | P1 | ☐ |
-| AUTH-02 | Thiết bị trạm | POS/KDS đăng nhập 1 lần bằng tài khoản station của nhà hàng | P1 | ☐ |
-| AUTH-03 | PIN nhân viên | Cashier/waiter/kitchen chọn tên + PIN 4 số; thao tác gắn `staff_id` | P1 | ☐ |
-| AUTH-04 | RBAC theo vai trò | Mỗi vai trò chỉ thấy/làm đúng chức năng (owner/manager/cashier/waiter/kitchen); test phân quyền | P1 | ☐ |
+| AUTH-01 | Owner/manager email | Đăng nhập Supabase email/mật khẩu vào đúng tenant | P1 | ◐ |
+| AUTH-02 | Thiết bị trạm | POS/KDS đăng nhập 1 lần bằng tài khoản station của nhà hàng | P1 | ◐ |
+| AUTH-03 | PIN nhân viên | Cashier/waiter/kitchen chọn tên + PIN 4 số; thao tác gắn `staff_id` | P1 | ◐ |
+| AUTH-04 | RBAC theo vai trò | Mỗi vai trò chỉ thấy/làm đúng chức năng (owner/manager/cashier/waiter/kitchen); test phân quyền | P1 | ◐ |
 
 ## MENU
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |

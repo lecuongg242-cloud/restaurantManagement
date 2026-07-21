@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+
+jobs:
+  build-and-rls:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # Áp migration + seed lên project Supabase test (secrets.SUPABASE_DB_URL).
+      - name: Apply migrations + seed (Supabase test)
+        if: ${{ env.NEXT_PUBLIC_SUPABASE_URL != '' }}
+        run: |
+          npx supabase db push --db-url "${{ secrets.SUPABASE_DB_URL }}"
+          npm run seed
+
+      - name: Build
+        run: npm run build
+
+      - name: Test RLS (cách ly tenant)
+        if: ${{ env.NEXT_PUBLIC_SUPABASE_URL != '' }}
+        run: npm run test:rls
