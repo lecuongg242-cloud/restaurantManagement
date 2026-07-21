@@ -1,5 +1,11 @@
 # Nhật ký thay đổi
 
+## 21/07/2026 (dọn dự án + đổi design)
+- Xóa toàn bộ code P1+P2 (chỉ giữ `docs/` + `.claude/` + CLAUDE.md + README.md) theo yêu cầu Chủ dự án — build lại từ đầu. Code cũ vẫn còn trong lịch sử git (commit trước `9c6ebb3` trên `dev`).
+- Xóa toàn bộ báo cáo tiến độ cũ (`docs/40-KiemTra/*`) vì không còn phản ánh trạng thái thực (build lại từ đầu).
+- Phát hiện + dọn một PR ngoài ý muốn ("airtable-design-system", merge bởi vercel[bot]) đưa nhầm code + tài liệu không liên quan vào `main`/`dev` — đã xóa, đưa 2 branch về lại trạng thái chỉ docs+skill.
+- **QD-004**: Chủ dự án cung cấp `DESIGN-posthog.md`, chốt design system theo ngôn ngữ PostHog (canvas kem, chữ olive, CTA vàng cam duy nhất, bo góc 6px chuẩn + pill cho tab/chip, IBM Plex Sans Variable), thay thế QD-003 (MiniMax). Đã xác minh IBM Plex Sans Variable có đủ subset tiếng Việt (Google Fonts CSS2 API, unicode-range U+1EA0-1EF9 + Ăă/Đđ/Ĩĩ/Ũũ/Ơơ/Ưư + dấu tổ hợp + ký hiệu ₫) — dùng trực tiếp, không cần font thay thế. Chi tiết chuyển thể (bỏ mascot nhím, dark mode KDS, màu định danh khu vực, đổi CTA từ xanh sang vàng cam) xem `docs/15-QuyetDinh/QD-004-DoiDesignPostHog.md`.
+
 ## 21/07/2026 (tiếp)
 - **XÁC NHẬN LÀM P2** → build xong cả 3 plan trên branch `dev`: 02-01 migration 0002 (6 bảng, CHECK giá, composite FK, RLS, RPC resolve_table_by_qr, view tenant_public_info, bucket menu-images 2MB/MIME) + admin menu + menu khách realtime; 02-02 khu vực/bàn + QR + trang in A4; 02-03 wizard onboarding 4 bước.
 - Mở rộng `scripts/test-rls.mjs` thêm ~30 assertions P2 (RLS 6 bảng, anon, RPC 1/0/0, composite FK, CHECK, storage bucket). Chạy trên DB dev: **P1 43/43 PASS** (không regression); mục P2 chờ áp migration 0002 — cần Chủ dự án `supabase login`/access token (chi tiết trong báo cáo).
