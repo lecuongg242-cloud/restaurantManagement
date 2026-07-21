@@ -50,21 +50,16 @@ export default async function MenuAdminPage({
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className={eyebrow}>
-            <span className="h-2 w-2 rounded-full bg-id-admin" />
-            Quản trị · {tenant.name}
-          </p>
-          <h1 className="mt-1 text-3xl font-bold tracking-tight">Menu</h1>
-          <p className="mt-1 text-sm text-muted">
-            Danh mục, món, giá, ảnh, tùy chọn. Nút &quot;Hết món&quot; ẩn món
-            khỏi app khách ngay lập tức.
-          </p>
-        </div>
-        <Link href={`/r/${slug}/admin`} className={btn.tertiary}>
-          ← Quản trị
-        </Link>
+      <header>
+        <p className={eyebrow}>
+          <span className="h-2 w-2 rounded-full bg-id-customer" />
+          Quản trị
+        </p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">Menu</h1>
+        <p className="mt-1 text-sm text-muted">
+          Danh mục, món, giá, ảnh, tùy chọn. Nút &quot;Hết món&quot; ẩn món
+          khỏi app khách ngay lập tức.
+        </p>
       </header>
 
       {err && (

@@ -59,8 +59,8 @@ export default async function TablesAdminPage({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className={eyebrow}>
-            <span className="h-2 w-2 rounded-full bg-id-admin" />
-            Quản trị · {tenant.name}
+            <span className="h-2 w-2 rounded-full bg-id-pos" />
+            Quản trị
           </p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight">
             Khu vực &amp; bàn
@@ -69,16 +69,11 @@ export default async function TablesAdminPage({
             Mỗi bàn có mã QR riêng. Đổi tên bàn không làm QR đã in mất hiệu lực.
           </p>
         </div>
-        <div className="flex shrink-0 gap-2.5">
-          {(tables ?? []).length > 0 && (
-            <Link href={`/r/${slug}/admin/tables/print`} className={btn.primary}>
-              In toàn bộ QR
-            </Link>
-          )}
-          <Link href={`/r/${slug}/admin`} className={btn.tertiary}>
-            ← Quản trị
+        {(tables ?? []).length > 0 && (
+          <Link href={`/r/${slug}/admin/tables/print`} className={btn.primary}>
+            In toàn bộ QR
           </Link>
-        </div>
+        )}
       </header>
 
       {err && (

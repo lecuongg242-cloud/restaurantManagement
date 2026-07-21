@@ -73,11 +73,9 @@ export default async function AdminPage({
       <header className="pt-2">
         <p className={eyebrow}>
           <span className="h-2 w-2 rounded-full bg-id-admin" />
-          Quản trị
+          Quản trị · {tenant?.name ?? slug}
         </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">
-          {tenant?.name ?? slug}
-        </h1>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">Tổng quan</h1>
         <p className="mt-1 text-sm text-muted">
           Dành cho chủ nhà hàng và quản lý.
         </p>
@@ -100,14 +98,6 @@ export default async function AdminPage({
           </Link>
         ))}
       </nav>
-      <a
-        href={`/r/${slug}`}
-        target="_blank"
-        rel="noopener"
-        className="self-start text-sm font-medium underline underline-offset-2 transition-opacity duration-200 hover:opacity-70"
-      >
-        Xem menu như khách ↗
-      </a>
     </main>
   );
 }
