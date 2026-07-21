@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isSuperAdmin } from "@/lib/auth/session";
 import { createTenant } from "../actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 
 export default async function NewTenantPage({
@@ -24,7 +24,10 @@ export default async function NewTenantPage({
       </p>
 
       {error && (
-        <p className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late">
+        <p
+          role="alert"
+          className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
+        >
           {error}
         </p>
       )}
@@ -50,9 +53,9 @@ export default async function NewTenantPage({
           <Input name="ownerPassword" type="text" required placeholder="tối thiểu 6 ký tự" />
         </label>
 
-        <Button type="submit" className="mt-xs">
+        <SubmitButton pendingLabel="Đang tạo…" className="mt-xs">
           Tạo nhà hàng
-        </Button>
+        </SubmitButton>
       </form>
     </div>
   );

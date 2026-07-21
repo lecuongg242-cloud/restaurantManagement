@@ -43,7 +43,10 @@ export default async function SuperHome({
       </div>
 
       {created && (
-        <p className="mt-md rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready">
+        <p
+          role="status"
+          className="mt-md rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready"
+        >
           Đã tạo nhà hàng “{created}”. Owner có thể đăng nhập tại /r/{created}/admin/login.
         </p>
       )}

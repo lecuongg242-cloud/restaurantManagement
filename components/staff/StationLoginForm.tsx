@@ -1,5 +1,5 @@
 import { stationSignIn } from "@/app/r/[slug]/station-actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 
 /**
@@ -26,7 +26,10 @@ export function StationLoginForm({
         </p>
 
         {error && (
-          <p className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late">
+          <p
+            role="alert"
+            className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
+          >
             {error}
           </p>
         )}
@@ -36,15 +39,15 @@ export function StationLoginForm({
           <input type="hidden" name="surface" value={surface} />
           <label className="flex flex-col gap-xxs text-sm text-slate">
             Email trạm
-            <Input name="email" type="email" required autoComplete="email" />
+            <Input name="email" type="email" required autoComplete="email" autoFocus />
           </label>
           <label className="flex flex-col gap-xxs text-sm text-slate">
             Mật khẩu
             <Input name="password" type="password" required autoComplete="current-password" />
           </label>
-          <Button type="submit" size="lg" className="mt-xs">
+          <SubmitButton size="lg" pendingLabel="Đang đăng nhập…" className="mt-xs">
             Đăng nhập thiết bị
-          </Button>
+          </SubmitButton>
         </form>
       </div>
     </div>

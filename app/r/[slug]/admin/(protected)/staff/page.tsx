@@ -1,6 +1,7 @@
 import { getSessionMembership } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -42,12 +43,18 @@ export default async function StaffPage({
       </p>
 
       {error && (
-        <p className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late">
+        <p
+          role="alert"
+          className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
+        >
           {error}
         </p>
       )}
       {ok && (
-        <p className="mt-md rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready">
+        <p
+          role="status"
+          className="mt-md rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready"
+        >
           {ok}
         </p>
       )}
@@ -87,7 +94,7 @@ export default async function StaffPage({
               placeholder="1234"
             />
           </label>
-          <Button type="submit">Thêm</Button>
+          <SubmitButton pendingLabel="Đang thêm…">Thêm</SubmitButton>
         </form>
       </Card>
 

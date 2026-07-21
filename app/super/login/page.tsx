@@ -1,7 +1,7 @@
 import { superSignIn } from "../actions";
 import { isSuperAdmin } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 
 export default async function SuperLoginPage({
@@ -20,7 +20,10 @@ export default async function SuperLoginPage({
         <p className="mt-xxs text-sm text-steel">Đăng nhập quản trị hệ thống.</p>
 
         {error && (
-          <p className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late">
+          <p
+            role="alert"
+            className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
+          >
             {error}
           </p>
         )}
@@ -28,15 +31,15 @@ export default async function SuperLoginPage({
         <form action={superSignIn} className="mt-lg flex flex-col gap-md">
           <label className="flex flex-col gap-xxs text-sm text-slate">
             Email
-            <Input name="email" type="email" required autoComplete="email" />
+            <Input name="email" type="email" required autoComplete="email" autoFocus />
           </label>
           <label className="flex flex-col gap-xxs text-sm text-slate">
             Mật khẩu
             <Input name="password" type="password" required autoComplete="current-password" />
           </label>
-          <Button type="submit" className="mt-xs">
+          <SubmitButton pendingLabel="Đang đăng nhập…" className="mt-xs">
             Đăng nhập
-          </Button>
+          </SubmitButton>
         </form>
       </div>
     </div>

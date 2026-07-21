@@ -68,7 +68,7 @@ export function StaffPicker({
                 setSelected(s);
                 setPin("");
               }}
-              className="flex min-h-[64px] flex-col items-start justify-center rounded-lg border border-hairline-soft bg-canvas px-lg py-md text-left transition-colors hover:bg-surface active:bg-cream"
+              className="flex min-h-[64px] flex-col items-start justify-center rounded-lg border border-hairline-soft bg-canvas px-lg py-md text-left transition-colors duration-150 motion-reduce:transition-none hover:bg-surface active:bg-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               <span className="text-base font-medium text-ink">{s.display_name}</span>
               <span className="text-xs text-steel">{ROLE_LABEL[s.role] ?? s.role}</span>
@@ -109,9 +109,16 @@ export function StaffPicker({
         onClear={() => setPin("")}
       />
 
-      {pending && <p className="text-sm text-steel">Đang kiểm tra…</p>}
+      {pending && (
+        <p className="text-sm text-steel" role="status" aria-live="polite">
+          Đang kiểm tra…
+        </p>
+      )}
       {state.error && !pending && (
-        <p className="rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late">
+        <p
+          role="alert"
+          className="rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
+        >
           {state.error}
         </p>
       )}
