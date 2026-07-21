@@ -101,7 +101,12 @@ export function GroupEditor({
             </form>
             <span className="text-xs text-steel">{vnd(o.price_delta)}</span>
             <OptionToggle slug={slug} optionId={o.id} available={o.is_available} />
-            <form action={deleteOption}>
+            <form
+              action={deleteOption}
+              onSubmit={(e) => {
+                if (!confirm(`Xóa tùy chọn "${o.name}"?`)) e.preventDefault();
+              }}
+            >
               <input type="hidden" name="slug" value={slug} />
               <input type="hidden" name="id" value={o.id} />
               <Button type="submit" variant="link" size="sm" className="text-status-late">
@@ -162,9 +167,12 @@ function OptionToggle({
       type="button"
       role="switch"
       aria-checked={optimistic}
+      aria-label={optimistic ? "Tùy chọn còn (bấm để báo hết)" : "Tùy chọn hết (bấm để bật lại)"}
       onClick={toggle}
       disabled={pending}
-      className={`text-xs font-medium ${optimistic ? "text-status-ready" : "text-status-late"} disabled:opacity-60`}
+      className={`inline-flex h-9 items-center rounded-md px-sm text-xs font-medium hover:bg-surface ${
+        optimistic ? "text-status-ready" : "text-status-late"
+      } disabled:opacity-60`}
     >
       {optimistic ? "Còn" : "Hết"}
     </button>

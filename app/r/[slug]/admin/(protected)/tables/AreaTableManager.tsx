@@ -214,14 +214,23 @@ export function AreaTableManager({
                             <button
                               type="button"
                               onClick={() => setEditingTable(t.id)}
-                              className="text-sm text-primary hover:underline"
+                              className="inline-flex h-9 items-center rounded-md px-sm text-sm text-primary hover:bg-surface"
                             >
                               Sửa
                             </button>
-                            <form action={deleteTable}>
+                            <form
+                              action={deleteTable}
+                              onSubmit={(e) => {
+                                if (!confirm(`Xóa bàn "${t.name}"? Mã QR của bàn sẽ mất hiệu lực.`))
+                                  e.preventDefault();
+                              }}
+                            >
                               <input type="hidden" name="slug" value={slug} />
                               <input type="hidden" name="id" value={t.id} />
-                              <button type="submit" className="text-sm text-status-late hover:underline">
+                              <button
+                                type="submit"
+                                className="inline-flex h-9 items-center rounded-md px-sm text-sm text-status-late hover:bg-surface"
+                              >
                                 Xóa
                               </button>
                             </form>
@@ -271,8 +280,8 @@ function ReorderButtons({
           <button
             type="submit"
             disabled={dir === "up" ? isFirst : isLast}
-            aria-label={dir === "up" ? "Lên" : "Xuống"}
-            className="rounded px-xs text-steel hover:bg-surface disabled:opacity-40"
+            aria-label={dir === "up" ? "Chuyển lên" : "Chuyển xuống"}
+            className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface disabled:opacity-40"
           >
             {dir === "up" ? "↑" : "↓"}
           </button>

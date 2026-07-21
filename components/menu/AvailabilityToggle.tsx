@@ -39,7 +39,7 @@ export function AvailabilityToggle({
       aria-label={optimistic ? "Còn món (bấm để báo hết)" : "Hết món (bấm để bật lại)"}
       onClick={toggle}
       disabled={pending}
-      className="inline-flex items-center gap-xs text-xs font-medium disabled:opacity-60"
+      className="inline-flex min-h-9 items-center gap-xs rounded-md px-xs text-xs font-medium hover:bg-surface disabled:opacity-60"
     >
       <span
         className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${

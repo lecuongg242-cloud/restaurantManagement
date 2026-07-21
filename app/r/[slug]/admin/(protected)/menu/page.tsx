@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { AvailabilityToggle } from "@/components/menu/AvailabilityToggle";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { ModifierGroupPicker } from "@/components/menu/ModifierGroupPicker";
 import { CategoryManager } from "./CategoryManager";
 import { ItemDialog } from "./ItemDialog";
@@ -197,7 +198,7 @@ export default async function MenuPage({
                     {/* Footer thao tác — chiếm hết chiều ngang thẻ */}
                     <div className="mt-auto flex items-center justify-between border-t border-hairline-soft pt-sm">
                       <AvailabilityToggle slug={slug} itemId={it.id} available={it.is_available} />
-                      <div className="flex items-center gap-xxs">
+                      <div className="flex items-center gap-xs">
                         <form action={reorderItem}>
                           <input type="hidden" name="slug" value={slug} />
                           <input type="hidden" name="id" value={it.id} />
@@ -206,8 +207,8 @@ export default async function MenuPage({
                           <button
                             type="submit"
                             disabled={ii === 0}
-                            aria-label="Lên"
-                            className="rounded px-xs text-steel hover:bg-surface disabled:opacity-40"
+                            aria-label="Chuyển món lên"
+                            className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface disabled:opacity-40"
                           >
                             ↑
                           </button>
@@ -220,8 +221,8 @@ export default async function MenuPage({
                           <button
                             type="submit"
                             disabled={ii === list.length - 1}
-                            aria-label="Xuống"
-                            className="rounded px-xs text-steel hover:bg-surface disabled:opacity-40"
+                            aria-label="Chuyển món xuống"
+                            className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface disabled:opacity-40"
                           >
                             ↓
                           </button>
@@ -233,7 +234,7 @@ export default async function MenuPage({
                           trigger={
                             <button
                               type="button"
-                              className="rounded px-sm py-0.5 text-sm text-primary hover:bg-surface"
+                              className="inline-flex h-9 items-center rounded-md px-sm text-sm text-primary hover:bg-surface"
                             >
                               Sửa
                             </button>
@@ -248,12 +249,12 @@ export default async function MenuPage({
                         <form action={deleteItem}>
                           <input type="hidden" name="slug" value={slug} />
                           <input type="hidden" name="id" value={it.id} />
-                          <button
-                            type="submit"
-                            className="rounded px-sm py-0.5 text-sm text-status-late hover:bg-surface"
+                          <ConfirmSubmit
+                            message={`Xóa món "${it.name}"? Thao tác không hoàn tác được.`}
+                            className="inline-flex h-9 items-center rounded-md px-sm text-sm text-status-late hover:bg-surface"
                           >
                             Xóa
-                          </button>
+                          </ConfirmSubmit>
                         </form>
                       </div>
                     </div>

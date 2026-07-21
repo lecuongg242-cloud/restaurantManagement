@@ -5,6 +5,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { createStaff, resetPin, setStaffActive, deleteStaff } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -155,9 +156,12 @@ export default async function StaffPage({
                     <form action={deleteStaff}>
                       <input type="hidden" name="slug" value={slug} />
                       <input type="hidden" name="id" value={s.id} />
-                      <Button type="submit" variant="link" size="sm" className="text-status-late">
+                      <ConfirmSubmit
+                        message={`Xóa nhân viên "${s.display_name}"? Thao tác không hoàn tác được.`}
+                        className="inline-flex h-9 items-center rounded-md px-sm text-sm text-status-late hover:bg-surface"
+                      >
                         Xóa
-                      </Button>
+                      </ConfirmSubmit>
                     </form>
                   </div>
                 </td>

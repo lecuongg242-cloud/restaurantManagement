@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,20 @@ export function ItemDialog({
   const [open, setOpen] = useState(false);
   const isEdit = !!item;
   const action = isEdit ? updateItem : createItem;
+
+  // Escape đóng dialog + khóa scroll nền khi mở (UX: keyboard nav / modal cơ bản).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
   return (
     <>
@@ -61,7 +75,7 @@ export function ItemDialog({
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Đóng"
-                className="rounded-md px-xs text-steel hover:bg-surface"
+                className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface"
               >
                 ✕
               </button>
@@ -73,7 +87,13 @@ export function ItemDialog({
 
               <label className="flex flex-col gap-xxs text-sm text-slate">
                 Tên món
-                <Input name="name" required defaultValue={item?.name ?? ""} placeholder="Phở bò" />
+                <Input
+                  name="name"
+                  required
+                  autoFocus
+                  defaultValue={item?.name ?? ""}
+                  placeholder="Phở bò"
+                />
               </label>
 
               <label className="flex flex-col gap-xxs text-sm text-slate">
