@@ -53,3 +53,15 @@ export function canAccess(role: Role, section: Section): boolean {
 export function canManageStaff(role: Role): boolean {
   return role === "owner" || role === "manager";
 }
+
+/** Khu vực cấu hình dữ liệu nhà hàng owner/manager quản lý (P2). */
+export type ManageSection = "menu" | "tables" | "settings" | "onboarding";
+
+/**
+ * Vai trò `role` có quyền quản lý `section` cấu hình (menu/bàn/settings/onboarding) không.
+ * V1: chỉ owner/manager; nhân viên trạm (cashier/waiter/kitchen/station) không vào.
+ * Dùng ở guard các trang admin P2 (menu, tables, settings, onboarding).
+ */
+export function canManage(role: Role, _section: ManageSection): boolean {
+  return role === "owner" || role === "manager";
+}

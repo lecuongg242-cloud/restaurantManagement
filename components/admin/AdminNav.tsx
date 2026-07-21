@@ -13,11 +13,11 @@ export function AdminNav({ base }: { base: string }) {
     { key: "dashboard", label: "Tổng quan", href: base },
     { key: "staff", label: "Nhân viên", href: `${base}/staff` },
     { key: "data-scope", label: "Phạm vi dữ liệu", href: `${base}/data-scope` },
-    { key: "menu", label: "Thực đơn" },
-    { key: "tables", label: "Bàn & QR" },
+    { key: "menu", label: "Thực đơn", href: `${base}/menu` },
+    { key: "tables", label: "Bàn & QR", href: `${base}/tables` },
+    { key: "settings", label: "Cài đặt", href: `${base}/settings` },
     { key: "reservations", label: "Đặt bàn" },
     { key: "online", label: "Đơn online" },
-    { key: "settings", label: "Cài đặt" },
   ];
 
   const isActive = (href?: string) => {

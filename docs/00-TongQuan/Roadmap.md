@@ -9,7 +9,7 @@
 Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi order-đến-bếp realtime (P3) → dòng tiền & báo cáo (P4) → kênh khách online (P5) → đóng gói phát hành (P6). Mỗi giai đoạn kết thúc bằng demo chạy trên môi trường dev.
 
 - [x] **P1 — Nền tảng** (4 plan): Next.js + Supabase, auth+PIN, tenant, RLS, design system Mistral, pipeline 3 môi trường — *nghiệm thu 21/07/2026 (checkpoint browser approved)*
-- [ ] **P2 — Dữ liệu nhà hàng**: Menu + modifier, khu vực/bàn/QR, admin, onboarding ≤15'
+- [~] **P2 — Dữ liệu nhà hàng**: Menu + modifier, khu vực/bàn/QR, admin, onboarding ≤15' — *code 5/5 plan hoàn tất, migration 0004–0007 đã áp dev, build sạch; chờ 5 checkpoint human-verify*
 - [ ] **P3 — Lõi order**: Gọi món QR mobile-first, duyệt order, POS, KDS realtime, PrintAdapter + phiếu bếp
 - [ ] **P4 — Dòng tiền**: Bill gộp/tách, điều chỉnh (giảm giá/phí/VAT), thanh toán, in hóa đơn, dashboard
 - [ ] **P5 — Kênh online**: Đặt bàn (duyệt tay), đặt món mang về/giao (trạng thái)
@@ -33,13 +33,17 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 ## P2 — Dữ liệu nhà hàng
 **Mục tiêu:** Chủ nhà hàng tự cấu hình đủ dữ liệu để sẵn sàng phục vụ.
 **Phụ thuộc:** P1.
-**Yêu cầu:** MENU-01, MENU-02, MENU-03, TABLE-01, TENANT-03.
-**Kế hoạch:**
-- 02-01 CRUD menu (danh mục, món, ảnh Storage ≤2MB) + nút hết món.
-- 02-02 Modifier groups/options + phụ thu, gắn vào món.
-- 02-03 Khu vực/bàn + sinh `qr_token` + xuất QR in được.
-- 02-04 Luồng onboarding hướng dẫn (đo ≤15').
-**Nghiệm thu:** tạo danh mục/món/tùy chọn, bật hết món · tạo bàn + xuất QR · người ngoài onboard ≤15'.
+**Yêu cầu:** MENU-01, MENU-02, MENU-03, TABLE-01, TENANT-03, **OPS-06**.
+**Kế hoạch (5 plan — lát cắt dọc, mỗi plan kết thúc bằng UI test thủ công; chi tiết ở `30-KeHoach/P2/`):**
+- 02-01 CRUD menu (danh mục, món, ảnh Storage ≤2MB) + nút hết món. → *test:* /admin/menu.
+- 02-02 Modifier groups/options + phụ thu, gắn vào món. → *test:* /admin/menu/modifiers.
+- 02-03 Khu vực/bàn + sinh `qr_token` + xuất QR (in gộp A4 + tải PNG/SVG). → *test:* /admin/tables + /print/qr.
+- 02-04 **Cài đặt** (logo+tên OPS-06 + %phí/%VAT/footer + toggle duyệt-QR). → *test:* /admin/settings.
+- 02-05 Onboarding wizard 4 bước + seed menu mẫu (capstone, đo ≤15'). → *test:* /admin/onboarding.
+**Nghiệm thu:** tạo danh mục/món/tùy chọn, bật hết món · tạo bàn + xuất QR · logo+tên hiện ở shell (OPS-06) · người ngoài onboard ≤15'.
+**Trạng thái (22/07/2026):** Code 5/5 plan hoàn tất; migration 0004–0007 đã áp Supabase dev (RLS bật 7 bảng, bucket `menu-images` public); `tsc --noEmit` + `next build` sạch. SUMMARY từng plan ở `30-KeHoach/P2/02-0X-SUMMARY.md`. Còn lại: 5 checkpoint human-verify (bao gồm đo onboarding ≤15' với người ngoài team).
+
+**Quyết định P2 (21/07/2026 — ghi lại):** (1) **App khách hoãn P3** — P2 chỉ khu admin; MENU-02 nghiệm thu qua toggle admin + DB, phần "khách thấy Hết" đủ ở P3. (2) **Thêm 02-04 Cài đặt** để đóng OPS-06 (bảng yêu cầu gắn OPS-06 vào P2 nhưng plan gốc thiếu màn settings); onboarding dời thành 02-05. (3) Xuất QR = in gộp + tải. (4) Onboarding = wizard 4 bước + menu mẫu. Chi tiết: `30-KeHoach/P2/00-TongQuan.md`.
 
 ## P3 — Lõi order (giá trị cốt lõi)
 **Mục tiêu:** Order từ khách/nhân viên tới bếp realtime, có duyệt và in phiếu bếp.

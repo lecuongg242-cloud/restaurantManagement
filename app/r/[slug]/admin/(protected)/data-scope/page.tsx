@@ -37,7 +37,7 @@ export default async function DataScopePage({
     .order("role", { ascending: true });
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full max-w-4xl">
       <h1 className="font-display text-2xl text-ink">Phạm vi dữ liệu</h1>
       <p className="mt-xxs text-sm text-steel">
         Đây là toàn bộ dữ liệu mà phiên đăng nhập của bạn có thể thấy (đã lọc bởi RLS).

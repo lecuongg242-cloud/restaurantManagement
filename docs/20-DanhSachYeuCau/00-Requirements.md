@@ -10,7 +10,7 @@
 | OPS-02 | Migration & pipeline | Migration Supabase CLI chạy tự động khi merge; schema dev = prod | P1 | ◐ (migration CLI ✓ áp dev; CI viết sẵn, chờ secrets) |
 | OPS-03 | Design system (Mistral) | 1 trang style-guide render đủ token Mistral (cam/kem) + font Fraunces/Inter/JetBrains Mono + 4 profile bề mặt (Customer/POS/KDS/Admin) + component mới, tiếng Việt (theo QD-006) | P1 | ☑ (checkpoint 01-01) |
 | OPS-05 | Biến thể bề mặt | POS/KDS render biến thể dày đặc (Inter, nút ≥44px, màu status); app khách render editorial (Fraunces hero, thẻ kem) — cùng 1 bộ token | P1 | ☑ (checkpoint 01-01/03) |
-| OPS-06 | Logo tenant | Logo+tên tenant hiện ở header khách, header admin, đầu hóa đơn/phiếu bếp; chrome giữ theme sản phẩm cố định | P2 | ☐ |
+| OPS-06 | Logo tenant | Logo+tên tenant hiện ở header khách, header admin, đầu hóa đơn/phiếu bếp; chrome giữ theme sản phẩm cố định | P2 | ◐ code (header admin+khách); đầu hóa đơn/phiếu bếp → P3/P4 |
 | OPS-04 | PWA cài được | POS/KDS/khách cài lên màn hình chính; chạy online-only | P6 | ☐ |
 
 ## TENANT — Đa tenant & SaaS
@@ -18,7 +18,7 @@
 |---|---|---|---|---|
 | TENANT-01 | Super-admin tạo tenant | Super-admin tạo nhà hàng + owner; owner đăng nhập đúng tenant tại `/r/[slug]` | P1 | ☑ (checkpoint 01-02) |
 | TENANT-02 | Cách ly tenant (RLS) | Bộ test tự động: user tenant A không đọc/ghi bất kỳ dữ liệu tenant B | P1 | ☑ (test:rls 6/6 PASS, 01-04) |
-| TENANT-03 | Onboarding ≤ 15 phút | 1 người ngoài team tạo nhà hàng + 10 món + 5 bàn + in QR trong ≤ 15 phút (đo thật) | P2 | ☐ |
+| TENANT-03 | Onboarding ≤ 15 phút | 1 người ngoài team tạo nhà hàng + 10 món + 5 bàn + in QR trong ≤ 15 phút (đo thật) | P2 | ◐ wizard 4 bước code xong; chờ đo ≤15' với người ngoài team |
 | TENANT-04 | Định tuyến slug, chừa subdomain | `/r/[slug]` hoạt động; `tenants.subdomain` + nhánh middleware viết sẵn (tắt) | P1 | ☑ (checkpoint 01-01/02) |
 
 ## AUTH — Đăng nhập & phân quyền
@@ -32,14 +32,14 @@
 ## MENU
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
-| MENU-01 | CRUD danh mục & món | Tạo/sửa/xóa danh mục, món (ảnh ≤2MB, giá, mô tả), sắp xếp | P2 | ☐ |
-| MENU-02 | Nút "hết món" (86) | Bật/tắt `is_available` món & option; khách không đặt được món hết | P2 | ☐ |
-| MENU-03 | Nhóm tùy chọn + phụ thu | Tạo modifier group (min/max/required) + option có phụ thu; gắn vào món | P2 | ☐ |
+| MENU-01 | CRUD danh mục & món | Tạo/sửa/xóa danh mục, món (ảnh ≤2MB, giá, mô tả), sắp xếp | P2 | ◐ code xong (02-01); chờ checkpoint |
+| MENU-02 | Nút "hết món" (86) | Bật/tắt `is_available` món & option; khách không đặt được món hết | P2 | ◐ toggle admin+DB code xong (02-01/02); "khách thấy Hết" → P3 |
+| MENU-03 | Nhóm tùy chọn + phụ thu | Tạo modifier group (min/max/required) + option có phụ thu; gắn vào món | P2 | ◐ code xong (02-02); chờ checkpoint |
 
 ## TABLE — Khu vực, bàn, QR
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
-| TABLE-01 | Khu vực + bàn + QR | Tạo khu vực/bàn (số ghế); xuất QR từng bàn ra file in được | P2 | ☐ |
+| TABLE-01 | Khu vực + bàn + QR | Tạo khu vực/bàn (số ghế); xuất QR từng bàn ra file in được | P2 | ◐ code xong (02-03); chờ checkpoint |
 | TABLE-02 | Phiên bàn | Quét QR mở/ghép vào phiên bàn đang mở; đóng phiên khi thanh toán xong | P3 | ☐ |
 
 ## ORDER — Gọi món & bếp

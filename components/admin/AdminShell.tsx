@@ -55,7 +55,9 @@ export function AdminShell({
           <h2 className="text-sm font-medium text-ink">{tenant.name}</h2>
           <span className="text-xs text-steel">· khu quản trị</span>
         </header>
-        <main className="flex-1 p-xl">{children}</main>
+        <main className="flex-1 overflow-x-auto p-lg sm:p-xl lg:p-xxl">
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
+        </main>
       </div>
     </div>
   );
