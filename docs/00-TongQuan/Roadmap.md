@@ -8,7 +8,7 @@
 ## Hành trình
 Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi order-đến-bếp realtime (P3) → dòng tiền & báo cáo (P4) → kênh khách online (P5) → đóng gói phát hành (P6). Mỗi giai đoạn kết thúc bằng demo chạy trên môi trường dev.
 
-- [ ] **P1 — Nền tảng** (4 plan): Next.js + Supabase, auth+PIN, tenant, RLS, design system Mistral, pipeline 3 môi trường
+- [x] **P1 — Nền tảng** (4 plan): Next.js + Supabase, auth+PIN, tenant, RLS, design system Mistral, pipeline 3 môi trường — *nghiệm thu 21/07/2026 (checkpoint browser approved)*
 - [ ] **P2 — Dữ liệu nhà hàng**: Menu + modifier, khu vực/bàn/QR, admin, onboarding ≤15'
 - [ ] **P3 — Lõi order**: Gọi món QR mobile-first, duyệt order, POS, KDS realtime, PrintAdapter + phiếu bếp
 - [ ] **P4 — Dòng tiền**: Bill gộp/tách, điều chỉnh (giảm giá/phí/VAT), thanh toán, in hóa đơn, dashboard
@@ -28,7 +28,7 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 - 01-04 **Bộ test RLS tự động** (A ⊥ B) + 2 tenant demo + trang `/admin/data-scope` (bằng chứng cách ly bấm được) + CI. → *test:* `npm run test:rls` xanh + 2 owner thấy 2 phạm vi khác nhau.
 **Nghiệm thu:** app chạy local/dev cùng codebase · super-admin tạo tenant, owner vào `/r/[slug]` · test RLS: A ⊥ B · `/style-guide` render design system + 4 profile.
 
-**Trạng thái (21/07/2026):** Code 4 plan hoàn tất; `npm run build`/`lint` xanh; migration 0001–0003 đã áp Supabase dev; seed 2 tenant demo + super-admin; **`npm run test:rls` 6/6 PASS** (TENANT-02 đạt bằng test tự động). Còn lại: checkpoint bấm-tay trên trình duyệt cho 01-01..01-04 (mô tả ở từng `*-SUMMARY.md`). Tick ô P1 sau khi các checkpoint browser được "approved".
+**Trạng thái (21/07/2026 — ĐẠT):** 4 plan hoàn tất; `npm run build`/`lint` xanh; migration 0001–0003 áp Supabase dev; seed 2 tenant demo + super-admin; **`npm run test:rls` 6/6 PASS** (TENANT-02); checkpoint browser 01-01..01-04 **approved**. Còn lại (không chặn nghiệm thu P1): deploy Vercel dev/prod cho OPS-01/02 (nối repo + secrets; CI đã có `.github/workflows/ci.yml`).
 
 ## P2 — Dữ liệu nhà hàng
 **Mục tiêu:** Chủ nhà hàng tự cấu hình đủ dữ liệu để sẵn sàng phục vụ.

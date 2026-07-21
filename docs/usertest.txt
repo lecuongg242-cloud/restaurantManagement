@@ -1,0 +1,5 @@
+Vai trò	Email / PIN	Mật khẩu
+Super-admin	super@demo.test	SuperPass123!
+Owner Phở Việt	ownerA@pho-viet.test	DemoPass123!
+Owner Bún Bò	ownerB@bun-bo.test	DemoPass123!
+Trạm (POS/KDS)	station@pho-viet.test	StationPass123!

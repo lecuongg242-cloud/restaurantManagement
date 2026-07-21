@@ -2,7 +2,7 @@
 phase: 01-nen-tang
 plan: 04
 type: summary
-status: chờ-checkpoint
+status: đạt
 requirements: [TENANT-02]
 ---
 

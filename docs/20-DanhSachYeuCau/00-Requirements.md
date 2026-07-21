@@ -6,28 +6,28 @@
 ## OPS — Nền tảng & vận hành
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
-| OPS-01 | Chạy 3 môi trường 1 codebase | Truy cập được app trên local, dev (Vercel), prod (Vercel) từ branch `dev`/`main` | P1 | ☐ |
-| OPS-02 | Migration & pipeline | Migration Supabase CLI chạy tự động khi merge; schema dev = prod | P1 | ☐ |
-| OPS-03 | Design system (Mistral) | 1 trang style-guide render đủ token Mistral (cam/kem) + font Fraunces/Inter/JetBrains Mono + 4 profile bề mặt (Customer/POS/KDS/Admin) + component mới, tiếng Việt (theo QD-006) | P1 | ☐ |
-| OPS-05 | Biến thể bề mặt | POS/KDS render biến thể dày đặc (Inter, nút ≥44px, màu status); app khách render editorial (Fraunces hero, thẻ kem) — cùng 1 bộ token | P1 | ☐ |
+| OPS-01 | Chạy 3 môi trường 1 codebase | Truy cập được app trên local, dev (Vercel), prod (Vercel) từ branch `dev`/`main` | P1 | ◐ (local ✓; dev/prod chờ nối Vercel) |
+| OPS-02 | Migration & pipeline | Migration Supabase CLI chạy tự động khi merge; schema dev = prod | P1 | ◐ (migration CLI ✓ áp dev; CI viết sẵn, chờ secrets) |
+| OPS-03 | Design system (Mistral) | 1 trang style-guide render đủ token Mistral (cam/kem) + font Fraunces/Inter/JetBrains Mono + 4 profile bề mặt (Customer/POS/KDS/Admin) + component mới, tiếng Việt (theo QD-006) | P1 | ☑ (checkpoint 01-01) |
+| OPS-05 | Biến thể bề mặt | POS/KDS render biến thể dày đặc (Inter, nút ≥44px, màu status); app khách render editorial (Fraunces hero, thẻ kem) — cùng 1 bộ token | P1 | ☑ (checkpoint 01-01/03) |
 | OPS-06 | Logo tenant | Logo+tên tenant hiện ở header khách, header admin, đầu hóa đơn/phiếu bếp; chrome giữ theme sản phẩm cố định | P2 | ☐ |
 | OPS-04 | PWA cài được | POS/KDS/khách cài lên màn hình chính; chạy online-only | P6 | ☐ |
 
 ## TENANT — Đa tenant & SaaS
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
-| TENANT-01 | Super-admin tạo tenant | Super-admin tạo nhà hàng + owner; owner đăng nhập đúng tenant tại `/r/[slug]` | P1 | ◐ |
+| TENANT-01 | Super-admin tạo tenant | Super-admin tạo nhà hàng + owner; owner đăng nhập đúng tenant tại `/r/[slug]` | P1 | ☑ (checkpoint 01-02) |
 | TENANT-02 | Cách ly tenant (RLS) | Bộ test tự động: user tenant A không đọc/ghi bất kỳ dữ liệu tenant B | P1 | ☑ (test:rls 6/6 PASS, 01-04) |
 | TENANT-03 | Onboarding ≤ 15 phút | 1 người ngoài team tạo nhà hàng + 10 món + 5 bàn + in QR trong ≤ 15 phút (đo thật) | P2 | ☐ |
-| TENANT-04 | Định tuyến slug, chừa subdomain | `/r/[slug]` hoạt động; `tenants.subdomain` + nhánh middleware viết sẵn (tắt) | P1 | ◐ |
+| TENANT-04 | Định tuyến slug, chừa subdomain | `/r/[slug]` hoạt động; `tenants.subdomain` + nhánh middleware viết sẵn (tắt) | P1 | ☑ (checkpoint 01-01/02) |
 
 ## AUTH — Đăng nhập & phân quyền
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
-| AUTH-01 | Owner/manager email | Đăng nhập Supabase email/mật khẩu vào đúng tenant | P1 | ◐ |
-| AUTH-02 | Thiết bị trạm | POS/KDS đăng nhập 1 lần bằng tài khoản station của nhà hàng | P1 | ◐ |
-| AUTH-03 | PIN nhân viên | Cashier/waiter/kitchen chọn tên + PIN 4 số; thao tác gắn `staff_id` | P1 | ◐ |
-| AUTH-04 | RBAC theo vai trò | Mỗi vai trò chỉ thấy/làm đúng chức năng (owner/manager/cashier/waiter/kitchen); test phân quyền | P1 | ◐ |
+| AUTH-01 | Owner/manager email | Đăng nhập Supabase email/mật khẩu vào đúng tenant | P1 | ☑ (checkpoint 01-02) |
+| AUTH-02 | Thiết bị trạm | POS/KDS đăng nhập 1 lần bằng tài khoản station của nhà hàng | P1 | ☑ (checkpoint 01-03) |
+| AUTH-03 | PIN nhân viên | Cashier/waiter/kitchen chọn tên + PIN 4 số; thao tác gắn `staff_id` | P1 | ☑ (checkpoint 01-03) |
+| AUTH-04 | RBAC theo vai trò | Mỗi vai trò chỉ thấy/làm đúng chức năng (owner/manager/cashier/waiter/kitchen); test phân quyền | P1 | ☑ (checkpoint 01-03) |
 
 ## MENU
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
