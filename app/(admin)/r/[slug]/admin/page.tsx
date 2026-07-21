@@ -52,7 +52,7 @@ export default async function AdminPage({
   if (tenant) {
     const dismissed = (await cookies()).get(`onb-skip-${slug}`)?.value === "1";
     if (!dismissed) {
-      const [{ count: catCount }, { count: areaCount }] = await Promise.all([
+      const [catRes, areaRes] = await Promise.all([
         supabase
           .from("menu_categories")
           .select("id", { count: "exact", head: true })
@@ -62,7 +62,14 @@ export default async function AdminPage({
           .select("id", { count: "exact", head: true })
           .eq("tenant_id", tenant.id),
       ]);
-      if ((catCount ?? 0) === 0 && (areaCount ?? 0) === 0) {
+      // Chỉ tự mở wizard khi đếm được thật sự (query lỗi — ví dụ thiếu
+      // migration 0002 — thì ở lại trang tổng quan).
+      if (
+        !catRes.error &&
+        !areaRes.error &&
+        (catRes.count ?? 0) === 0 &&
+        (areaRes.count ?? 0) === 0
+      ) {
         redirect(`/r/${slug}/admin/onboarding`);
       }
     }

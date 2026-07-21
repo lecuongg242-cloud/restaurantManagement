@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { hasSupabaseEnv } from "@/lib/env";
-import { SetupNotice } from "@/components/setup-notice";
+import { SetupNotice, MigrationNotice } from "@/components/setup-notice";
 import { btn, input, alertError, alertOk, eyebrow } from "@/lib/ui";
 import {
   saveRestaurantInfo,
@@ -30,11 +30,14 @@ export default async function OnboardingPage({
   if (!hasSupabaseEnv()) return <SetupNotice />;
   const supabase = await createClient();
 
-  const { data: tenant } = await supabase
+  const { data: tenant, error: tenantErr } = await supabase
     .from("tenants")
     .select("id, name, address, phone, logo_url")
     .eq("slug", slug)
     .maybeSingle();
+  // Cột address/phone do migration 0002 thêm — thiếu migration thì báo rõ
+  // thay vì trang trắng.
+  if (tenantErr) return <MigrationNotice migration="0002_menu_tables.sql" />;
   if (!tenant) return null;
 
   const [{ count: catCount }, { count: itemCount }, { count: tableCount }, areasRes] =
