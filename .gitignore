@@ -2,6 +2,9 @@ _tmp/
 node_modules/
 .env*
 !.env.example
+!.env.local.example
+next-env.d.ts
+*.tsbuildinfo
 .vercel/
 .next/
 supabase/.temp/

@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__codegraph__*",
+      "Bash(curl -s http://localhost:3000/r/pho-viet)",
+      "Bash(curl -s http://localhost:3000/style-guide)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"next-server\")"
+    ]
+  },
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -9,11 +18,6 @@
           }
         ]
       }
-    ]
-  },
-  "permissions": {
-    "allow": [
-      "mcp__codegraph__*"
     ]
   }
 }
