@@ -28,12 +28,15 @@ export type PosItem = {
   cancel_reason: string | null;
 };
 
+export type CustomerContact = { name?: string; phone?: string | null } | null;
+
 export type PosOrder = {
   id: string;
   kitchen_no: number | null;
   status: OrderStatus;
   source: "qr" | "staff";
   note: string | null;
+  customer_contact: CustomerContact;
   created_at: string;
   table_session_id: string | null;
   items: PosItem[];
@@ -43,6 +46,7 @@ export type PosPending = {
   id: string;
   tableId: string | null;
   tableName: string;
+  customer_contact: CustomerContact;
   created_at: string;
   items: PosItem[];
 };
@@ -116,7 +120,7 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
       supabase
         .from("orders")
         .select(
-          "id, kitchen_no, status, source, note, created_at, table_session_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, cancel_reason, created_at, order_item_modifiers(name_snapshot))"
+          "id, kitchen_no, status, source, note, customer_contact, created_at, table_session_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, cancel_reason, created_at, order_item_modifiers(name_snapshot))"
         )
         .eq("tenant_id", tenantId)
         .in("status", ACTIVE_STATUSES)
@@ -132,6 +136,7 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     status: o.status as OrderStatus,
     source: o.source as "qr" | "staff",
     note: o.note ?? null,
+    customer_contact: (o.customer_contact as CustomerContact) ?? null,
     created_at: o.created_at,
     table_session_id: o.table_session_id,
     items: mapItems((o.order_items as unknown[]) ?? []),
@@ -147,6 +152,7 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
         id: o.id,
         tableId: sess?.table_id ?? null,
         tableName: tbl?.name ?? "—",
+        customer_contact: o.customer_contact,
         created_at: o.created_at,
         items: o.items,
       };

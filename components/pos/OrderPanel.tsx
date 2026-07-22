@@ -144,17 +144,25 @@ export function OrderPanel({
           <div className="flex flex-col gap-lg">
             {session.orders.map((order) => (
               <div key={order.id}>
-                <div className="flex items-center justify-between gap-sm">
-                  <p className="text-sm font-medium text-ink">
-                    Đơn {order.kitchen_no != null ? `#${order.kitchen_no}` : `#${order.id.slice(-6).toUpperCase()}`}
-                    <span className="ml-xs text-xs font-normal text-steel">
-                      {new Date(order.created_at).toLocaleTimeString("vi-VN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                      {order.source === "qr" ? " · QR" : " · POS"}
-                    </span>
-                  </p>
+                <div className="flex items-start justify-between gap-sm">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink">
+                      Đơn {order.kitchen_no != null ? `#${order.kitchen_no}` : `#${order.id.slice(-6).toUpperCase()}`}
+                      <span className="ml-xs text-xs font-normal text-steel">
+                        {new Date(order.created_at).toLocaleTimeString("vi-VN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {order.source === "qr" ? " · QR" : " · POS"}
+                      </span>
+                    </p>
+                    {order.customer_contact?.name && (
+                      <p className="text-xs text-primary">
+                        {order.customer_contact.name}
+                        {order.customer_contact.phone ? ` · ${order.customer_contact.phone}` : ""}
+                      </p>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => getPrintAdapter().printKitchenTicket({ slug, orderId: order.id })}

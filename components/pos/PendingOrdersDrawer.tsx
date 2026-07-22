@@ -102,6 +102,12 @@ export function PendingOrdersDrawer({
                         <span className="font-semibold text-ink">Bàn {o.tableName}</span>
                         <span className="text-xs text-steel">{time(o.created_at)}</span>
                       </div>
+                      {o.customer_contact?.name && (
+                        <p className="text-xs text-primary">
+                          {o.customer_contact.name}
+                          {o.customer_contact.phone ? ` · ${o.customer_contact.phone}` : ""}
+                        </p>
+                      )}
                       <ul className="mt-sm flex flex-col gap-xs">
                         {o.items.map((it) => (
                           <li key={it.id} className="text-sm text-ink">

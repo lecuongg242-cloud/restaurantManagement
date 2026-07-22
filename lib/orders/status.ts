@@ -50,14 +50,13 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 /**
- * Các bước hiển thị trên stepper khách. KDS chỉ để XEM (bếp không đổi trạng thái) nên bỏ
- * preparing/ready — khách thấy: Chờ xác nhận → Đang chuẩn bị (confirmed) → Đã phục vụ.
+ * Stepper khách CHỈ 2 bước: Chờ xác nhận → Đã xác nhận (QĐ 22/07). Khách chỉ cần biết đơn được
+ * nhân viên nhận; các bước bếp/phục vụ là nội bộ (KDS read-only, phục vụ đánh ở POS).
  */
-export const CUSTOMER_STEPPER: OrderStatus[] = ["pending_confirm", "confirmed", "served"];
+export const CUSTOMER_STEPPER: OrderStatus[] = ["pending_confirm", "confirmed"];
 
-/** Nhãn thân thiện cho stepper khách (confirmed hiển thị "Đang chuẩn bị"). */
+/** Nhãn thân thiện cho stepper khách. */
 export const CUSTOMER_STEP_LABEL: Record<string, string> = {
   pending_confirm: "Chờ xác nhận",
-  confirmed: "Đang chuẩn bị",
-  served: "Đã phục vụ",
+  confirmed: "Đã xác nhận",
 };

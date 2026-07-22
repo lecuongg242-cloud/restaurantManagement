@@ -143,7 +143,8 @@ export function OrderStatusStepper({
   }
 
   const cancelled = data.status === "cancelled";
-  const currentIdx = CUSTOMER_STEPPER.indexOf(data.status);
+  // pending_confirm → bước 1 đang chờ; confirmed trở đi → cả 2 bước hoàn tất (dừng ở "Đã xác nhận").
+  const currentIdx = data.status === "pending_confirm" ? 0 : CUSTOMER_STEPPER.length;
 
   return (
     <div className="mx-auto min-h-screen max-w-md bg-canvas p-lg">
@@ -160,14 +161,12 @@ export function OrderStatusStepper({
       ) : (
         <>
           <h1 className="font-display text-2xl text-ink">
-            {CUSTOMER_STEP_LABEL[data.status] ?? ORDER_STATUS_LABEL[data.status]}
+            {data.status === "pending_confirm" ? "Chờ xác nhận" : "Đã xác nhận"}
           </h1>
           <p className="mt-xxs text-sm text-steel">
             {data.status === "pending_confirm"
               ? "Đã gửi, chờ nhân viên xác nhận."
-              : data.status === "served"
-                ? "Món đã được phục vụ. Chúc ngon miệng!"
-                : "Nhà bếp đang chuẩn bị món của bạn."}
+              : "Nhân viên đã xác nhận đơn của bạn. Món sẽ được phục vụ sớm."}
           </p>
 
           {/* Stepper dọc */}
@@ -233,13 +232,20 @@ export function OrderStatusStepper({
           {data.items.map((it) => (
             <li key={it.id} className="flex items-start justify-between gap-md py-sm">
               <div className="min-w-0">
-                <span className="text-sm text-ink">
+                <span
+                  className={
+                    "text-sm text-ink " + (it.status === "cancelled" ? "line-through opacity-60" : "")
+                  }
+                >
                   {it.qty}× {it.name}
                 </span>
                 {it.modifiers && it.modifiers.length > 0 && (
                   <p className="text-xs text-steel">
                     {it.modifiers.map((m) => m.name_snapshot).join(" · ")}
                   </p>
+                )}
+                {it.status === "cancelled" && (
+                  <span className="text-xs text-status-late">Đã hủy</span>
                 )}
               </div>
               <div className="flex shrink-0 flex-col items-end">
@@ -248,7 +254,6 @@ export function OrderStatusStepper({
                     {formatVnd(it.unit_price * it.qty)}
                   </span>
                 )}
-                <ItemStatusBadge status={it.status} />
               </div>
             </li>
           ))}
@@ -264,21 +269,5 @@ export function OrderStatusStepper({
         </Link>
       )}
     </div>
-  );
-}
-
-function ItemStatusBadge({ status }: { status: OrderItemStatus }) {
-  const map: Record<OrderItemStatus, { label: string; cls: string }> = {
-    queued: { label: "Chờ làm", cls: "bg-status-new text-status-new-fg" },
-    preparing: { label: "Đang làm", cls: "bg-status-active text-status-active-fg" },
-    ready: { label: "Sẵn sàng", cls: "bg-status-ready-bg text-status-ready" },
-    served: { label: "Đã phục vụ", cls: "bg-surface text-steel" },
-    cancelled: { label: "Đã hủy", cls: "bg-cream-soft text-status-late" },
-  };
-  const s = map[status];
-  return (
-    <span className={"mt-xxs rounded px-1.5 py-0.5 text-[11px] font-medium " + s.cls}>
-      {s.label}
-    </span>
   );
 }

@@ -36,12 +36,15 @@ export function MenuBrowser({
   const [modifierOpen, setModifierOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [orderNote, setOrderNote] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeCat, setActiveCat] = useState(menu.categories[0]?.id ?? "");
   const [badgePulse, setBadgePulse] = useState(0);
 
   const storageKey = qrToken ? `cart:${slug}:${qrToken}` : null;
+  const contactKey = qrToken ? `contact:${slug}:${qrToken}` : null;
 
   const itemMap = useMemo(() => {
     const m = new Map<string, CustomerMenuItem>();
@@ -70,20 +73,66 @@ export function MenuBrowser({
     }
   }, [cart, storageKey]);
 
-  // Scroll-spy: chip danh mục nào đang trong khung nhìn.
+  // Nạp + lưu tên/SĐT khách (prefill khi gọi thêm cùng bàn).
+  useEffect(() => {
+    if (!contactKey) return;
+    try {
+      const raw = sessionStorage.getItem(contactKey);
+      if (raw) {
+        const c = JSON.parse(raw);
+        setCustomerName(typeof c.name === "string" ? c.name : "");
+        setCustomerPhone(typeof c.phone === "string" ? c.phone : "");
+      }
+    } catch {
+      /* bỏ qua */
+    }
+  }, [contactKey]);
+
+  useEffect(() => {
+    if (!contactKey) return;
+    try {
+      sessionStorage.setItem(contactKey, JSON.stringify({ name: customerName, phone: customerPhone }));
+    } catch {
+      /* quota */
+    }
+  }, [customerName, customerPhone, contactKey]);
+
+  // Scroll-spy: chip danh mục = section cuối cùng đã cuộn qua vạch dưới header (đáng tin hơn
+  // IntersectionObserver, cập nhật đúng cả khi cuộn về đầu).
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   useEffect(() => {
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible?.target) setActiveCat(visible.target.id.replace("cat-", ""));
-      },
-      { rootMargin: "-120px 0px -55% 0px", threshold: [0, 0.25, 0.5] }
-    );
-    Object.values(sectionRefs.current).forEach((el) => el && obs.observe(el));
-    return () => obs.disconnect();
+    const cats = menu.categories;
+    if (cats.length === 0) return;
+    const THRESHOLD = 120; // ~dưới header + chip nav (khớp scroll-mt của section)
+    let ticking = false;
+    const compute = () => {
+      ticking = false;
+      // Cuộn tới đáy trang → danh mục cuối luôn active (section cuối thường ngắn, top không
+      // chạm được vạch nên cần xử lý riêng).
+      const atBottom =
+        window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+      if (atBottom) {
+        setActiveCat(cats[cats.length - 1].id);
+        return;
+      }
+      let current = cats[0].id;
+      for (const cat of cats) {
+        const el = sectionRefs.current[cat.id];
+        if (!el) continue;
+        if (el.getBoundingClientRect().top <= THRESHOLD) current = cat.id;
+        else break; // section theo thứ tự dọc → gặp section chưa qua vạch thì dừng
+      }
+      setActiveCat(current);
+    };
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(compute);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    compute();
+    return () => window.removeEventListener("scroll", onScroll);
   }, [menu]);
 
   const cartCount = cart.reduce((n, l) => n + l.qty, 0);
@@ -115,6 +164,8 @@ export function MenuBrowser({
 
   const changeQty = (lineId: string, qty: number) =>
     setCart((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, qty } : l)));
+  const changeNote = (lineId: string, note: string) =>
+    setCart((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, note } : l)));
   const removeLine = (lineId: string) =>
     setCart((prev) => prev.filter((l) => l.lineId !== lineId));
 
@@ -134,6 +185,8 @@ export function MenuBrowser({
         body: JSON.stringify({
           qrToken,
           note: orderNote,
+          customerName,
+          customerPhone,
           lines: cart.map((l) => ({
             itemId: l.itemId,
             qty: l.qty,
@@ -219,7 +272,7 @@ export function MenuBrowser({
                   className={cn(
                     "snap-start whitespace-nowrap rounded-full px-md py-xs text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                     activeCat === c.id
-                      ? "bg-ink text-on-dark"
+                      ? "bg-primary text-primary-fg"
                       : "bg-surface text-steel hover:bg-cream"
                   )}
                 >
@@ -362,7 +415,12 @@ export function MenuBrowser({
           itemMap={itemMap}
           orderNote={orderNote}
           onOrderNoteChange={setOrderNote}
+          customerName={customerName}
+          onCustomerNameChange={setCustomerName}
+          customerPhone={customerPhone}
+          onCustomerPhoneChange={setCustomerPhone}
           onChangeQty={changeQty}
+          onChangeNote={changeNote}
           onRemove={removeLine}
           onSubmit={submit}
           submitting={submitting}

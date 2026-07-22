@@ -19,7 +19,12 @@ export function CartSheet({
   itemMap,
   orderNote,
   onOrderNoteChange,
+  customerName,
+  onCustomerNameChange,
+  customerPhone,
+  onCustomerPhoneChange,
   onChangeQty,
+  onChangeNote,
   onRemove,
   onSubmit,
   submitting,
@@ -31,7 +36,12 @@ export function CartSheet({
   itemMap: Map<string, CustomerMenuItem>;
   orderNote: string;
   onOrderNoteChange: (v: string) => void;
+  customerName: string;
+  onCustomerNameChange: (v: string) => void;
+  customerPhone: string;
+  onCustomerPhoneChange: (v: string) => void;
   onChangeQty: (lineId: string, qty: number) => void;
+  onChangeNote: (lineId: string, note: string) => void;
   onRemove: (lineId: string) => void;
   onSubmit: () => void;
   submitting: boolean;
@@ -86,9 +96,6 @@ export function CartSheet({
                           {names.length > 0 && (
                             <p className="mt-xxs text-xs text-steel">{names.join(" · ")}</p>
                           )}
-                          {l.note && (
-                            <p className="mt-xxs text-xs italic text-stone">“{l.note}”</p>
-                          )}
                           <div className="mt-sm flex items-center gap-md">
                             <QtyStepper
                               value={l.qty}
@@ -103,6 +110,14 @@ export function CartSheet({
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
+                          <input
+                            value={l.note}
+                            onChange={(e) => onChangeNote(l.lineId, e.target.value)}
+                            maxLength={200}
+                            placeholder="Ghi chú món này (VD: ít cay, không hành…)"
+                            aria-label={`Ghi chú cho ${item.name}`}
+                            className="mt-sm h-9 w-full rounded-md border border-hairline px-sm text-xs text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                          />
                         </div>
                         <span className="shrink-0 text-sm font-semibold tabular-nums text-primary">
                           {formatVnd(lineTotal)}
@@ -112,6 +127,35 @@ export function CartSheet({
                   })}
                 </AnimatePresence>
               </ul>
+            )}
+
+            {lines.length > 0 && (
+              <div className="mt-md">
+                <label htmlFor="cust-name" className="text-sm font-medium text-ink">
+                  Tên của bạn <span className="text-status-late">*</span>
+                </label>
+                <input
+                  id="cust-name"
+                  value={customerName}
+                  onChange={(e) => onCustomerNameChange(e.target.value)}
+                  maxLength={50}
+                  placeholder="VD: Anh Nam"
+                  className="mt-xs h-11 w-full rounded-md border border-hairline px-md text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+                <label htmlFor="cust-phone" className="mt-md block text-sm font-medium text-ink">
+                  Số điện thoại <span className="text-xs font-normal text-steel">(không bắt buộc)</span>
+                </label>
+                <input
+                  id="cust-phone"
+                  type="tel"
+                  inputMode="tel"
+                  value={customerPhone}
+                  onChange={(e) => onCustomerPhoneChange(e.target.value)}
+                  maxLength={20}
+                  placeholder="VD: 0901 234 567"
+                  className="mt-xs h-11 w-full rounded-md border border-hairline px-md text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
             )}
 
             {lines.length > 0 && (
@@ -146,7 +190,7 @@ export function CartSheet({
             <button
               type="button"
               onClick={onSubmit}
-              disabled={lines.length === 0 || submitting}
+              disabled={lines.length === 0 || submitting || !customerName.trim()}
               className="flex h-12 w-full items-center justify-center gap-sm rounded-md bg-primary text-base font-medium text-primary-fg transition-colors hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-hairline disabled:text-muted"
             >
               {submitting ? (

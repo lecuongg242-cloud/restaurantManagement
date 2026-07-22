@@ -25,9 +25,13 @@ export async function POST(
     qrToken?: unknown;
     lines?: unknown;
     note?: unknown;
+    customerName?: unknown;
+    customerPhone?: unknown;
   };
   const qrToken = typeof b.qrToken === "string" ? b.qrToken : "";
   const note = typeof b.note === "string" ? b.note : undefined;
+  const customerName = typeof b.customerName === "string" ? b.customerName : undefined;
+  const customerPhone = typeof b.customerPhone === "string" ? b.customerPhone : undefined;
   const lines: OrderLineInput[] = Array.isArray(b.lines)
     ? (b.lines as unknown[]).map((l) => {
         const o = (l ?? {}) as Record<string, unknown>;
@@ -42,7 +46,7 @@ export async function POST(
       })
     : [];
 
-  const result = await createQrOrder({ slug, qrToken, lines, note });
+  const result = await createQrOrder({ slug, qrToken, lines, note, customerName, customerPhone });
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }

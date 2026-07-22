@@ -166,6 +166,7 @@ async function insertOrderGraph(
     createdBy: string | null;
     confirmedBy: string | null;
     note: string | null;
+    customerContact: Record<string, unknown> | null;
     built: BuiltLine[];
   }
 ): Promise<CreateOrderResult> {
@@ -183,6 +184,7 @@ async function insertOrderGraph(
       confirmed_by: args.confirmedBy,
       created_by: args.createdBy,
       kitchen_no: kitchenNo,
+      customer_contact: args.customerContact,
       note: args.note,
     })
     .select("id")
@@ -244,12 +246,20 @@ export type CreateOrderInput = {
   qrToken: string;
   lines: OrderLineInput[];
   note?: string;
+  customerName?: string;
+  customerPhone?: string;
 };
 
 export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
   const { slug, qrToken, lines } = input;
   const note = input.note?.trim() ? input.note.trim().slice(0, 500) : null;
   if (!qrToken) return { error: "Thiếu mã bàn (QR). Vui lòng quét lại mã tại bàn." };
+
+  // Tên bắt buộc để phân biệt khách cùng bàn; SĐT tùy chọn.
+  const name = input.customerName?.trim();
+  if (!name) return { error: "Vui lòng nhập tên để nhân viên phục vụ đúng người." };
+  const phone = input.customerPhone?.trim() ? input.customerPhone.trim().slice(0, 20) : null;
+  const customerContact = { name: name.slice(0, 50), phone };
 
   const admin = createAdminClient();
 
@@ -285,6 +295,7 @@ export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrde
     createdBy: null,
     confirmedBy: null,
     note,
+    customerContact,
     built: validated.built,
   });
 }
@@ -332,6 +343,7 @@ export async function createStaffOrder(input: CreateStaffOrderInput): Promise<Cr
     createdBy: actingStaffId,
     confirmedBy: actingStaffId,
     note,
+    customerContact: null,
     built: validated.built,
   });
 }
