@@ -11,7 +11,7 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 - [x] **P1 — Nền tảng** (4 plan): Next.js + Supabase, auth+PIN, tenant, RLS, design system Mistral, pipeline 3 môi trường — *nghiệm thu 21/07/2026 (checkpoint browser approved)*
 - [~] **P2 — Dữ liệu nhà hàng**: Menu + modifier, khu vực/bàn/QR, admin, onboarding ≤15' — *code 5/5 plan hoàn tất, migration 0004–0007 đã áp dev, build sạch; chờ 5 checkpoint human-verify*
 - [ ] **P3 — Lõi order**: Gọi món QR mobile-first, duyệt order, POS, KDS realtime, PrintAdapter + phiếu bếp
-- [ ] **P4 — Dòng tiền**: Bill gộp/tách, điều chỉnh (giảm giá/phí/VAT), thanh toán, in hóa đơn, dashboard
+- [~] **P4 — Dòng tiền**: Bill gộp/tách, điều chỉnh (giảm giá/phí/VAT), thanh toán, in hóa đơn, dashboard — *code 5/5 plan hoàn tất (04-01..05), migration 0012–0013 áp dev, tsc/lint/test xanh; chờ 5 checkpoint human-verify*
 - [ ] **P5 — Kênh online**: Đặt bàn (duyệt tay), đặt món mang về/giao (trạng thái)
 - [ ] **P6 — Phát hành**: PWA, E2E, 2 tenant demo prod, tài liệu V1.0
 
@@ -49,13 +49,15 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 **Mục tiêu:** Order từ khách/nhân viên tới bếp realtime, có duyệt và in phiếu bếp.
 **Phụ thuộc:** P2.
 **Yêu cầu:** TABLE-02, ORDER-01..05, PRINT-01, PRINT-02.
-**Kế hoạch:**
-- 03-01 Phiên bàn + gọi món QR mobile-first (menu, tùy chọn, ghi chú, giỏ, gửi).
-- 03-02 Duyệt order QR trên POS (pending_confirm → confirmed) + POS thêm món thay khách.
-- 03-03 KDS realtime (cột trạng thái, đổi làm/xong mức món) + đo ≤3s.
-- 03-04 Hủy/sửa món có kiểm soát (manager/cashier + lý do).
-- 03-05 PrintAdapter + BrowserPrintAdapter + route in phiếu bếp 58/80mm.
+**Kế hoạch (5 plan — lát cắt dọc, mỗi plan kết thúc bằng UI test thủ công; chi tiết ở `30-KeHoach/P3/`, lập 22/07/2026):**
+- 03-01 Phiên bàn + gọi món QR mobile-first (menu, tùy chọn, ghi chú, giỏ, gửi + theo dõi polling). → *test:* /r/[slug]/menu?t=… ở 360px. *(Wave 1)*
+- 03-02 Duyệt order QR trên POS (pending_confirm → confirmed, realtime) + POS thêm món thay khách + đóng phiên thủ công. → *test:* /r/[slug]/pos, 2 cửa sổ. *(Wave 2)*
+- 03-03 KDS realtime (3 cột, đổi làm/xong mức món) + đo ≤3s ×10 (badge delta). → *test:* /r/[slug]/kds. *(Wave 3)*
+- 03-04 Hủy món có kiểm soát (PIN manager/cashier + lý do + log `cancelled_by`). → *test:* POS panel bàn. *(Wave 3)*
+- 03-05 PrintAdapter + BrowserPrintAdapter + phiếu bếp 58/80mm + `print_jobs`. → *test:* duyệt → in, PDF preview. *(Wave 3)*
 **Nghiệm thu:** QR→POS duyệt→KDS ≤3s (10 lần) · phiếu bếp in đúng khổ (PDF preview) · hủy món cần quyền + lý do.
+
+**Quyết định P3 (22/07/2026 — ghi lại):** (1) Khách theo dõi trạng thái **realtime qua Supabase Broadcast** (channel `order:{id}`, anon subscribe được vì không qua RLS; fallback polling 15s; đã cân nhắc Ably — từ chối vì thừa vendor). (2) Đóng phiên bàn P3 = **thủ công trên POS**; tự đóng khi thanh toán → P4 (phần còn lại của TABLE-02). (3) "Sửa món" = hủy có kiểm soát + thêm dòng mới (không edit-in-place). (4) P3 chỉ `dine_in`. (5) `qr_order_auto_send` bật → bỏ duyệt. Chi tiết: `30-KeHoach/P3/00-TongQuan.md`.
 
 ## P4 — Dòng tiền
 **Mục tiêu:** Chốt bill (gộp/tách), thu tiền, in hóa đơn, thấy doanh thu khớp 100%.
@@ -68,6 +70,8 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 - 04-04 Thanh toán tiền mặt/chuyển khoản + đóng bill + in hóa đơn 80mm.
 - 04-05 Dashboard: doanh thu ngày/tuần/tháng + món bán chạy + theo phương thức TT.
 **Nghiệm thu:** đóng bill ≤5s · doanh thu khớp 100% (20 bill) · hóa đơn 80mm đủ nội dung.
+
+**Kế hoạch chi tiết P4 (lập 22/07/2026):** `30-KeHoach/P4/` (00-TongQuan + 5 PLAN theo GSD, mỗi plan test thủ công trên trình duyệt) + quyết định `15-QuyetDinh/QD-007`. Chốt: chuyển khoản = ghi nhận (không VietQR ở V1) · tách/gộp đầy đủ (theo món/chia đều N/gộp bàn) · giảm giá+void cần PIN manager/cashier · dashboard dùng recharts (mốc ngày VN). 1 migration mới `0012_bills_core.sql`.
 
 ## P5 — Kênh online
 **Mục tiêu:** Khách đặt bàn và đặt món online; quản lý duyệt.

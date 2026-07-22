@@ -20,9 +20,11 @@ const PICKER_ROLES: Record<"pos" | "kds", string[]> = {
 export async function StationScreen({
   slug,
   surface,
+  children,
 }: {
   slug: string;
   surface: "pos" | "kds";
+  children?: React.ReactNode;
 }) {
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/${surface}/login`);
@@ -33,8 +35,21 @@ export async function StationScreen({
   const current = await getCurrentStaff(slug, surface);
   const label = surface === "pos" ? "Trạm POS" : "Màn hình bếp (KDS)";
 
+  // Owner/manager đăng nhập email thao tác như chính họ (không cần chọn nhân viên/PIN).
+  const isPrincipal = session!.role === "owner" || session!.role === "manager";
+  const acting =
+    current ??
+    (isPrincipal
+      ? {
+          id: session!.membershipId,
+          display_name: session!.role === "owner" ? "Chủ quán" : "Quản lý",
+          role: session!.role,
+          active: true,
+        }
+      : null);
+
   // (2) Chưa chọn nhân viên → StaffPicker
-  if (!current) {
+  if (!acting) {
     const supabase = await createClient();
     const { data: staff } = await supabase
       .from("memberships")
@@ -77,13 +92,15 @@ export async function StationScreen({
         </div>
         <div className="flex items-center gap-sm">
           <span className="rounded-full bg-cream px-md py-xxs text-sm font-medium text-ink">
-            Nhân viên: {current.display_name}
+            Nhân viên: {acting.display_name}
           </span>
-          <form action={change}>
-            <Button type="submit" variant="secondary" size="sm">
-              Đổi nhân viên
-            </Button>
-          </form>
+          {current && (
+            <form action={change}>
+              <Button type="submit" variant="secondary" size="sm">
+                Đổi nhân viên
+              </Button>
+            </form>
+          )}
           <form action={signOut}>
             <Button type="submit" variant="link" size="sm">
               Đăng xuất thiết bị
@@ -91,16 +108,20 @@ export async function StationScreen({
           </form>
         </div>
       </header>
-      <main className="flex-1 p-xl">
-        <h1 className="text-2xl font-medium text-ink">
-          {label} — {session!.tenant.name}
-        </h1>
-        <p className="mt-sm text-sm text-slate">
-          Nhân viên đang thao tác: <span className="text-ink">{current.display_name}</span>.
-          Khung P1 — thao tác gọi món / vé bếp mở ở các plan sau; mọi thao tác sẽ gắn staff_id
-          của nhân viên này.
-        </p>
-      </main>
+      {children ? (
+        <main className="min-h-0 flex-1">{children}</main>
+      ) : (
+        <main className="flex-1 p-xl">
+          <h1 className="text-2xl font-medium text-ink">
+            {label} — {session!.tenant.name}
+          </h1>
+          <p className="mt-sm text-sm text-slate">
+            Nhân viên đang thao tác: <span className="text-ink">{acting.display_name}</span>.
+            Khung P1 — thao tác gọi món / vé bếp mở ở các plan sau; mọi thao tác sẽ gắn staff_id
+            của nhân viên này.
+          </p>
+        </main>
+      )}
     </div>
   );
 }
