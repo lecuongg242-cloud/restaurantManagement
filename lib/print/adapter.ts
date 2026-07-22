@@ -19,7 +19,9 @@ export type KitchenTicketView = {
 /** Hóa đơn (P4 điền chi tiết). Khai báo trước để interface ổn định. */
 export type BillView = { orderId: string };
 
-export type PrintKitchenArgs = { slug: string; orderId: string; width?: 58 | 80 };
+/** Khổ phiếu bếp: 58/80mm (máy in nhiệt) hoặc A5 (máy in thường, chữ to đọc xa). */
+export type KitchenWidth = "58" | "80" | "a5";
+export type PrintKitchenArgs = { slug: string; orderId: string; width?: KitchenWidth };
 
 export interface PrintAdapter {
   printKitchenTicket(args: PrintKitchenArgs): void;
@@ -28,7 +30,7 @@ export interface PrintAdapter {
 
 /** V1 — in qua trình duyệt: mở route in (route lo window.print + ghi print_jobs). */
 class BrowserPrintAdapter implements PrintAdapter {
-  printKitchenTicket({ slug, orderId, width = 80 }: PrintKitchenArgs): void {
+  printKitchenTicket({ slug, orderId, width = "80" }: PrintKitchenArgs): void {
     if (typeof window === "undefined") return;
     window.open(`/r/${slug}/print/kitchen/${orderId}?w=${width}`, "_blank", "noopener");
   }

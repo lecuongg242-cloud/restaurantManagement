@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
 import { buildKitchenTicket } from "@/lib/print/kitchen-ticket";
+import type { KitchenWidth } from "@/lib/print/adapter";
 import { KitchenTicketDoc } from "@/components/print/KitchenTicketDoc";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export default async function KitchenPrintPage({
 }) {
   const { slug, orderId } = await params;
   const { w } = await searchParams;
-  const width: 58 | 80 = w === "58" ? 58 : 80;
+  const width: KitchenWidth = w === "58" ? "58" : w === "a5" ? "a5" : "80";
 
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/pos/login`);
