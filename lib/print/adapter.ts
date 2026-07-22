@@ -6,6 +6,7 @@
 
 export type KitchenTicketView = {
   orderId: string;
+  kitchenNo: number | null;
   tenantName: string;
   logoUrl: string | null;
   tableName: string;

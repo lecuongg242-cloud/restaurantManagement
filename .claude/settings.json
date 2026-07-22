@@ -61,7 +61,17 @@
       "PowerShell(Get-NetTCPConnection -LocalPort 3006 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction Stop; \"killed 3006\" } catch {} })",
       "Bash(rm -rf test-results playwright-report)",
       "Bash(grep -qE \"^/?test-results\" .gitignore)",
-      "Bash(printf \"\\\\n# Playwright\\\\n/test-results/\\\\n/playwright-report/\\\\n/blob-report/\\\\n.playwright/\\\\n\")"
+      "Bash(printf \"\\\\n# Playwright\\\\n/test-results/\\\\n/playwright-report/\\\\n/blob-report/\\\\n.playwright/\\\\n\")",
+      "Bash(cd \"d:/outside/restaurantManagement\" && echo \"=== refs to kds/actions ===\" && grep -rn \"kds/actions\\\\|startItem\\\\|readyItem\" --include=*.tsx --include=*.ts app components lib | grep -v \"app/r/\\\\[slug\\\\]/kds/actions.ts\" || echo \"\\(none\\)\"; rm -f \"app/r/[slug]/kds/actions.ts\" && echo \"deleted kds/actions.ts\")",
+      "Bash(E2E_BASE_URL=http://localhost:3006 npx playwright test pos-edit)",
+      "Bash(rm -f tests/e2e/pos-edit.spec.ts)",
+      "Bash(rm -f \"C:/Users/admin/AppData/Local/Temp/claude/d--outside-restaurantManagement/3e8be3f9-d496-4fcf-b2fb-7f0ffaa78ca4/scratchpad/shots/debug-\"*.png)",
+      "Bash(echo \"tsc rc=$?\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 3006 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction Stop; \"stopped prod 3006\" } catch {} })",
+      "Bash(node -e ' *)"
+    ],
+    "additionalDirectories": [
+      "d:\\outside\\restaurantManagement\\app\\r\\[slug]\\kds"
     ]
   },
   "hooks": {

@@ -105,6 +105,12 @@ export function PosBoard({
   const cartQty = (lineId: string, qty: number) =>
     setCart((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, qty } : l)));
   const cartRemove = (lineId: string) => setCart((prev) => prev.filter((l) => l.lineId !== lineId));
+  const cartEdit = (lineId: string, line: PendingLine) =>
+    setCart((prev) =>
+      prev.map((l) =>
+        l.lineId === lineId ? { ...l, qty: line.qty, note: line.note, optionIds: line.optionIds } : l
+      )
+    );
 
   const confirmAdd = async () => {
     if (!selectedTableId || cart.length === 0) return;
@@ -173,6 +179,7 @@ export function PosBoard({
               itemMap={itemMap}
               onCartQty={cartQty}
               onCartRemove={cartRemove}
+              onCartEdit={cartEdit}
               onConfirmAdd={confirmAdd}
               adding={adding}
               addError={addError}

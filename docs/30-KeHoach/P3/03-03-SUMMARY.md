@@ -38,6 +38,15 @@ EMBED ticket → table: B1 | items: 1 | item0: phở bò   (table_sessions→tab
 
 > Đây là **độ trễ giao realtime** (Supabase Realtime, server→subscriber) — thành phần chi phối của ORDER-04. Đường đầy-đủ trên trình duyệt cộng thêm `router.refresh` + `getKdsTickets` refetch (~vài trăm ms cục bộ), tổng vẫn ≤3s. **Phép đo 10 lần end-to-end trên trình duyệt (POS duyệt → vé render) là bước human-verify** — badge delta trên mỗi vé hiển thị sẵn số giây để đọc.
 
+## Sửa thiết kế 22/07/2026 — KDS chỉ để XEM (bếp không chạm)
+> Chủ dự án: bếp thật tay bận/bẩn không thể bấm từng nút trên màn cảm ứng.
+- **KdsBoard**: bỏ 3 cột thao tác → **lưới vé read-only** (xếp cũ→mới, tự ẩn khi phục vụ). Realtime + badge delta + cảnh báo TRỄ giữ nguyên.
+- **KdsTicket**: bỏ nút Bắt đầu/Xong — chỉ hiển thị bàn/đồng hồ/món/tùy chọn/ghi chú.
+- **Luồng**: món `queued` → (bếp nấu, không đổi state) → **POS "Đã phục vụ"** (`queued→served`) → vé tự ẩn. `kds/actions.ts` (startItem/readyItem) đã xóa.
+- **OrderPanel**: "Đã phục vụ" cho mọi món chưa served/cancelled (không chỉ `ready`).
+- **Khách stepper**: gọn còn Chờ xác nhận → Đang chuẩn bị → Đã phục vụ (`CUSTOMER_STEPPER`).
+- ORDER-04 (≤3s) không đổi: vé vẫn hiện realtime, badge delta 2.1s xanh (E2E). Trạng thái `preparing/ready` giữ trong enum cho V2 (bump-bar).
+
 ## Cam kết must_haves
 - [x] Chỉ item thuộc order confirmed hiện trên KDS (pending_confirm KHÔNG hiện).
 - [x] 3 cột; bấm Bắt đầu (queued→preparing) / Xong (preparing→ready) mức MÓN.

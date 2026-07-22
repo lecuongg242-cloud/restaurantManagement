@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import { createClient } from "@/lib/supabase/client";
 import {
   CUSTOMER_STEPPER,
+  CUSTOMER_STEP_LABEL,
   ORDER_STATUS_LABEL,
   isTerminalOrderStatus,
 } from "@/lib/orders/status";
@@ -159,14 +160,14 @@ export function OrderStatusStepper({
       ) : (
         <>
           <h1 className="font-display text-2xl text-ink">
-            {ORDER_STATUS_LABEL[data.status]}
+            {CUSTOMER_STEP_LABEL[data.status] ?? ORDER_STATUS_LABEL[data.status]}
           </h1>
           <p className="mt-xxs text-sm text-steel">
             {data.status === "pending_confirm"
               ? "Đã gửi, chờ nhân viên xác nhận."
               : data.status === "served"
                 ? "Món đã được phục vụ. Chúc ngon miệng!"
-                : "Nhà bếp đang xử lý đơn của bạn."}
+                : "Nhà bếp đang chuẩn bị món của bạn."}
           </p>
 
           {/* Stepper dọc */}
@@ -206,7 +207,7 @@ export function OrderStatusStepper({
                         (active ? "font-semibold text-ink" : done ? "text-steel" : "text-muted")
                       }
                     >
-                      {ORDER_STATUS_LABEL[step]}
+                      {CUSTOMER_STEP_LABEL[step] ?? ORDER_STATUS_LABEL[step]}
                     </span>
                     {active && (
                       <motion.span

@@ -25,7 +25,7 @@ Wave 3 (03-03, 03-04, 03-05) độc lập nhau (KDS / hủy món / in — khác 
 4. **Giỏ khách là state client** (React state + sessionStorage theo `qr_token`), không ghi DB trước khi "Gửi order". Gửi = 1 POST tạo `orders + order_items + order_item_modifiers` nguyên khối.
 5. **P3 chỉ `channel=dine_in`.** Takeaway/delivery (C1–C4) để P5 theo Roadmap.
 6. **PIN gate**: duyệt/từ chối order + thêm món + đổi trạng thái KDS = chọn nhân viên hiện hành (như P1) để gắn `staff_membership_id`; **hủy món** yêu cầu PIN của membership vai trò **manager/cashier** ngay tại thao tác (D9). Owner/manager đăng nhập email thao tác trên POS thì tự gắn membership của họ.
-7. **`served` đánh ở POS** (phục vụ mang món ra); `completed` để P4 (khi đóng bill). KDS chỉ đổi `queued→preparing→ready` (D9).
+7. **`served` đánh ở POS** (phục vụ mang món ra); `completed` để P4 (khi đóng bill). **KDS = MÀN HÌNH CHỈ ĐỂ XEM (sửa 22/07/2026):** bếp tay bận/bẩn, không thao tác cảm ứng — KDS chỉ hiển thị vé (lưới, xếp cũ→mới), KHÔNG nút Bắt đầu/Xong. Vé tự ẩn khi POS bấm "Đã phục vụ" (món `queued→served`). Bỏ trạng thái item `preparing/ready` khỏi luồng thực tế (giữ trong enum cho V2 bump-bar nếu cần). Khách stepper gọn: Chờ xác nhận → Đang chuẩn bị → Đã phục vụ.
 8. **Đo ≤3s**: cột `confirmed_at` trên orders; KDS hiển thị delta (now − confirmed_at) khi vé xuất hiện lần đầu; đo 10 lần ghi bảng vào SUMMARY 03-03 (ORDER-04).
 9. **`qr_order_auto_send`** (02-04): nếu tenant bật → order QR vào thẳng `confirmed` (bỏ duyệt). Mặc định tắt = đúng luồng D8. Xử lý ngay tại Route Handler tạo order.
 

@@ -56,6 +56,7 @@ export function KitchenTicketDoc({
           )}
           <div className="kt-tenant">{ticket.tenantName}</div>
           <div className="kt-title">PHIẾU BẾP{ticket.isReprint ? " (IN LẠI)" : ""}</div>
+          {ticket.kitchenNo != null && <div className="kt-no">ĐƠN #{ticket.kitchenNo}</div>}
         </div>
 
         <div className="kt-line" />
@@ -105,6 +106,7 @@ export function KitchenTicketDoc({
         .kt-logo { display: block; width: 40px; height: 40px; margin: 0 auto 4px; object-fit: contain; filter: grayscale(1); }
         .kt-tenant { font-weight: 700; font-size: ${fontPx + 2}px; }
         .kt-title { font-weight: 700; letter-spacing: 1px; margin-top: 2px; }
+        .kt-no { font-weight: 700; font-size: ${fontPx + 8}px; margin-top: 3px; }
         .kt-line { border-top: 1px dashed #000; margin: 6px 0; }
         .kt-row { display: flex; justify-content: space-between; gap: 8px; }
         .kt-items { margin: 2px 0; }

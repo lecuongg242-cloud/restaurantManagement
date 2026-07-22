@@ -10,6 +10,7 @@ import { formatVnd, unitPrice } from "@/lib/orders/cart";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import { serveItem, closeSession } from "@/app/r/[slug]/pos/actions";
 import { QtyStepper } from "@/components/customer/QtyStepper";
+import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 
 /**
@@ -25,6 +26,7 @@ export function OrderPanel({
   itemMap,
   onCartQty,
   onCartRemove,
+  onCartEdit,
   onConfirmAdd,
   adding,
   addError,
@@ -39,6 +41,7 @@ export function OrderPanel({
   itemMap: Map<string, CustomerMenuItem>;
   onCartQty: (lineId: string, qty: number) => void;
   onCartRemove: (lineId: string) => void;
+  onCartEdit: (lineId: string, line: PendingLine) => void;
   onConfirmAdd: () => void;
   adding: boolean;
   addError: string | null;
@@ -48,6 +51,11 @@ export function OrderPanel({
 }) {
   const router = useRouter();
   const [cancelItem, setCancelItem] = useState<{ id: string; name: string } | null>(null);
+  const [editing, setEditing] = useState<{
+    lineId: string;
+    item: CustomerMenuItem;
+    initial: { qty: number; note: string; optionIds: string[] };
+  } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,7 +146,7 @@ export function OrderPanel({
               <div key={order.id}>
                 <div className="flex items-center justify-between gap-sm">
                   <p className="text-sm font-medium text-ink">
-                    Đơn #{order.id.slice(-6).toUpperCase()}
+                    Đơn {order.kitchen_no != null ? `#${order.kitchen_no}` : `#${order.id.slice(-6).toUpperCase()}`}
                     <span className="ml-xs text-xs font-normal text-steel">
                       {new Date(order.created_at).toLocaleTimeString("vi-VN", {
                         hour: "2-digit",
@@ -176,7 +184,7 @@ export function OrderPanel({
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-xs">
                         <ItemStatusBadge status={it.status} />
-                        {it.status === "ready" && (
+                        {it.status !== "served" && it.status !== "cancelled" && (
                           <button
                             type="button"
                             disabled={busy === it.id}
@@ -229,6 +237,21 @@ export function OrderPanel({
                     </div>
                     <div className="flex shrink-0 items-center gap-sm">
                       <QtyStepper value={l.qty} onChange={(v) => onCartQty(l.lineId, v)} />
+                      {it.groups.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditing({
+                              lineId: l.lineId,
+                              item: it,
+                              initial: { qty: l.qty, note: l.note, optionIds: l.optionIds },
+                            })
+                          }
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Sửa
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => onCartRemove(l.lineId)}
@@ -287,6 +310,24 @@ export function OrderPanel({
         cancelStaff={cancelStaff}
         canCancelWithoutPin={canCancelWithoutPin}
         onDone={() => setCancelItem(null)}
+      />
+
+      {/* Sửa tùy chọn dòng "đang thêm" (giữ nguyên lựa chọn cũ) */}
+      <ModifierSheet
+        item={editing?.item ?? null}
+        open={editing !== null}
+        onOpenChange={(v) => {
+          if (!v) setEditing(null);
+        }}
+        initialLine={editing?.initial ?? null}
+        submitLabel="Cập nhật"
+        presentation="dialog"
+        onAdd={(pending) => {
+          if (editing) {
+            onCartEdit(editing.lineId, pending);
+            setEditing(null);
+          }
+        }}
       />
     </div>
   );

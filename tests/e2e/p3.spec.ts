@@ -22,7 +22,7 @@ async function loginStaff(page: Page, surface: "pos" | "kds") {
 }
 
 test("P3 chuỗi order đầu-cuối + realtime", async ({ browser }) => {
-  const ctx = await browser.newContext();
+  const ctx = await browser.newContext({ reducedMotion: "reduce" });
   const cust = await ctx.newPage();
   const pos = await ctx.newPage();
   const kds = await ctx.newPage();
@@ -31,9 +31,14 @@ test("P3 chuỗi order đầu-cuối + realtime", async ({ browser }) => {
   await test.step("1. Khách gọi món QR → pending_confirm", async () => {
     await cust.goto(`/r/${SLUG}/menu?t=${TOKEN}`);
     await expect(cust.getByText("Bàn B1")).toBeVisible();
-    // Chạm món có Size bắt buộc → sheet tùy chọn
-    await cust.getByRole("button", { name: "Phở bò tái", exact: true }).click();
-    await cust.getByRole("button", { name: /Thêm vào giỏ/ }).click();
+    // Chạm món có Size bắt buộc → sheet tùy chọn (retry click nếu animation nuốt lần đầu)
+    const item = cust.getByRole("button", { name: "Phở bò tái", exact: true });
+    const addBtn = cust.getByRole("button", { name: /Thêm vào giỏ/ });
+    await expect(async () => {
+      await item.click();
+      await expect(addBtn).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 15000 });
+    await addBtn.click();
     // Giỏ → gửi
     await cust.getByRole("button", { name: /Xem giỏ/ }).click();
     await cust.getByRole("button", { name: "Gửi order" }).click();
@@ -60,35 +65,42 @@ test("P3 chuỗi order đầu-cuối + realtime", async ({ browser }) => {
     await kds.screenshot({ path: `${SHOTS}/02-kds-nhan-ve.png`, fullPage: true });
   });
 
-  await test.step("4. Khách thấy 'Đã xác nhận' REALTIME", async () => {
+  await test.step("4. Khách thấy 'Đang chuẩn bị' REALTIME", async () => {
     const t0 = Date.now();
-    await expect(cust.getByRole("heading", { name: "Đã xác nhận" })).toBeVisible({ timeout: 20000 });
-    console.log(`  [realtime] Khách đổi 'Đã xác nhận' sau ~${Date.now() - t0}ms (không reload)`);
+    await expect(cust.getByRole("heading", { name: "Đang chuẩn bị" })).toBeVisible({ timeout: 20000 });
+    console.log(`  [realtime] Khách đổi 'Đang chuẩn bị' sau ~${Date.now() - t0}ms (không reload)`);
   });
 
-  await test.step("5. KDS Bắt đầu → Xong; khách thấy 'Sẵn sàng'", async () => {
-    await kds.getByRole("button", { name: "Bắt đầu" }).first().click();
-    await expect(kds.getByRole("button", { name: "Xong", exact: true })).toBeVisible({ timeout: 20000 });
-    await kds.getByRole("button", { name: "Xong", exact: true }).first().click();
-    await expect(cust.getByRole("heading", { name: "Sẵn sàng" })).toBeVisible({ timeout: 20000 });
-    console.log("  [realtime] Khách thấy 'Sẵn sàng' (không reload)");
+  await test.step("5. KDS chỉ để XEM (không nút thao tác)", async () => {
+    await expect(kds.getByText("Bàn B1")).toBeVisible();
+    await expect(kds.getByText("#1", { exact: true })).toBeVisible(); // số thứ tự bếp
+    await expect(kds.getByRole("button", { name: "Bắt đầu" })).toHaveCount(0);
+    await expect(kds.getByRole("button", { name: "Xong", exact: true })).toHaveCount(0);
+    await kds.screenshot({ path: `${SHOTS}/02-kds-readonly.png`, fullPage: true });
   });
 
-  await test.step("6. POS phục vụ + đóng phiên", async () => {
+  await test.step("6. POS phục vụ món (queued) → khách 'Đã phục vụ' + KDS ẩn vé + đóng phiên", async () => {
     await pos.goto(`/r/${SLUG}/pos`);
     await pos.locator("button", { hasText: "B1" }).first().click();
     await expect(pos.getByText(/Đơn #/)).toBeVisible({ timeout: 20000 });
     await pos.getByRole("button", { name: "Đã phục vụ" }).first().click();
+    // Khách thấy 'Đã phục vụ' realtime
+    await expect(cust.getByRole("heading", { name: "Đã phục vụ" })).toBeVisible({ timeout: 20000 });
+    // KDS tự ẩn vé (bàn B1 biến mất) — không reload
+    await expect(kds.getByText("Bàn B1")).toHaveCount(0, { timeout: 20000 });
+    console.log("  [realtime] Khách 'Đã phục vụ' + KDS ẩn vé (không reload)");
     await pos.getByRole("button", { name: "Đóng phiên" }).click({ timeout: 20000 });
     await pos.screenshot({ path: `${SHOTS}/03-pos-sau-dong-phien.png`, fullPage: true });
   });
 
-  await test.step("7. In phiếu bếp render đúng nội dung", async () => {
-    await pos.goto(`/r/${SLUG}/print/kitchen/${orderId}?w=80`);
-    await expect(pos.getByText(/PHIẾU BẾP/)).toBeVisible();
-    await expect(pos.getByText(/Bàn:/)).toBeVisible();
-    await expect(pos.getByText(/Phở bò tái/)).toBeVisible();
-    await pos.screenshot({ path: `${SHOTS}/04-phieu-bep-80mm.png`, fullPage: true });
+  await test.step("7. In phiếu bếp render đúng nội dung (tab mới)", async () => {
+    const printPage = await ctx.newPage(); // như window.open thực tế
+    await printPage.goto(`/r/${SLUG}/print/kitchen/${orderId}?w=80`);
+    await expect(printPage.getByText(/PHIẾU BẾP/)).toBeVisible();
+    await expect(printPage.getByText("ĐƠN #1")).toBeVisible(); // số thứ tự bếp trên phiếu
+    await expect(printPage.getByText(/Bàn:/)).toBeVisible();
+    await expect(printPage.getByText(/Phở bò tái/)).toBeVisible();
+    await printPage.screenshot({ path: `${SHOTS}/04-phieu-bep-80mm.png`, fullPage: true });
   });
 
   await ctx.close();

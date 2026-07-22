@@ -136,6 +136,24 @@ async function openOrJoinSession(
   return sessionId;
 }
 
+/**
+ * Số thứ tự bếp kế tiếp trong NGÀY (giờ VN, reset 00:00 VN). Gán khi order confirmed để bếp/phiếu
+ * hiển thị "Đơn #N" biết xử lý trước. Race hiếm ở V1 (1 nhà hàng) — chấp nhận.
+ */
+export async function nextKitchenNo(client: SupabaseClient, tenantId: string): Promise<number> {
+  const now = new Date();
+  const vn = new Date(now.getTime() + 7 * 3600 * 1000);
+  const startUtc = new Date(Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate()) - 7 * 3600 * 1000);
+  const { data } = await client
+    .from("orders")
+    .select("kitchen_no")
+    .eq("tenant_id", tenantId)
+    .not("kitchen_no", "is", null)
+    .gte("confirmed_at", startUtc.toISOString());
+  const max = (data ?? []).reduce((m, r) => Math.max(m, (r.kitchen_no as number) ?? 0), 0);
+  return max + 1;
+}
+
 /** Insert orders + order_items + order_item_modifiers (snapshot). Rollback thủ công nếu lỗi. */
 async function insertOrderGraph(
   admin: SupabaseClient,
@@ -151,6 +169,8 @@ async function insertOrderGraph(
     built: BuiltLine[];
   }
 ): Promise<CreateOrderResult> {
+  // Order vào thẳng confirmed (staff / qr auto_send) → gán số bếp ngay.
+  const kitchenNo = args.status === "confirmed" ? await nextKitchenNo(admin, args.tenantId) : null;
   const { data: order, error: oErr } = await admin
     .from("orders")
     .insert({
@@ -160,8 +180,9 @@ async function insertOrderGraph(
       source: args.source,
       status: args.status,
       confirmed_at: args.confirmedAt,
-      created_by: args.createdBy,
       confirmed_by: args.confirmedBy,
+      created_by: args.createdBy,
+      kitchen_no: kitchenNo,
       note: args.note,
     })
     .select("id")

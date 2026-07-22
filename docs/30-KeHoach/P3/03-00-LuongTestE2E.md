@@ -158,19 +158,20 @@ Roll-up: mọi item `ready` ⇒ order `ready`; mọi item `cancelled` ⇒ order 
 
 ---
 
-## 6) KDS LÀM MÓN + ĐO ≤3s  ✅ (03-03)
+## 6) KDS CHỈ ĐỂ XEM + ĐO ≤3s  ✅ (03-03, sửa 22/07: bếp không chạm)
+
+> **KDS là màn hình CHỈ ĐỂ XEM** (bếp tay bận/bẩn). Lưới vé, không nút thao tác. Vé **tự ẩn** khi phục vụ (POS bấm "Đã phục vụ"). Bếp đọc vé → nấu → báo pass; phục vụ bưng ra + đánh dấu trên POS.
 
 **2 cửa sổ:** A = POS, B/C = KDS (`/r/pho-viet/kds`).
 
 | # | Thao tác | Kỳ vọng |
 |---|---|---|
-| D1 | POS duyệt order (C2) | KDS: vé hiện **cột "Chờ làm" ≤3s không reload**; **badge delta giây** (now − confirmed_at) ở góc vé — xanh nếu ≤3s. Order `pending_confirm` **không** hiện. |
-| D2 | Vé nội dung | Tên **bàn** (chữ lớn), đồng hồ đếm lên, `SL× tên món`, tùy chọn thụt lề, ghi chú nổi bật. |
-| D3 | "Bắt đầu" 1 món | `queued→preparing`, sang cột "Đang làm". |
-| D4 | "Xong" | `preparing→ready`, sang cột "Sẵn sàng"; **B khách thấy "Sẵn sàng" realtime**. |
-| D5 | Mọi món ready | order `ready`; POS thấy nút "Đã phục vụ" (C5). |
-| D6 | Vé quá 10 phút | Viền + **nhãn "TRỄ"** (màu + chữ, không chỉ màu — a11y). |
-| D7 | Đo ORDER-04 | Lặp 10 lần, ghi bảng `lần | giây | đạt` vào `03-03-SUMMARY.md`; trung bình & max ≤3s. |
+| D1 | POS duyệt order (C2) | KDS: vé hiện **≤3s không reload**; **badge delta giây** (now − confirmed_at) góc vé — xanh nếu ≤3s. Order `pending_confirm` **không** hiện. |
+| D2 | Vé nội dung | Tên **bàn** (chữ lớn), đồng hồ đếm lên, `SL× tên món`, tùy chọn thụt lề, ghi chú nổi bật. **KHÔNG có nút** Bắt đầu/Xong. |
+| D3 | POS bấm "Đã phục vụ" 1 món | Món `queued→served`; **vé KDS bỏ món đó realtime**. |
+| D4 | Phục vụ hết món | order `served`; **vé tự biến khỏi KDS** (không reload). |
+| D5 | Vé quá 10 phút chưa phục vụ | Viền + **nhãn "TRỄ"** (màu + chữ, không chỉ màu — a11y). |
+| D6 | Đo ORDER-04 | Vé hiện realtime, đọc badge delta (E2E: 2.1s xanh; delivery đo 0.58s avg). ≤3s. |
 
 ---
 

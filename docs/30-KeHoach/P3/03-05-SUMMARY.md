@@ -32,6 +32,12 @@ print_jobs sau in 1 lần → isReprint next = true (count 1)
 - [x] POS chỉ gọi `PrintAdapter.printKitchenTicket()` — không window.open rải rác (PRINT-01).
 - [x] Món đã hủy KHÔNG lên phiếu; in lại có nhãn "IN LẠI".
 
+## Bổ sung 22/07/2026 — Số thứ tự bếp (theo yêu cầu chủ dự án)
+- **Vấn đề**: `#83BC68` (6 ký tự cuối order id) không phản ánh thứ tự xử lý → bếp không biết làm cái nào trước.
+- **Thêm** `orders.kitchen_no` (migration `0011_orders_kitchen_no.sql`) — số thứ tự **theo ngày** (reset 00:00 giờ VN), gán khi order xuống bếp (confirmed: `approveOrder` + `createStaffOrder`/qr auto_send). Helper `nextKitchenNo` (max+1 trong ngày VN).
+- **Hiển thị "Đơn #N" / "ĐƠN #N"**: KDS (to, màu primary cạnh tên bàn), phiếu bếp in (dòng lớn dưới "PHIẾU BẾP"), panel POS. Số `#AE2BCC` nhỏ giữ lại để truy vết in lại.
+- E2E xác nhận: KDS "#1" + phiếu "ĐƠN #1".
+
 ## Chuyển sau (ghi rõ theo plan)
 - OPS-06 phần **"đầu hóa đơn"** → P4. Nghiệm thu **"tự in ≤5s"** hoãn tới khi có cầu in + phần cứng (Roadmap rủi ro). BridgePrintAdapter (ESC/POS) V1.x.
 

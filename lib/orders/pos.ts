@@ -30,6 +30,7 @@ export type PosItem = {
 
 export type PosOrder = {
   id: string;
+  kitchen_no: number | null;
   status: OrderStatus;
   source: "qr" | "staff";
   note: string | null;
@@ -115,7 +116,7 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
       supabase
         .from("orders")
         .select(
-          "id, status, source, note, created_at, table_session_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, cancel_reason, created_at, order_item_modifiers(name_snapshot))"
+          "id, kitchen_no, status, source, note, created_at, table_session_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, cancel_reason, created_at, order_item_modifiers(name_snapshot))"
         )
         .eq("tenant_id", tenantId)
         .in("status", ACTIVE_STATUSES)
@@ -127,6 +128,7 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
 
   const allOrders: PosOrder[] = (orders ?? []).map((o) => ({
     id: o.id,
+    kitchen_no: (o.kitchen_no as number) ?? null,
     status: o.status as OrderStatus,
     source: o.source as "qr" | "staff",
     note: o.note ?? null,

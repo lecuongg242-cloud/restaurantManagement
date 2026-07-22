@@ -15,7 +15,7 @@ export async function buildKitchenTicket(
   const { data: order } = await supabase
     .from("orders")
     .select(
-      "id, confirmed_at, tenant_id, table_sessions(tables(name)), order_items(name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
+      "id, kitchen_no, confirmed_at, tenant_id, table_sessions(tables(name)), order_items(name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
     )
     .eq("id", orderId)
     .eq("tenant_id", tenantId)
@@ -52,6 +52,7 @@ export async function buildKitchenTicket(
 
   return {
     orderId: order.id,
+    kitchenNo: (order.kitchen_no as number) ?? null,
     tenantName: tenant?.name ?? "",
     logoUrl: tenant?.logo_url ?? null,
     tableName: ts?.tables?.name ?? "—",

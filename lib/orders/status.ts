@@ -49,11 +49,15 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   cancelled: "Đã hủy",
 };
 
-/** Các bước hiển thị trên stepper khách (bỏ completed — đóng bill ở P4). */
-export const CUSTOMER_STEPPER: OrderStatus[] = [
-  "pending_confirm",
-  "confirmed",
-  "preparing",
-  "ready",
-  "served",
-];
+/**
+ * Các bước hiển thị trên stepper khách. KDS chỉ để XEM (bếp không đổi trạng thái) nên bỏ
+ * preparing/ready — khách thấy: Chờ xác nhận → Đang chuẩn bị (confirmed) → Đã phục vụ.
+ */
+export const CUSTOMER_STEPPER: OrderStatus[] = ["pending_confirm", "confirmed", "served"];
+
+/** Nhãn thân thiện cho stepper khách (confirmed hiển thị "Đang chuẩn bị"). */
+export const CUSTOMER_STEP_LABEL: Record<string, string> = {
+  pending_confirm: "Chờ xác nhận",
+  confirmed: "Đang chuẩn bị",
+  served: "Đã phục vụ",
+};

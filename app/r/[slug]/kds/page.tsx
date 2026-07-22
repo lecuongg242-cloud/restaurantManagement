@@ -31,7 +31,7 @@ export default async function KdsHome({
   const tickets = await getKdsTickets(session.tenant.id);
   return (
     <StationScreen slug={slug} surface="kds">
-      <KdsBoard slug={slug} tenantId={session.tenant.id} initial={tickets} />
+      <KdsBoard tenantId={session.tenant.id} initial={tickets} />
     </StationScreen>
   );
 }

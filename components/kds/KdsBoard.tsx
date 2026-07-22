@@ -4,33 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { KdsTicket as KdsTicketType } from "@/lib/orders/kds";
-import type { OrderItemStatus } from "@/lib/orders/types";
 import { KdsTicket } from "./KdsTicket";
 
 /**
- * KdsBoard (§4.3, ORDER-04) — 3 cột Chờ làm · Đang làm · Sẵn sàng. Nhận vé initial từ server;
- * subscribe postgres_changes (orders/order_items filter tenant_id) → router.refresh (không reload).
- * Badge delta = (client thấy vé lần đầu − confirmed_at) giây, chốt 1 lần → công cụ đo ≤3s.
- * Vé nằm ở cột của item "thấp" nhất (queued < preparing < ready).
+ * KdsBoard (§4.3, ORDER-04) — BẢNG BẾP CHỈ ĐỂ XEM (bếp không chạm — QĐ 22/07). Vé confirmed hiện
+ * realtime, xếp cũ→mới (FIFO); vé tự ẩn khi phục vụ hết món (POS bấm "Đã phục vụ"). Không nút thao
+ * tác trên bếp. Badge delta = (thấy vé lần đầu − confirmed_at) giây, chốt 1 lần → công cụ đo ≤3s.
  */
-const COLUMNS: { key: OrderItemStatus; title: string }[] = [
-  { key: "queued", title: "Chờ làm" },
-  { key: "preparing", title: "Đang làm" },
-  { key: "ready", title: "Sẵn sàng" },
-];
-
-function ticketColumn(items: { status: OrderItemStatus }[]): OrderItemStatus {
-  if (items.some((i) => i.status === "queued")) return "queued";
-  if (items.some((i) => i.status === "preparing")) return "preparing";
-  return "ready";
-}
-
 export function KdsBoard({
-  slug,
   tenantId,
   initial,
 }: {
-  slug: string;
   tenantId: string;
   initial: KdsTicketType[];
 }) {
@@ -38,8 +22,7 @@ export function KdsBoard({
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deltas, setDeltas] = useState<Record<string, number>>({});
 
-  // Realtime → refresh (gộp 300ms). Gắn JWT đăng nhập vào realtime (setAuth) — không có thì
-  // postgres_changes bị RLS chặn (anon nhận 0 event → phải reload thủ công).
+  // Realtime → refresh. Gắn JWT đăng nhập (setAuth) — nếu không, postgres_changes bị RLS chặn.
   useEffect(() => {
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -85,32 +68,27 @@ export function KdsBoard({
   }, [initial]);
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-3 gap-px bg-hairline">
-      {COLUMNS.map((col) => {
-        const tickets = initial.filter((t) => ticketColumn(t.items) === col.key);
-        return (
-          <section key={col.key} className="flex min-h-0 flex-col bg-surface">
-            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-hairline bg-canvas px-md py-sm">
-              <h2 className="text-lg font-semibold text-ink">{col.title}</h2>
-              <span className="grid h-7 min-w-[28px] place-items-center rounded-full bg-ink px-1.5 text-sm font-bold text-on-dark">
-                {tickets.length}
-              </span>
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto p-md">
-              <ul className="flex flex-col gap-md">
-                {tickets.map((t) => (
-                  <li key={t.orderId}>
-                    <KdsTicket slug={slug} ticket={t} delta={deltas[t.orderId]} />
-                  </li>
-                ))}
-              </ul>
-              {tickets.length === 0 && (
-                <p className="mt-lg text-center text-sm text-steel">Trống</p>
-              )}
-            </div>
-          </section>
-        );
-      })}
+    <div className="flex h-full min-h-0 flex-col bg-surface">
+      <header className="flex items-center justify-between border-b border-hairline bg-canvas px-lg py-sm">
+        <h2 className="text-lg font-semibold text-ink">
+          Vé đang chờ làm <span className="text-steel">({initial.length})</span>
+        </h2>
+        <span className="text-xs text-steel">Xếp cũ → mới · tự ẩn khi phục vụ</span>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-md">
+        {initial.length === 0 ? (
+          <p className="mt-hero text-center text-steel">Chưa có vé nào.</p>
+        ) : (
+          <ul className="grid grid-cols-1 gap-md sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {initial.map((t) => (
+              <li key={t.orderId}>
+                <KdsTicket ticket={t} delta={deltas[t.orderId]} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

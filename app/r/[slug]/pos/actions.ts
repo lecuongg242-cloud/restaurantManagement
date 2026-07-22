@@ -7,7 +7,7 @@ import { canAccess } from "@/lib/auth/rbac";
 import { getCurrentStaff } from "@/app/r/[slug]/station-actions";
 import { canTransition, canTransitionItem } from "@/lib/orders/status";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
-import { createStaffOrder } from "@/lib/orders/create-order";
+import { createStaffOrder, nextKitchenNo } from "@/lib/orders/create-order";
 import { verifyPinForRoles } from "@/lib/auth/pin-gate";
 import type { OrderLineInput } from "@/lib/orders/types";
 
@@ -49,12 +49,14 @@ export async function approveOrder(slug: string, orderId: string): Promise<Actio
   if (!canTransition(order.status, "confirmed"))
     return { ok: false, error: "Đơn không ở trạng thái chờ duyệt." };
 
+  const kitchenNo = await nextKitchenNo(supabase, auth.tenantId);
   const { error } = await supabase
     .from("orders")
     .update({
       status: "confirmed",
       confirmed_at: new Date().toISOString(),
       confirmed_by: auth.staffId,
+      kitchen_no: kitchenNo,
       updated_at: new Date().toISOString(),
     })
     .eq("id", orderId)
