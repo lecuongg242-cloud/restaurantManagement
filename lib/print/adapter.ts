@@ -16,16 +16,16 @@ export type KitchenTicketView = {
   items: { name: string; qty: number; modifiers: string[]; note: string | null }[];
 };
 
-/** Hóa đơn (P4 điền chi tiết). Khai báo trước để interface ổn định. */
-export type BillView = { orderId: string };
-
 /** Khổ phiếu bếp: 58/80mm (máy in nhiệt) hoặc A5 (máy in thường, chữ to đọc xa). */
 export type KitchenWidth = "58" | "80" | "a5";
 export type PrintKitchenArgs = { slug: string; orderId: string; width?: KitchenWidth };
 
+/** Hóa đơn khách (04-04, PRINT-03) — khổ nhiệt 58/80mm. */
+export type PrintReceiptArgs = { slug: string; billId: string; width?: KitchenWidth };
+
 export interface PrintAdapter {
   printKitchenTicket(args: PrintKitchenArgs): void;
-  printReceipt(bill: BillView): void; // P4
+  printReceipt(args: PrintReceiptArgs): void; // P4
 }
 
 /** V1 — in qua trình duyệt: mở route in (route lo window.print + ghi print_jobs). */
@@ -34,8 +34,9 @@ class BrowserPrintAdapter implements PrintAdapter {
     if (typeof window === "undefined") return;
     window.open(`/r/${slug}/print/kitchen/${orderId}?w=${width}`, "_blank", "noopener");
   }
-  printReceipt(): void {
-    throw new Error("printReceipt: sẽ implement ở P4 (hóa đơn).");
+  printReceipt({ slug, billId, width = "80" }: PrintReceiptArgs): void {
+    if (typeof window === "undefined") return;
+    window.open(`/r/${slug}/print/receipt/${billId}?w=${width}`, "_blank", "noopener");
   }
 }
 

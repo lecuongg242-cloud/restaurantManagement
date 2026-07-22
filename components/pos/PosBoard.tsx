@@ -7,12 +7,27 @@ import { createClient } from "@/lib/supabase/client";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { PosSnapshot } from "@/lib/orders/pos";
 import type { CartLine } from "@/lib/orders/types";
-import { createStaffOrderAction } from "@/app/r/[slug]/pos/actions";
+import {
+  createStaffOrderAction,
+  openBillAction,
+  splitByItemsAction,
+  splitEvenlyAction,
+  mergeTablesAction,
+  applyDiscountAction,
+  setChargePctAction,
+  payBillAction,
+} from "@/app/r/[slug]/pos/actions";
+import type { BillView, PaymentMethod } from "@/lib/billing/types";
+import type { SplitPick } from "@/lib/billing/split";
+import { getPrintAdapter } from "@/lib/print/adapter";
+import type { AdjustPayload } from "./AdjustBillDialog";
 import type { PendingLine } from "@/components/customer/ModifierSheet";
 import { TableMap } from "./TableMap";
 import { OrderPanel } from "./OrderPanel";
 import { MenuPanel } from "./MenuPanel";
 import { PendingOrdersDrawer } from "./PendingOrdersDrawer";
+import { BillPanel } from "./BillPanel";
+import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
 
 /**
@@ -27,6 +42,7 @@ export function PosBoard({
   menu,
   cancelStaff,
   canCancelWithoutPin,
+  allowDiscount,
 }: {
   slug: string;
   tenantId: string;
@@ -34,6 +50,7 @@ export function PosBoard({
   menu: CustomerMenu | null;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
+  allowDiscount: boolean;
 }) {
   const router = useRouter();
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -41,6 +58,11 @@ export function PosBoard({
   const [cart, setCart] = useState<CartLine[]>([]);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [bills, setBills] = useState<BillView[]>([]);
+  const [billOpen, setBillOpen] = useState(false);
+  const [openingBill, setOpeningBill] = useState(false);
+  const [billBusy, setBillBusy] = useState(false);
+  const [billError, setBillError] = useState<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Realtime → refresh (gộp 400ms). QUAN TRỌNG: gắn JWT đăng nhập vào kênh realtime
@@ -66,6 +88,7 @@ export function PosBoard({
         .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .on("postgres_changes", { event: "*", schema: "public", table: "order_items", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .on("postgres_changes", { event: "*", schema: "public", table: "tables", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "bills", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .subscribe();
     })();
     return () => {
@@ -76,10 +99,13 @@ export function PosBoard({
     };
   }, [tenantId, router]);
 
-  // Đổi bàn → xóa giỏ đang thêm.
+  // Đổi bàn → xóa giỏ đang thêm + đóng hóa đơn đang xem.
   useEffect(() => {
     setCart([]);
     setAddError(null);
+    setBillOpen(false);
+    setBills([]);
+    setBillError(null);
   }, [selectedTableId]);
 
   const itemMap = useMemo(() => {
@@ -111,6 +137,98 @@ export function PosBoard({
         l.lineId === lineId ? { ...l, qty: line.qty, note: line.note, optionIds: line.optionIds } : l
       )
     );
+
+  const openBill = async () => {
+    if (!selectedSession) return;
+    setOpeningBill(true);
+    setAddError(null);
+    setBillError(null);
+    setBillOpen(true);
+    setBills([]);
+    const res = await openBillAction(slug, selectedSession.id);
+    setOpeningBill(false);
+    if (!res.ok) {
+      setBillOpen(false);
+      setAddError(res.error);
+    } else {
+      setBills(res.bills);
+      router.refresh();
+    }
+  };
+
+  // Bàn khác đang mở, có món (ứng viên gộp bàn) + tổng tạm tính.
+  const sessionActiveTotal = (s: PosSnapshot["sessions"][number]) =>
+    s.orders
+      .flatMap((o) => o.items)
+      .filter((i) => i.status !== "cancelled")
+      .reduce((sum, i) => sum + i.unit_price * i.qty, 0);
+
+  const mergeCandidates: MergeCandidate[] = useMemo(() => {
+    if (!selectedSession) return [];
+    return initial.sessions
+      .map((s) => {
+        const total = s.openBill?.total ?? sessionActiveTotal(s);
+        const table = initial.tables.find((t) => t.id === s.tableId);
+        return {
+          sessionId: s.id,
+          tableName: table?.name ?? "—",
+          total,
+          isCurrent: s.id === selectedSession.id,
+        };
+      })
+      .filter((c) => c.isCurrent || c.total > 0);
+  }, [initial.sessions, initial.tables, selectedSession]);
+
+  const runBillAction = async (fn: () => Promise<{ ok: boolean; bills?: BillView[]; error?: string }>) => {
+    setBillBusy(true);
+    setBillError(null);
+    const res = await fn();
+    setBillBusy(false);
+    if (!res.ok) setBillError(res.error ?? "Thao tác thất bại.");
+    else {
+      setBills(res.bills ?? []);
+      router.refresh();
+    }
+  };
+
+  const doSplitByItems = (billId: string, picks: SplitPick[]) => {
+    if (!selectedSession) return;
+    runBillAction(() => splitByItemsAction(slug, selectedSession.id, billId, picks));
+  };
+  const doSplitEvenly = (billId: string, n: number) => {
+    if (!selectedSession) return;
+    runBillAction(() => splitEvenlyAction(slug, selectedSession.id, billId, n));
+  };
+  const doMerge = (sessionIds: string[]) => {
+    if (!selectedSession) return;
+    runBillAction(() => mergeTablesAction(slug, selectedSession.id, sessionIds));
+  };
+  const doApplyDiscount = (
+    billId: string,
+    payload: AdjustPayload,
+    creds: { membershipId?: string; pin?: string }
+  ) => {
+    if (!selectedSession) return;
+    runBillAction(() =>
+      applyDiscountAction(slug, selectedSession.id, billId, payload, creds.membershipId, creds.pin)
+    );
+  };
+  const doSetCharges = (billId: string, payload: { serviceChargePct: number; vatPct: number }) => {
+    if (!selectedSession) return;
+    runBillAction(() => setChargePctAction(slug, selectedSession.id, billId, payload));
+  };
+  const doPay = async (billId: string, method: PaymentMethod, amountReceived: number) => {
+    if (!selectedSession) return { ok: false, error: "Chưa chọn bàn." };
+    setBillBusy(true);
+    setBillError(null);
+    const res = await payBillAction(slug, selectedSession.id, billId, { method, amountReceived });
+    setBillBusy(false);
+    if (!res.ok) return { ok: false, error: res.error };
+    setBills(res.bills);
+    router.refresh();
+    return { ok: true, change: res.change };
+  };
+  const doPrintReceipt = (billId: string) => getPrintAdapter().printReceipt({ slug, billId });
 
   const confirmAdd = async () => {
     if (!selectedTableId || cart.length === 0) return;
@@ -185,6 +303,8 @@ export function PosBoard({
               addError={addError}
               cancelStaff={cancelStaff}
               canCancelWithoutPin={canCancelWithoutPin}
+              onOpenBill={openBill}
+              openingBill={openingBill}
               onClose={() => setSelectedTableId(null)}
             />
           ) : (
@@ -201,6 +321,27 @@ export function PosBoard({
         onOpenChange={setPendingOpen}
         pending={initial.pending}
       />
+
+      {billOpen && (
+        <BillPanel
+          bills={bills}
+          loading={openingBill}
+          busy={billBusy}
+          error={billError}
+          mergeCandidates={mergeCandidates}
+          allowDiscount={allowDiscount}
+          adjustStaff={cancelStaff}
+          canSkipPin={canCancelWithoutPin}
+          onSplitByItems={doSplitByItems}
+          onSplitEvenly={doSplitEvenly}
+          onMerge={doMerge}
+          onApplyDiscount={doApplyDiscount}
+          onSetCharges={doSetCharges}
+          onPay={doPay}
+          onPrintReceipt={doPrintReceipt}
+          onClose={() => setBillOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -56,6 +56,7 @@ export type PosSession = {
   tableId: string;
   opened_at: string;
   orders: PosOrder[];
+  openBill: { id: string; bill_no: number | null; total: number } | null;
 };
 
 export type PosSnapshot = {
@@ -100,7 +101,7 @@ function mapItems(rows: unknown[]): PosItem[] {
 export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
   const supabase = await createClient();
 
-  const [{ data: areas }, { data: tables }, { data: sessions }, { data: orders }] =
+  const [{ data: areas }, { data: tables }, { data: sessions }, { data: orders }, { data: openBills }] =
     await Promise.all([
       supabase
         .from("areas")
@@ -125,10 +126,20 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
         .eq("tenant_id", tenantId)
         .in("status", ACTIVE_STATUSES)
         .order("created_at", { ascending: true }),
+      supabase
+        .from("bills")
+        .select("id, bill_no, total, table_session_id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "open"),
     ]);
 
   const tableById = new Map((tables ?? []).map((t) => [t.id, t]));
   const sessionById = new Map((sessions ?? []).map((s) => [s.id, s]));
+  const openBillBySession = new Map(
+    (openBills ?? [])
+      .filter((b) => b.table_session_id != null)
+      .map((b) => [b.table_session_id as string, b])
+  );
 
   const allOrders: PosOrder[] = (orders ?? []).map((o) => ({
     id: o.id,
@@ -167,12 +178,16 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     ordersBySession.set(o.table_session_id, arr);
   }
 
-  const posSessions: PosSession[] = (sessions ?? []).map((s) => ({
-    id: s.id,
-    tableId: s.table_id,
-    opened_at: s.opened_at,
-    orders: ordersBySession.get(s.id) ?? [],
-  }));
+  const posSessions: PosSession[] = (sessions ?? []).map((s) => {
+    const b = openBillBySession.get(s.id);
+    return {
+      id: s.id,
+      tableId: s.table_id,
+      opened_at: s.opened_at,
+      orders: ordersBySession.get(s.id) ?? [],
+      openBill: b ? { id: b.id as string, bill_no: (b.bill_no as number) ?? null, total: b.total as number } : null,
+    };
+  });
 
   return {
     areas: (areas ?? []).map((a) => ({ id: a.id, name: a.name })),

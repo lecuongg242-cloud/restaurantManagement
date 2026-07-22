@@ -5,13 +5,29 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
 import { getCurrentStaff } from "@/app/r/[slug]/station-actions";
-import { canTransition, canTransitionItem } from "@/lib/orders/status";
+import { canTransition } from "@/lib/orders/status";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { createStaffOrder, nextKitchenNo } from "@/lib/orders/create-order";
 import { verifyPinForRoles } from "@/lib/auth/pin-gate";
+import {
+  openBillForSession,
+  getSessionBills,
+  splitBillByItems,
+  splitBillEvenly,
+  mergeSessionsIntoBill,
+  applyBillAdjustment,
+  setBillCharges,
+  payBill,
+} from "@/lib/billing/bill";
+import type { BillView, DiscountType, PaymentMethod } from "@/lib/billing/types";
+import type { SplitPick } from "@/lib/billing/split";
 import type { OrderLineInput } from "@/lib/orders/types";
 
 export type ActionResult = { ok: true; orderId?: string } | { ok: false; error: string };
+export type BillsActionResult = { ok: true; bills: BillView[] } | { ok: false; error: string };
+export type PayActionResult =
+  | { ok: true; change: number; bills: BillView[] }
+  | { ok: false; error: string };
 
 /**
  * Guard chung: phải là phiên nhân viên có quyền POS. Trả staffId thao tác:
@@ -112,57 +128,12 @@ export async function rejectOrder(
   return { ok: true, orderId };
 }
 
-/** Đánh 'Đã phục vụ' mức món (ready→served); roll-up order→served khi mọi item xong. */
-export async function serveItem(slug: string, itemId: string): Promise<ActionResult> {
-  const auth = await authorizePos(slug);
-  if ("error" in auth) return { ok: false, error: auth.error };
-  const supabase = await createClient();
 
-  const { data: item } = await supabase
-    .from("order_items")
-    .select("id, order_id, status")
-    .eq("id", itemId)
-    .eq("tenant_id", auth.tenantId)
-    .maybeSingle();
-  if (!item) return { ok: false, error: "Không tìm thấy món." };
-  if (!canTransitionItem(item.status, "served"))
-    return { ok: false, error: "Món chưa sẵn sàng để phục vụ." };
-
-  const { error } = await supabase
-    .from("order_items")
-    .update({ status: "served" })
-    .eq("id", itemId)
-    .eq("tenant_id", auth.tenantId);
-  if (error) return { ok: false, error: "Cập nhật thất bại." };
-
-  // Roll-up: mọi item served/cancelled → order served.
-  const { data: siblings } = await supabase
-    .from("order_items")
-    .select("status")
-    .eq("order_id", item.order_id)
-    .eq("tenant_id", auth.tenantId);
-  const allDone = (siblings ?? []).every((s) => s.status === "served" || s.status === "cancelled");
-  if (allDone) {
-    const { data: ord } = await supabase
-      .from("orders")
-      .select("status")
-      .eq("id", item.order_id)
-      .maybeSingle();
-    if (ord && canTransition(ord.status, "served")) {
-      await supabase
-        .from("orders")
-        .update({ status: "served", updated_at: new Date().toISOString() })
-        .eq("id", item.order_id)
-        .eq("tenant_id", auth.tenantId);
-    }
-  }
-
-  await broadcastOrderStatus(item.order_id);
-  revalidatePath(`/r/${slug}/pos`);
-  return { ok: true, orderId: item.order_id };
-}
-
-/** Đóng phiên thủ công: chỉ khi mọi món served/cancelled. Bàn về available. */
+/**
+ * Đóng phiên thủ công: chỉ khi mọi món served/cancelled VÀ đã thanh toán hết (P4). Bàn về available.
+ * Bình thường phiên TỰ đóng khi thu tiền (closeSessionIfSettled) — nút này là fallback cho phiên
+ * không còn doanh thu (mọi món đã hủy). Chặn đóng nếu còn hóa đơn chưa thanh toán → tránh mất tiền.
+ */
 export async function closeSession(slug: string, sessionId: string): Promise<ActionResult> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -177,10 +148,11 @@ export async function closeSession(slug: string, sessionId: string): Promise<Act
   if (!sess || sess.status !== "open")
     return { ok: false, error: "Phiên không hợp lệ hoặc đã đóng." };
 
-  // Còn order chờ duyệt hoặc món chưa phục vụ → chặn đóng.
+  // Chặn đóng nếu còn order chờ duyệt HOẶC còn món chưa THU ĐỦ. Món 'served' = đã thu đủ (payBill
+  // đánh dấu khi thanh toán). Món đã hủy không tính. Phiên toàn món đã hủy → cho đóng (dọn bàn).
   const { data: orders } = await supabase
     .from("orders")
-    .select("id, status, order_items(status)")
+    .select("status, order_items(status)")
     .eq("table_session_id", sessionId)
     .eq("tenant_id", auth.tenantId);
   for (const o of orders ?? []) {
@@ -188,7 +160,7 @@ export async function closeSession(slug: string, sessionId: string): Promise<Act
       return { ok: false, error: "Còn order chờ duyệt. Xử lý trước khi đóng phiên." };
     const items = (o.order_items as { status: string }[]) ?? [];
     if (items.some((it) => it.status !== "served" && it.status !== "cancelled"))
-      return { ok: false, error: "Còn món chưa phục vụ. Không thể đóng phiên." };
+      return { ok: false, error: "Còn hóa đơn chưa thanh toán. Vui lòng thu tiền trước khi đóng phiên." };
   }
 
   const now = new Date().toISOString();
@@ -207,6 +179,150 @@ export async function closeSession(slug: string, sessionId: string): Promise<Act
 
   revalidatePath(`/r/${slug}/pos`);
   return { ok: true };
+}
+
+/**
+ * Mở/đồng bộ bill của phiên bàn (04-01, BILL-01) → trả DANH SÁCH bill của phiên (04-02: 1 bàn có
+ * thể nhiều bill sau tách). Idempotent: gọi lại sau khi bàn gọi thêm món chỉ thêm phần mới.
+ */
+export async function openBillAction(slug: string, sessionId: string): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const res = await openBillForSession(auth.tenantId, sessionId, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+
+  const bills = await getSessionBills(auth.tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
+}
+
+/** Đọc lại danh sách bill của phiên (refresh panel sau thao tác tách/gộp). */
+export async function refreshSessionBillsAction(
+  slug: string,
+  sessionId: string
+): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const bills = await getSessionBills(auth.tenantId, sessionId);
+  return { ok: true, bills };
+}
+
+/** Tách theo món (BILL-02). Trả danh sách bill mới của phiên. */
+export async function splitByItemsAction(
+  slug: string,
+  sessionId: string,
+  billId: string,
+  picks: SplitPick[]
+): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await splitBillByItems(auth.tenantId, billId, picks, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bills = await getSessionBills(auth.tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
+}
+
+/** Chia đều N người (BILL-02) → N hóa đơn con. Trả danh sách bill của phiên. */
+export async function splitEvenlyAction(
+  slug: string,
+  sessionId: string,
+  billId: string,
+  n: number
+): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await splitBillEvenly(auth.tenantId, billId, n, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bills = await getSessionBills(auth.tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
+}
+
+/** Gộp nhiều bàn thành 1 hóa đơn (BILL-02). Trả danh sách bill của phiên đang xem. */
+export async function mergeTablesAction(
+  slug: string,
+  currentSessionId: string,
+  sessionIds: string[]
+): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await mergeSessionsIntoBill(auth.tenantId, sessionIds, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bills = await getSessionBills(auth.tenantId, currentSessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
+}
+
+/**
+ * Áp giảm giá + %phí + %VAT (BILL-03, D9). Giảm giá cần PIN manager/cashier (trừ owner/manager
+ * đăng nhập email). Trả danh sách bill mới của phiên.
+ */
+export async function applyDiscountAction(
+  slug: string,
+  sessionId: string,
+  billId: string,
+  payload: { discountType: DiscountType; discountValue: number; serviceChargePct: number; vatPct: number },
+  membershipId?: string,
+  pin?: string
+): Promise<BillsActionResult> {
+  const session = await getSessionMembership(slug);
+  if (!session) return { ok: false, error: "Phiên hết hạn, đăng nhập lại." };
+  if (!canAccess(session.role, "pos")) return { ok: false, error: "Không đủ quyền." };
+  const tenantId = session.tenant.id;
+
+  // PIN gate cho giảm giá (owner/manager đăng nhập email được bỏ qua).
+  if (payload.discountType !== "none" && session.role !== "owner" && session.role !== "manager") {
+    const gate = await verifyPinForRoles({
+      tenantId,
+      membershipId: membershipId ?? "",
+      pin: pin ?? "",
+      allowedRoles: ["manager", "cashier"],
+    });
+    if (!gate.ok) return { ok: false, error: gate.error };
+  }
+
+  const res = await applyBillAdjustment(tenantId, billId, payload);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bills = await getSessionBills(tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
+}
+
+/**
+ * Thu tiền + đóng bill (04-04, BILL-04). Thu đủ total; tự đóng phiên bàn đã thanh toán hết
+ * (TABLE-02). Trả tiền thối + danh sách bill mới của phiên.
+ */
+export async function payBillAction(
+  slug: string,
+  sessionId: string,
+  billId: string,
+  input: { method: PaymentMethod; amountReceived: number; note?: string }
+): Promise<PayActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await payBill(auth.tenantId, billId, input, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bills = await getSessionBills(auth.tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, change: res.change, bills };
+}
+
+/** Sửa %phí/%VAT trên bill (không cần PIN). Trả danh sách bill của phiên. */
+export async function setChargePctAction(
+  slug: string,
+  sessionId: string,
+  billId: string,
+  payload: { serviceChargePct: number; vatPct: number }
+): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await setBillCharges(auth.tenantId, billId, payload);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bills = await getSessionBills(auth.tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
 }
 
 /** Thêm món thay khách: source=staff, vào thẳng confirmed (ORDER-03). */

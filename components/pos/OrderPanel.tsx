@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Loader2, ShoppingBag, Printer } from "lucide-react";
+import { X, Loader2, ShoppingBag, Printer, Receipt } from "lucide-react";
 import type { CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { PosTable, PosSession } from "@/lib/orders/pos";
 import type { CartLine, OrderItemStatus } from "@/lib/orders/types";
 import { formatVnd, unitPrice } from "@/lib/orders/cart";
 import { getPrintAdapter } from "@/lib/print/adapter";
-import { serveItem, closeSession } from "@/app/r/[slug]/pos/actions";
+import { closeSession } from "@/app/r/[slug]/pos/actions";
 import { QtyStepper } from "@/components/customer/QtyStepper";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
@@ -32,6 +32,8 @@ export function OrderPanel({
   addError,
   cancelStaff,
   canCancelWithoutPin,
+  onOpenBill,
+  openingBill,
   onClose,
 }: {
   slug: string;
@@ -47,6 +49,8 @@ export function OrderPanel({
   addError: string | null;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
+  onOpenBill: () => void;
+  openingBill: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -70,8 +74,9 @@ export function OrderPanel({
 
   const allItems = (session?.orders ?? []).flatMap((o) => o.items);
   const activeItems = allItems.filter((i) => i.status !== "cancelled");
-  const canClose =
-    !!session && activeItems.length > 0 && activeItems.every((i) => i.status === "served");
+  // 'served' = đã thu đủ (payBill đánh dấu). Bình thường phiên tự đóng khi thu hết; nút này chỉ
+  // hữu ích khi bàn toàn món đã hủy (không doanh thu) — cho phép dọn bàn.
+  const canClose = !!session && activeItems.every((i) => i.status === "served");
   const sessionTotal = activeItems.reduce((s, i) => s + i.unit_price * i.qty, 0);
   const cartTotal = cart.reduce((s, l) => {
     const it = itemMap.get(l.itemId);
@@ -83,15 +88,6 @@ export function OrderPanel({
     const names: string[] = [];
     for (const g of item.groups) for (const o of g.options) if (set.has(o.id)) names.push(o.name);
     return names;
-  };
-
-  const doServe = async (itemId: string) => {
-    setBusy(itemId);
-    setError(null);
-    const res = await serveItem(slug, itemId);
-    setBusy(null);
-    if (!res.ok) setError(res.error);
-    else router.refresh();
   };
 
   const doClose = async () => {
@@ -191,17 +187,8 @@ export function OrderPanel({
                         )}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-xs">
-                        <ItemStatusBadge status={it.status} />
-                        {it.status !== "served" && it.status !== "cancelled" && (
-                          <button
-                            type="button"
-                            disabled={busy === it.id}
-                            onClick={() => doServe(it.id)}
-                            className="inline-flex h-8 items-center rounded-md bg-status-ready px-sm text-xs font-medium text-status-ready-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-ready focus-visible:ring-offset-2 disabled:opacity-60"
-                          >
-                            {busy === it.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Đã phục vụ"}
-                          </button>
-                        )}
+                        {/* Chỉ đánh dấu món đã thu; món đang chờ để trống (POS lo tính tiền, không theo dõi bếp). */}
+                        {it.status === "served" && <ItemStatusBadge status={it.status} />}
                         {it.status !== "served" && it.status !== "cancelled" && (
                           <button
                             type="button"
@@ -297,12 +284,31 @@ export function OrderPanel({
             <span className="font-semibold tabular-nums text-ink">{formatVnd(sessionTotal)}</span>
           </div>
         )}
+        {session && activeItems.length > 0 && (
+          <button
+            type="button"
+            disabled={openingBill}
+            onClick={onOpenBill}
+            className="mb-sm inline-flex h-11 w-full items-center justify-center gap-sm rounded-md bg-primary px-md text-sm font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
+          >
+            {openingBill ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Receipt className="h-4 w-4" />
+                {session.openBill
+                  ? `Xem hóa đơn${session.openBill.bill_no != null ? ` #${session.openBill.bill_no}` : ""}`
+                  : "Tính tiền"}
+              </>
+            )}
+          </button>
+        )}
         {session && (
           <button
             type="button"
             disabled={!canClose || busy === "close"}
             onClick={doClose}
-            title={canClose ? "" : "Còn món chưa phục vụ"}
+            title={canClose ? "" : "Cần thu tiền hết trước khi đóng phiên"}
             className="inline-flex h-11 w-full items-center justify-center rounded-md border border-hairline-strong px-md text-sm font-medium text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
           >
             {busy === "close" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Đóng phiên"}
@@ -346,7 +352,7 @@ function ItemStatusBadge({ status }: { status: OrderItemStatus }) {
     queued: { label: "Chờ làm", cls: "bg-status-new text-status-new-fg" },
     preparing: { label: "Đang làm", cls: "bg-status-active text-status-active-fg" },
     ready: { label: "Sẵn sàng", cls: "bg-status-ready-bg text-status-ready" },
-    served: { label: "Đã phục vụ", cls: "bg-surface text-steel" },
+    served: { label: "Đã thu", cls: "bg-surface text-steel" },
     cancelled: { label: "Đã hủy", cls: "bg-cream-soft text-status-late" },
   };
   const s = map[status];

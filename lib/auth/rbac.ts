@@ -55,7 +55,7 @@ export function canManageStaff(role: Role): boolean {
 }
 
 /** Khu vực cấu hình dữ liệu nhà hàng owner/manager quản lý (P2). */
-export type ManageSection = "menu" | "tables" | "settings" | "onboarding";
+export type ManageSection = "menu" | "tables" | "settings" | "onboarding" | "reports";
 
 /**
  * Vai trò `role` có quyền quản lý `section` cấu hình (menu/bàn/settings/onboarding) không.
