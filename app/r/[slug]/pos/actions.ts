@@ -28,6 +28,7 @@ import {
   getBillView,
   getSessionBills,
   splitBillByItems,
+  splitBillByOrders,
   splitBillEvenly,
   mergeSessionsIntoBill,
   applyBillAdjustment,
@@ -233,6 +234,22 @@ export async function splitByItemsAction(
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
   const res = await splitBillByItems(auth.tenantId, billId, picks, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bills = await getSessionBills(auth.tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
+}
+
+/** Tách theo đơn (04-02b): chuyển các đơn được chọn sang 1 hóa đơn mới. Trả danh sách bill. */
+export async function splitByOrdersAction(
+  slug: string,
+  sessionId: string,
+  billId: string,
+  orderIds: string[]
+): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await splitBillByOrders(auth.tenantId, billId, orderIds, auth.staffId);
   if ("error" in res) return { ok: false, error: res.error };
   const bills = await getSessionBills(auth.tenantId, sessionId);
   revalidatePath(`/r/${slug}/pos`);

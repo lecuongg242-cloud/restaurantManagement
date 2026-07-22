@@ -12,6 +12,7 @@ import {
   createStaffOrderAction,
   openBillAction,
   splitByItemsAction,
+  splitByOrdersAction,
   splitEvenlyAction,
   mergeTablesAction,
   applyDiscountAction,
@@ -215,6 +216,10 @@ export function PosBoard({
     if (!selectedSession) return;
     runBillAction(() => splitByItemsAction(slug, selectedSession.id, billId, picks));
   };
+  const doSplitByOrders = (billId: string, orderIds: string[]) => {
+    if (!selectedSession) return;
+    runBillAction(() => splitByOrdersAction(slug, selectedSession.id, billId, orderIds));
+  };
   const doSplitEvenly = (billId: string, n: number) => {
     if (!selectedSession) return;
     runBillAction(() => splitEvenlyAction(slug, selectedSession.id, billId, n));
@@ -384,6 +389,7 @@ export function PosBoard({
           adjustStaff={cancelStaff}
           canSkipPin={canCancelWithoutPin}
           onSplitByItems={doSplitByItems}
+          onSplitByOrders={doSplitByOrders}
           onSplitEvenly={doSplitEvenly}
           onMerge={doMerge}
           onApplyDiscount={doApplyDiscount}

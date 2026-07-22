@@ -420,16 +420,23 @@ export async function getBillView(tenantId: string, billId: string): Promise<Bil
   const { data: billItems } = await client
     .from("bill_items")
     .select(
-      "id, order_item_id, qty_allocated, unit_price_snapshot, amount, order_items(name_snapshot, order_item_modifiers(name_snapshot))"
+      "id, order_item_id, qty_allocated, unit_price_snapshot, amount, order_items(name_snapshot, order_id, orders(kitchen_no), order_item_modifiers(name_snapshot))"
     )
     .eq("bill_id", billId)
     .eq("tenant_id", tenantId);
 
   const lines: BillLineView[] = (billItems ?? []).map((bi) => {
-    const oi = bi.order_items as { name_snapshot?: string; order_item_modifiers?: { name_snapshot: string }[] } | null;
+    const oi = bi.order_items as {
+      name_snapshot?: string;
+      order_id?: string;
+      orders?: { kitchen_no?: number } | null;
+      order_item_modifiers?: { name_snapshot: string }[];
+    } | null;
     return {
       billItemId: bi.id as string,
       orderItemId: bi.order_item_id as string,
+      orderId: oi?.order_id ?? "",
+      orderKitchenNo: oi?.orders?.kitchen_no ?? null,
       name: oi?.name_snapshot ?? "—",
       qty: bi.qty_allocated as number,
       unitPrice: bi.unit_price_snapshot as number,
@@ -680,6 +687,77 @@ export async function splitBillByItems(
   await recomputeBill(client, tenantId, billId);
   await recomputeBill(client, tenantId, newBillId);
   return { billId: newBillId };
+}
+
+/**
+ * Tách theo ĐƠN (04-02b): NHÂN VIÊN CHỌN các đơn (order ticket) cần tách → chuyển sang 1 hóa đơn
+ * mới (kế thừa %phí/%VAT của nguồn); phần còn lại giữ ở bill nguồn. KHÔNG tách toàn bộ (nguồn phải
+ * còn ≥1 đơn). Chuyển trọn bill_items của đơn được chọn (giữ bất biến Σ qty_allocated = qty).
+ */
+export async function splitBillByOrders(
+  tenantId: string,
+  billId: string,
+  orderIds: string[],
+  actorMembershipId: string | null
+): Promise<{ billId: string } | { error: string }> {
+  const client = await createClient();
+  const bill = await loadOpenBill(client, tenantId, billId);
+  if (!bill || bill.status !== "open" || bill.split_count != null || bill.split_parent_id != null)
+    return { error: "Hóa đơn không thể tách (đã chốt hoặc đã chia đều)." };
+  if (!orderIds || orderIds.length === 0) return { error: "Chưa chọn đơn nào để tách." };
+
+  const { data: src } = await client
+    .from("bills")
+    .select("service_charge_pct, vat_pct")
+    .eq("id", billId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  // bill_items + order_id của từng dòng; gom id cần chuyển (đơn được chọn).
+  const { data: items } = await client
+    .from("bill_items")
+    .select("id, order_items(order_id)")
+    .eq("bill_id", billId)
+    .eq("tenant_id", tenantId);
+
+  const selected = new Set(orderIds);
+  const moveIds: string[] = [];
+  let totalCount = 0;
+  for (const bi of items ?? []) {
+    totalCount++;
+    const oid = (bi.order_items as { order_id?: string } | null)?.order_id;
+    if (oid && selected.has(oid)) moveIds.push(bi.id as string);
+  }
+  if (moveIds.length === 0) return { error: "Đơn đã chọn không có món để tách." };
+  if (moveIds.length >= totalCount) return { error: "Không thể tách toàn bộ — hóa đơn nguồn sẽ rỗng." };
+
+  const billNo = await nextBillNo(client, tenantId);
+  const { data: newBill, error } = await client
+    .from("bills")
+    .insert({
+      tenant_id: tenantId,
+      bill_no: billNo,
+      table_session_id: bill.table_session_id,
+      status: "open",
+      service_charge_pct: (src?.service_charge_pct as number) ?? 0,
+      vat_pct: (src?.vat_pct as number) ?? 0,
+      created_by: actorMembershipId,
+    })
+    .select("id")
+    .single();
+  if (error || !newBill) return { error: "Không tạo được hóa đơn tách." };
+  const newId = newBill.id as string;
+
+  const { error: mvErr } = await client
+    .from("bill_items")
+    .update({ bill_id: newId })
+    .in("id", moveIds)
+    .eq("tenant_id", tenantId);
+  if (mvErr) return { error: "Không chuyển được món sang hóa đơn tách." };
+
+  await recomputeBill(client, tenantId, newId);
+  await recomputeBill(client, tenantId, billId);
+  return { billId: newId };
 }
 
 /**

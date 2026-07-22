@@ -71,7 +71,7 @@ export function ReceiptDoc({
             <img src={receipt.logoUrl} alt="" className="rc-logo" />
           )}
           <div className="rc-tenant">{receipt.tenantName}</div>
-          <div className="rc-title">HÓA ĐƠN</div>
+          <div className="rc-title">{receipt.payment ? "HÓA ĐƠN" : "PHIẾU TẠM TÍNH"}</div>
         </div>
 
         <div className="rc-line" />

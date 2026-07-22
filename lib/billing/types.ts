@@ -48,6 +48,8 @@ export type Payment = {
 export type BillLineView = {
   billItemId: string;
   orderItemId: string;
+  orderId: string; // để tách theo đơn (04-02b)
+  orderKitchenNo: number | null; // nhãn "Đơn #N"
   name: string;
   qty: number;
   unitPrice: number;

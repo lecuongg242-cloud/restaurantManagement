@@ -26,6 +26,7 @@ export function BillPanel({
   adjustStaff,
   canSkipPin,
   onSplitByItems,
+  onSplitByOrders,
   onSplitEvenly,
   onMerge,
   onApplyDiscount,
@@ -43,6 +44,7 @@ export function BillPanel({
   adjustStaff: CancelStaff[];
   canSkipPin: boolean;
   onSplitByItems: (billId: string, picks: SplitPick[]) => void;
+  onSplitByOrders: (billId: string, orderIds: string[]) => void;
   onSplitEvenly: (billId: string, n: number) => void;
   onMerge: (sessionIds: string[]) => void;
   onApplyDiscount: (billId: string, payload: AdjustPayload, creds: { membershipId?: string; pin?: string }) => void;
@@ -213,14 +215,23 @@ export function BillPanel({
               </div>
             )}
             {payable && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setPayFor(selected)}
-                className="inline-flex h-12 w-full items-center justify-center gap-sm rounded-md bg-primary text-base font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
-              >
-                <Wallet className="h-4 w-4" /> Thu tiền
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setPayFor(selected)}
+                  className="inline-flex h-12 w-full items-center justify-center gap-sm rounded-md bg-primary text-base font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
+                >
+                  <Wallet className="h-4 w-4" /> Thu tiền
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPrintReceipt(selected.id)}
+                  className="mt-sm inline-flex h-11 w-full items-center justify-center gap-sm rounded-md border border-hairline-strong text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                >
+                  <Printer className="h-4 w-4" /> In tạm tính
+                </button>
+              </>
             )}
             {isPaid && (
               <button
@@ -241,6 +252,10 @@ export function BillPanel({
           busy={busy}
           onSplitByItems={(picks) => {
             onSplitByItems(splitFor.id, picks);
+            setSplitFor(null);
+          }}
+          onSplitByOrders={(orderIds) => {
+            onSplitByOrders(splitFor.id, orderIds);
             setSplitFor(null);
           }}
           onSplitEvenly={(n) => {
