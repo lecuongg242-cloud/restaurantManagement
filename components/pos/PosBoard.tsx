@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, CalendarClock, ShoppingBag } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { PosSnapshot } from "@/lib/orders/pos";
@@ -26,6 +27,7 @@ import { TableMap } from "./TableMap";
 import { OrderPanel } from "./OrderPanel";
 import { MenuPanel } from "./MenuPanel";
 import { PendingOrdersDrawer } from "./PendingOrdersDrawer";
+import { TakeawayPanel } from "./TakeawayPanel";
 import { BillPanel } from "./BillPanel";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
@@ -55,6 +57,7 @@ export function PosBoard({
   const router = useRouter();
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
+  const [takeawayMode, setTakeawayMode] = useState(false);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -89,6 +92,7 @@ export function PosBoard({
         .on("postgres_changes", { event: "*", schema: "public", table: "order_items", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .on("postgres_changes", { event: "*", schema: "public", table: "tables", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .on("postgres_changes", { event: "*", schema: "public", table: "bills", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .subscribe();
     })();
     return () => {
@@ -107,6 +111,22 @@ export function PosBoard({
     setBills([]);
     setBillError(null);
   }, [selectedTableId]);
+
+  // Chọn bàn → thoát chế độ mang về. Vào chế độ mang về → bỏ chọn bàn + giỏ sạch.
+  const selectTable = (id: string) => {
+    setTakeawayMode(false);
+    setSelectedTableId(id);
+  };
+  const enterTakeaway = () => {
+    setSelectedTableId(null);
+    setTakeawayMode(true);
+    setCart([]);
+    setAddError(null);
+  };
+  const exitTakeaway = () => {
+    setTakeawayMode(false);
+    setCart([]);
+  };
 
   const itemMap = useMemo(() => {
     const m = new Map<string, CustomerMenuItem>();
@@ -255,20 +275,36 @@ export function PosBoard({
           {initial.tables.length} bàn ·{" "}
           {initial.tables.filter((t) => t.status === "occupied").length} đang phục vụ
         </span>
-        <button
-          type="button"
-          onClick={() => setPendingOpen(true)}
-          aria-label={`Order chờ duyệt${initial.pending.length > 0 ? `, ${initial.pending.length} đơn` : ""}`}
-          className="relative inline-flex h-11 items-center gap-sm rounded-md border border-hairline-strong bg-canvas px-md text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-        >
-          <Bell className="h-4 w-4" />
-          Chờ duyệt
-          {initial.pending.length > 0 && (
-            <span className="grid h-6 min-w-[24px] place-items-center rounded-full bg-status-new px-1 text-xs font-bold text-status-new-fg">
-              {initial.pending.length}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-sm">
+          <Link
+            href={`/r/${slug}/pos/reservations`}
+            className="inline-flex h-11 items-center gap-sm rounded-md border border-hairline-strong bg-canvas px-md text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <CalendarClock className="h-4 w-4" />
+            Đặt bàn
+          </Link>
+          <Link
+            href={`/r/${slug}/pos/online`}
+            className="inline-flex h-11 items-center gap-sm rounded-md border border-hairline-strong bg-canvas px-md text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <ShoppingBag className="h-4 w-4" />
+            Đơn online
+          </Link>
+          <button
+            type="button"
+            onClick={() => setPendingOpen(true)}
+            aria-label={`Order chờ duyệt${initial.pending.length > 0 ? `, ${initial.pending.length} đơn` : ""}`}
+            className="relative inline-flex h-11 items-center gap-sm rounded-md border border-hairline-strong bg-canvas px-md text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <Bell className="h-4 w-4" />
+            Chờ duyệt
+            {initial.pending.length > 0 && (
+              <span className="grid h-6 min-w-[24px] place-items-center rounded-full bg-status-new px-1 text-xs font-bold text-status-new-fg">
+                {initial.pending.length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* 3 cột: bàn (trái) · thực đơn (giữa) · đơn bàn (phải) */}
@@ -278,17 +314,32 @@ export function PosBoard({
             areas={initial.areas}
             tables={initial.tables}
             sessions={initial.sessions}
+            reservations={initial.reservations}
             selectedTableId={selectedTableId}
-            onSelect={setSelectedTableId}
+            onSelect={selectTable}
+            takeawayActive={takeawayMode}
+            onSelectTakeaway={enterTakeaway}
           />
         </aside>
 
         <section className="min-h-0 min-w-0 flex-1">
-          <MenuPanel menu={menu} canAdd={!!selectedTable} onAddLine={addLine} />
+          <MenuPanel menu={menu} canAdd={takeawayMode || !!selectedTable} onAddLine={addLine} />
         </section>
 
         <aside className="w-[26rem] shrink-0 border-l border-hairline-soft lg:w-[30rem]">
-          {selectedTable ? (
+          {takeawayMode ? (
+            <TakeawayPanel
+              slug={slug}
+              cart={cart}
+              itemMap={itemMap}
+              orders={initial.takeawayOrders}
+              onCartQty={cartQty}
+              onCartRemove={cartRemove}
+              onCartEdit={cartEdit}
+              onClearCart={() => setCart([])}
+              onClose={exitTakeaway}
+            />
+          ) : selectedTable ? (
             <OrderPanel
               slug={slug}
               table={selectedTable}

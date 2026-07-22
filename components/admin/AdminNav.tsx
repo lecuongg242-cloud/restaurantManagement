@@ -17,8 +17,6 @@ export function AdminNav({ base }: { base: string }) {
     { key: "tables", label: "Bàn & QR", href: `${base}/tables` },
     { key: "reports", label: "Báo cáo", href: `${base}/reports` },
     { key: "settings", label: "Cài đặt", href: `${base}/settings` },
-    { key: "reservations", label: "Đặt bàn" },
-    { key: "online", label: "Đơn online" },
   ];
 
   const isActive = (href?: string) => {

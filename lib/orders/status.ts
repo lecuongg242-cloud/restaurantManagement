@@ -60,3 +60,34 @@ export const CUSTOMER_STEP_LABEL: Record<string, string> = {
   pending_confirm: "Chờ xác nhận",
   confirmed: "Đã xác nhận",
 };
+
+/**
+ * Stepper khách cho ĐƠN ONLINE (mang về/giao) — 4 bước tới hoàn tất (ONLINE-01). Khác dine-in vì
+ * khách cần biết đã sẵn sàng để lấy/giao chưa (do /pos/online điều khiển, KDS chỉ để xem).
+ */
+export const ONLINE_STEPPER: OrderStatus[] = ["pending_confirm", "confirmed", "ready", "completed"];
+
+export const ONLINE_STEP_LABEL: Record<string, string> = {
+  pending_confirm: "Chờ xác nhận",
+  confirmed: "Đang chuẩn bị",
+  ready: "Sẵn sàng nhận/giao",
+  completed: "Hoàn tất",
+};
+
+/** Chỉ số bước hiện tại trên ONLINE_STEPPER theo order.status. */
+export function onlineStepIndex(status: OrderStatus): number {
+  switch (status) {
+    case "pending_confirm":
+      return 0;
+    case "confirmed":
+    case "preparing":
+      return 1;
+    case "ready":
+      return 2;
+    case "served":
+    case "completed":
+      return 3;
+    default:
+      return 0; // cancelled xử lý riêng
+  }
+}

@@ -15,6 +15,7 @@ export function ORDER_CHANNEL(orderId: string): string {
 
 export type OrderStatusPayload = {
   status: OrderStatus;
+  channel: "dine_in" | "takeaway" | "delivery";
   cancel_reason: string | null;
   items: { id: string; name: string; qty: number; status: OrderItemStatus }[];
 };
@@ -28,7 +29,7 @@ export async function broadcastOrderStatus(orderId: string): Promise<void> {
 
   const { data: order } = await admin
     .from("orders")
-    .select("status, cancel_reason")
+    .select("status, channel, cancel_reason")
     .eq("id", orderId)
     .maybeSingle();
   if (!order) return;
@@ -41,6 +42,7 @@ export async function broadcastOrderStatus(orderId: string): Promise<void> {
 
   const payload: OrderStatusPayload = {
     status: order.status as OrderStatus,
+    channel: order.channel as OrderStatusPayload["channel"],
     cancel_reason: order.cancel_reason,
     items: (items ?? []).map((i) => ({
       id: i.id,

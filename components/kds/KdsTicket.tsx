@@ -47,7 +47,20 @@ export function KdsTicket({
               #{ticket.kitchenNo}
             </span>
           )}
-          <span className="font-display text-2xl leading-none text-ink">Bàn {ticket.tableName}</span>
+          {ticket.channel === "dine_in" ? (
+            <span className="font-display text-2xl leading-none text-ink">Bàn {ticket.tableName}</span>
+          ) : (
+            <span
+              className={cn(
+                "rounded-md px-sm py-xxs font-display text-xl leading-none",
+                ticket.channel === "takeaway"
+                  ? "bg-cream text-primary"
+                  : "bg-status-ready-bg text-status-ready"
+              )}
+            >
+              {ticket.channel === "takeaway" ? "Mang về" : "Giao"}
+            </span>
+          )}
         </div>
         <div className="flex flex-col items-end gap-xxs">
           <span className="inline-flex items-center gap-xxs text-base font-semibold tabular-nums text-steel">

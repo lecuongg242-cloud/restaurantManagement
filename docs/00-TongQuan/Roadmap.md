@@ -12,7 +12,7 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 - [~] **P2 — Dữ liệu nhà hàng**: Menu + modifier, khu vực/bàn/QR, admin, onboarding ≤15' — *code 5/5 plan hoàn tất, migration 0004–0007 đã áp dev, build sạch; chờ 5 checkpoint human-verify*
 - [ ] **P3 — Lõi order**: Gọi món QR mobile-first, duyệt order, POS, KDS realtime, PrintAdapter + phiếu bếp
 - [~] **P4 — Dòng tiền**: Bill gộp/tách, điều chỉnh (giảm giá/phí/VAT), thanh toán, in hóa đơn, dashboard — *code 5/5 plan hoàn tất (04-01..05), migration 0012–0013 áp dev, tsc/lint/test xanh; chờ 5 checkpoint human-verify*
-- [ ] **P5 — Kênh online**: Đặt bàn (duyệt tay), đặt món mang về/giao (trạng thái)
+- [~] **P5 — Kênh online** (3 plan): Đặt bàn (duyệt tay + danh sách theo ngày), đặt món mang về/giao (vòng đời + thu tiền qua bill P4) — *05-01 & 05-02 code xong + **approved**; 05-03 code xong (tsc/lint xanh), migration 0014–0015 áp dev; chờ checkpoint 05-03*
 - [ ] **P6 — Phát hành**: PWA, E2E, 2 tenant demo prod, tài liệu V1.0
 
 ---
@@ -74,13 +74,16 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 **Kế hoạch chi tiết P4 (lập 22/07/2026):** `30-KeHoach/P4/` (00-TongQuan + 5 PLAN theo GSD, mỗi plan test thủ công trên trình duyệt) + quyết định `15-QuyetDinh/QD-007`. Chốt: chuyển khoản = ghi nhận (không VietQR ở V1) · tách/gộp đầy đủ (theo món/chia đều N/gộp bàn) · giảm giá+void cần PIN manager/cashier · dashboard dùng recharts (mốc ngày VN). 1 migration mới `0012_bills_core.sql`.
 
 ## P5 — Kênh online
-**Mục tiêu:** Khách đặt bàn và đặt món online; quản lý duyệt.
-**Phụ thuộc:** P2 (menu), P3 (order/bếp).
+**Mục tiêu:** Khách đặt bàn và đặt món online; quản lý duyệt; đơn online chạy hết vòng đời + thu tiền.
+**Phụ thuộc:** P2 (menu), P3 (order/bếp/broadcast), P4 (bill/thanh toán/dashboard).
 **Yêu cầu:** RESV-01, RESV-02, ONLINE-01.
-**Kế hoạch:**
-- 05-01 Đặt bàn online (form) + duyệt tay + danh sách theo ngày.
-- 05-02 Đặt món mang về/giao (channel≠dine_in, customer_contact) + vòng đời trạng thái tới hoàn tất.
-**Nghiệm thu:** đặt bàn pending→duyệt · đơn online chạy hết vòng đời trạng thái.
+**Kế hoạch (3 plan — lát cắt dọc, mỗi plan test thủ công trên trình duyệt; chi tiết ở `30-KeHoach/P5/`, lập 22/07/2026):**
+- 05-01 Đặt bàn online (form khách) + duyệt tay + danh sách theo ngày (bảng `reservations` mới). *(Wave 1, độc lập)*
+- 05-02 Đặt món mang về/giao (channel≠dine_in, customer_contact, `source=online`) + nhận đơn + KDS + theo dõi khách (broadcast). *(Wave 2)*
+- 05-03 Vòng đời tới hoàn tất + thu tiền (tái dùng bill P4, 1 đơn=1 bill) + hóa đơn 80mm + doanh thu gồm online. *(Wave 3)*
+**Nghiệm thu:** đặt bàn pending→duyệt + danh sách theo ngày · đơn online chạy hết vòng đời tới `completed` · thu tiền + doanh thu khớp cả kênh online.
+
+**Kế hoạch chi tiết P5 (lập 22/07/2026):** `30-KeHoach/P5/` (00-TongQuan + 3 PLAN theo GSD) + quyết định `15-QuyetDinh/QD-008`. Chốt: đơn online **tái dùng luồng bill P4** (thu tiền + hóa đơn + doanh thu; không phí giao/tài xế) · đặt bàn **chỉ danh sách + duyệt** (xếp bàn thủ công) · khách online ẩn danh qua service role (D15) + theo dõi qua Broadcast · `source='online'` · đơn online luôn qua duyệt. 2 migration mới `0014_reservations.sql`, `0015_online_orders.sql`.
 
 ## P6 — Phát hành
 **Mục tiêu:** Đóng gói, kiểm thử, phát hành V1.0 trên prod.

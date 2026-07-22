@@ -8,10 +8,22 @@ import { createClient } from "@/lib/supabase/client";
 import {
   CUSTOMER_STEPPER,
   CUSTOMER_STEP_LABEL,
+  ONLINE_STEPPER,
+  ONLINE_STEP_LABEL,
+  onlineStepIndex,
   ORDER_STATUS_LABEL,
   isTerminalOrderStatus,
 } from "@/lib/orders/status";
 import type { OrderStatus, OrderItemStatus } from "@/lib/orders/types";
+
+type OrderChannel = "dine_in" | "takeaway" | "delivery";
+
+const ONLINE_SUBTITLE: Record<string, string> = {
+  pending_confirm: "Đã gửi, chờ nhà hàng xác nhận đơn.",
+  confirmed: "Nhà hàng đã nhận đơn và đang chuẩn bị món.",
+  ready: "Món đã sẵn sàng để bạn nhận / shipper lấy.",
+  completed: "Đơn đã hoàn tất. Cảm ơn bạn!",
+};
 import { formatVnd } from "@/lib/orders/cart";
 
 type TrackItem = {
@@ -25,6 +37,7 @@ type TrackItem = {
 
 type OrderData = {
   status: OrderStatus;
+  channel: OrderChannel;
   cancel_reason: string | null;
   items: TrackItem[];
 };
@@ -70,6 +83,7 @@ export function OrderStatusStepper({
         setLoadError(false);
         setData({
           status: json.status,
+          channel: json.channel ?? "dine_in",
           cancel_reason: json.cancel_reason ?? null,
           items: json.items ?? [],
         });
@@ -98,6 +112,7 @@ export function OrderStatusStepper({
         if (!mounted) return;
         setData({
           status: payload.status,
+          channel: payload.channel ?? "dine_in",
           cancel_reason: payload.cancel_reason ?? null,
           items: payload.items ?? [],
         });
@@ -143,8 +158,27 @@ export function OrderStatusStepper({
   }
 
   const cancelled = data.status === "cancelled";
-  // pending_confirm → bước 1 đang chờ; confirmed trở đi → cả 2 bước hoàn tất (dừng ở "Đã xác nhận").
-  const currentIdx = data.status === "pending_confirm" ? 0 : CUSTOMER_STEPPER.length;
+  const isOnline = data.channel !== "dine_in";
+
+  // Online: 4 bước tới hoàn tất. Dine-in: 2 bước (dừng ở "Đã xác nhận").
+  const steps = isOnline ? ONLINE_STEPPER : CUSTOMER_STEPPER;
+  const stepLabel = isOnline ? ONLINE_STEP_LABEL : CUSTOMER_STEP_LABEL;
+  const currentIdx = isOnline
+    ? onlineStepIndex(data.status)
+    : data.status === "pending_confirm"
+      ? 0
+      : CUSTOMER_STEPPER.length;
+
+  const heading = isOnline
+    ? stepLabel[steps[Math.min(currentIdx, steps.length - 1)]]
+    : data.status === "pending_confirm"
+      ? "Chờ xác nhận"
+      : "Đã xác nhận";
+  const subtitle = isOnline
+    ? ONLINE_SUBTITLE[data.status] ?? ""
+    : data.status === "pending_confirm"
+      ? "Đã gửi, chờ nhân viên xác nhận."
+      : "Nhân viên đã xác nhận đơn của bạn. Món sẽ được phục vụ sớm.";
 
   return (
     <div className="mx-auto min-h-screen max-w-md bg-canvas p-lg">
@@ -160,21 +194,15 @@ export function OrderStatusStepper({
         </div>
       ) : (
         <>
-          <h1 className="font-display text-2xl text-ink">
-            {data.status === "pending_confirm" ? "Chờ xác nhận" : "Đã xác nhận"}
-          </h1>
-          <p className="mt-xxs text-sm text-steel">
-            {data.status === "pending_confirm"
-              ? "Đã gửi, chờ nhân viên xác nhận."
-              : "Nhân viên đã xác nhận đơn của bạn. Món sẽ được phục vụ sớm."}
-          </p>
+          <h1 className="font-display text-2xl text-ink">{heading}</h1>
+          <p className="mt-xxs text-sm text-steel">{subtitle}</p>
 
           {/* Stepper dọc */}
           <ol className="mt-lg flex flex-col gap-0">
-            {CUSTOMER_STEPPER.map((step, i) => {
+            {steps.map((step, i) => {
               const done = i < currentIdx;
               const active = i === currentIdx;
-              const isLast = i === CUSTOMER_STEPPER.length - 1;
+              const isLast = i === steps.length - 1;
               return (
                 <li key={step} className="flex gap-md">
                   <div className="flex flex-col items-center">
@@ -206,7 +234,7 @@ export function OrderStatusStepper({
                         (active ? "font-semibold text-ink" : done ? "text-steel" : "text-muted")
                       }
                     >
-                      {CUSTOMER_STEP_LABEL[step] ?? ORDER_STATUS_LABEL[step]}
+                      {stepLabel[step] ?? ORDER_STATUS_LABEL[step]}
                     </span>
                     {active && (
                       <motion.span

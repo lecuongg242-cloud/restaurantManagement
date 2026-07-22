@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { CalendarClock, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PosArea, PosTable, PosSession } from "@/lib/orders/pos";
+import type { PosArea, PosTable, PosSession, PosReservation } from "@/lib/orders/pos";
 
 /**
  * TableMap (§4.2, §2.2) — tab khu vực + lưới table-tile màu theo status. Tile hiện tên bàn +
@@ -27,14 +28,20 @@ export function TableMap({
   areas,
   tables,
   sessions,
+  reservations = [],
   selectedTableId,
   onSelect,
+  takeawayActive = false,
+  onSelectTakeaway,
 }: {
   areas: PosArea[];
   tables: PosTable[];
   sessions: PosSession[];
+  reservations?: PosReservation[];
   selectedTableId: string | null;
   onSelect: (id: string) => void;
+  takeawayActive?: boolean;
+  onSelectTakeaway?: () => void;
 }) {
   const tabs = [{ id: "all", name: "Tất cả" }, ...areas, { id: "none", name: "Chưa xếp khu" }];
   const [activeTab, setActiveTab] = useState("all");
@@ -47,6 +54,22 @@ export function TableMap({
       for (const it of o.items) if (it.status !== "served" && it.status !== "cancelled") n++;
     unservedByTable.set(s.tableId, n);
   }
+
+  // Đặt bàn hôm nay theo bàn (đã sort theo giờ). Thẻ hiện lịch sắp tới gần nhất.
+  const reservationsByTable = new Map<string, PosReservation[]>();
+  for (const r of reservations) {
+    const arr = reservationsByTable.get(r.tableId) ?? [];
+    arr.push(r);
+    reservationsByTable.set(r.tableId, arr);
+  }
+  const graceMs = Date.now() - 30 * 60000; // còn hiện tới 30' sau giờ đặt (khách có thể tới trễ)
+  const pickReservation = (tableId: string) => {
+    const arr = reservationsByTable.get(tableId);
+    if (!arr || arr.length === 0) return null;
+    const upcoming = arr.filter((r) => new Date(r.reservedAt).getTime() >= graceMs);
+    const list = upcoming.length > 0 ? upcoming : arr;
+    return { next: list[0], more: list.length - 1 };
+  };
 
   const visible = tables.filter((t) => {
     if (activeTab === "all") return true;
@@ -73,10 +96,29 @@ export function TableMap({
         ))}
       </div>
 
-      <div className="mt-lg grid grid-cols-2 gap-sm">
+      {onSelectTakeaway && (
+        <button
+          type="button"
+          onClick={onSelectTakeaway}
+          aria-pressed={takeawayActive}
+          className={cn(
+            "mt-lg flex w-full items-center gap-sm rounded-lg border-2 border-dashed px-md py-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+            takeawayActive
+              ? "border-primary bg-cream-soft text-ink ring-2 ring-primary ring-offset-2"
+              : "border-hairline-strong bg-canvas text-ink hover:bg-surface"
+          )}
+        >
+          <ShoppingBag className="h-5 w-5 text-primary" />
+          <span className="text-sm font-semibold">Bán mang về</span>
+          <span className="ml-auto text-xs text-steel">không gắn bàn</span>
+        </button>
+      )}
+
+      <div className={cn("grid grid-cols-2 gap-sm", onSelectTakeaway ? "mt-sm" : "mt-lg")}>
         {visible.map((t) => {
           const n = unservedByTable.get(t.id) ?? 0;
           const selected = t.id === selectedTableId;
+          const resv = pickReservation(t.id);
           return (
             <button
               key={t.id}
@@ -97,7 +139,18 @@ export function TableMap({
                   </span>
                 )}
               </div>
-              <span className="text-xs opacity-80">{STATUS_LABEL[t.status]}</span>
+              <div className="flex w-full flex-col items-start gap-xxs">
+                <span className="text-xs opacity-80">{STATUS_LABEL[t.status]}</span>
+                {resv && (
+                  <span className="inline-flex max-w-full items-center gap-xxs text-[11px] font-medium text-primary">
+                    <CalendarClock className="h-3 w-3 shrink-0" aria-hidden />
+                    <span className="truncate">
+                      {resv.next.timeLabel} · {resv.next.customerName} · {resv.next.partySize} người
+                      {resv.more > 0 ? ` +${resv.more}` : ""}
+                    </span>
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}

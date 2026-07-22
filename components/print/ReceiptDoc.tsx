@@ -82,6 +82,11 @@ export function ReceiptDoc({
         <div className="rc-row">
           <span>{time}</span>
         </div>
+        {receipt.contactLine && (
+          <div className="rc-row">
+            <span>{receipt.contactLine}</span>
+          </div>
+        )}
         <div className="rc-line" />
 
         {receipt.isChild ? (

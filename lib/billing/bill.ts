@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseSettings } from "@/lib/tenant/settings";
 import { computeBillTotals } from "./compute";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
+import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import type { BillView, BillLineView, DiscountType } from "./types";
 
 /**
@@ -156,6 +157,79 @@ export async function openBillForSession(
 }
 
 /**
+ * Mở/đồng bộ bill cho 1 ĐƠN ONLINE (mang về/giao) — IDEMPOTENT theo online_order_id (P5 / 05-03).
+ * 1 đơn = 1 bill (table_session_id=null, online_order_id=orderId), gom trọn order_items (≠cancelled).
+ * KHÔNG tách/gộp. %phí/%VAT lấy từ settings lúc mở. Trả billId.
+ */
+export async function openBillForOrder(
+  tenantId: string,
+  orderId: string,
+  actorMembershipId: string | null
+): Promise<{ billId: string } | { error: string }> {
+  const client = await createClient();
+
+  const { data: order } = await client
+    .from("orders")
+    .select("id, channel")
+    .eq("tenant_id", tenantId)
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!order) return { error: "Không tìm thấy đơn." };
+  if (order.channel === "dine_in") return { error: "Đơn tại bàn dùng luồng POS." };
+
+  // Idempotent: đã có bill (open|paid) cho đơn → trả lại.
+  const { data: existing } = await client
+    .from("bills")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("online_order_id", orderId)
+    .in("status", ["open", "paid"])
+    .maybeSingle();
+  if (existing) return { billId: existing.id as string };
+
+  const { data: ois } = await client
+    .from("order_items")
+    .select("id, unit_price_snapshot, qty, status")
+    .eq("tenant_id", tenantId)
+    .eq("order_id", orderId);
+  const items = (ois ?? []).filter((i) => i.status !== "cancelled");
+  if (items.length === 0) return { error: "Đơn chưa có món để tính tiền." };
+
+  const settings = await getSessionSettings(client, tenantId);
+  const billNo = await nextBillNo(client, tenantId);
+  const { data: created, error } = await client
+    .from("bills")
+    .insert({
+      tenant_id: tenantId,
+      bill_no: billNo,
+      table_session_id: null,
+      online_order_id: orderId,
+      status: "open",
+      service_charge_pct: settings.service_charge_pct,
+      vat_pct: settings.vat_pct,
+      created_by: actorMembershipId,
+    })
+    .select("id")
+    .single();
+  if (error || !created) return { error: "Không mở được hóa đơn. Vui lòng thử lại." };
+  const billId = created.id as string;
+
+  const rows = items.map((i) => ({
+    tenant_id: tenantId,
+    bill_id: billId,
+    order_item_id: i.id as string,
+    qty_allocated: i.qty as number,
+    unit_price_snapshot: i.unit_price_snapshot as number,
+    amount: (i.unit_price_snapshot as number) * (i.qty as number),
+  }));
+  const { error: biErr } = await client.from("bill_items").insert(rows);
+  if (biErr) return { error: "Không thêm được món vào hóa đơn. Vui lòng thử lại." };
+
+  await recomputeBill(client, tenantId, billId);
+  return { billId };
+}
+
+/**
  * Đóng phiên bàn nếu MỌI order_item (≠cancelled) của phiên đã nằm trong hóa đơn 'paid' (TABLE-02
  * phần còn — tự đóng khi thanh toán xong). Bàn về 'available'. Không đóng nếu còn món chưa thu.
  */
@@ -219,7 +293,7 @@ export async function payBill(
   const client = await createClient();
   const { data: bill } = await client
     .from("bills")
-    .select("id, status, total, table_session_id, split_count, split_parent_id")
+    .select("id, status, total, table_session_id, online_order_id, split_count, split_parent_id")
     .eq("id", billId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -307,6 +381,17 @@ export async function payBill(
     }
   }
   for (const s of sessions) await closeSessionIfSettled(client, tenantId, s);
+
+  // Đơn online: thu đủ = HOÀN TẤT (đơn không gắn phiên bàn). Roll-up ở trên đã đặt món 'served';
+  // ở đây nâng đơn lên 'completed' (trạng thái cuối cho theo dõi khách) + broadcast.
+  if (bill.online_order_id) {
+    await client
+      .from("orders")
+      .update({ status: "completed", updated_at: now })
+      .eq("id", bill.online_order_id as string)
+      .eq("tenant_id", tenantId);
+    await broadcastOrderStatus(bill.online_order_id as string);
+  }
 
   const change = Math.max(0, Math.round(input.amountReceived) - total);
   return { ok: true, change };

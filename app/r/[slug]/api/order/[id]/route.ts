@@ -24,7 +24,7 @@ export async function GET(
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, tenant_id, status, note, cancel_reason, created_at")
+    .select("id, tenant_id, status, channel, note, cancel_reason, created_at")
     .eq("id", id)
     .maybeSingle();
   if (!order || order.tenant_id !== tenant.id) {
@@ -55,6 +55,7 @@ export async function GET(
   return NextResponse.json({
     id: order.id,
     status: order.status,
+    channel: order.channel,
     note: order.note,
     cancel_reason: order.cancel_reason,
     created_at: order.created_at,

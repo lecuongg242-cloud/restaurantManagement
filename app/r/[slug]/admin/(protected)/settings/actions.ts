@@ -50,6 +50,55 @@ export async function updateProfile(formData: FormData) {
   redirect(`${back}${sep}ok=${encodeURIComponent("Đã lưu tên nhà hàng")}`);
 }
 
+/**
+ * Lưu nhận diện nhà hàng trong 1 lần: tên (bắt buộc) + logo (tùy chọn, chỉ upload
+ * khi có tệp mới). Gộp updateProfile + uploadLogo để trang settings dùng chung 1 nút.
+ */
+export async function updateIdentity(formData: FormData) {
+  const slug = String(formData.get("slug") ?? "");
+  const session = await requireSettingsManager(slug);
+  const name = String(formData.get("name") ?? "").trim();
+  const back = backFor(slug, formData);
+  const sep = back.includes("?") ? "&" : "?";
+  if (!name) redirect(`${back}${sep}error=${encodeURIComponent("Thiếu tên nhà hàng.")}`);
+
+  const supabase = await createClient();
+  const update: { name: string; logo_url?: string; updated_at: string } = {
+    name,
+    updated_at: new Date().toISOString(),
+  };
+
+  // Logo tùy chọn: chỉ xử lý khi người dùng thực sự chọn tệp mới.
+  const file = formData.get("image");
+  let oldLogo: string | null = null;
+  if (file instanceof File && file.size > 0) {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("logo_url")
+      .eq("id", session.tenant.id)
+      .maybeSingle();
+    oldLogo = tenant?.logo_url ?? null;
+    try {
+      const { publicUrl } = await uploadImage(file, session.tenant.id, "logo");
+      update.logo_url = publicUrl;
+    } catch (e) {
+      redirect(`${back}${sep}error=${encodeURIComponent(e instanceof Error ? e.message : "Upload logo lỗi.")}`);
+    }
+  }
+
+  const { error } = await supabase
+    .from("tenants")
+    .update(update)
+    .eq("id", session.tenant.id);
+  if (error) redirect(`${back}${sep}error=${encodeURIComponent(error.message)}`);
+
+  // Dọn logo cũ sau khi ghi DB thành công (không chặn luồng nếu xóa lỗi).
+  if (update.logo_url) await deleteMenuImage(pathFromPublicUrl(oldLogo));
+
+  revalidatePath(back, "layout");
+  redirect(`${back}${sep}ok=${encodeURIComponent("Đã lưu nhận diện nhà hàng")}`);
+}
+
 /** Lưu cấu hình vận hành vào tenants.settings (merge + clamp). */
 export async function updateSettings(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
