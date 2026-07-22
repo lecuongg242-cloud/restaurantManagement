@@ -10,7 +10,8 @@
     "seed": "node scripts/seed.mjs",
     "db:reset": "node scripts/db-reset.mjs --confirm",
     "test": "vitest run",
-    "test:rls": "vitest run tests/rls"
+    "test:rls": "vitest run tests/rls",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",
@@ -20,13 +21,16 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
+    "motion": "^12.42.2",
     "next": "^15.5.20",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^2.6.0"
+    "tailwind-merge": "^2.6.0",
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",

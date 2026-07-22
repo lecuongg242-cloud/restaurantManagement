@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,6 +41,27 @@ export function PinPad({
     haptic();
     onDigit(d);
   };
+
+  // Nhập PIN bằng bàn phím vật lý. Bỏ qua khi đang gõ trong ô nhập text (vd lý do hủy).
+  useEffect(() => {
+    if (disabled) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      if (/^[0-9]$/.test(e.key)) {
+        if (value.length < maxLength) {
+          e.preventDefault();
+          onDigit(e.key);
+        }
+      } else if (e.key === "Backspace") {
+        e.preventDefault();
+        onBackspace();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [disabled, value.length, maxLength, onDigit, onBackspace]);
 
   return (
     <div className="flex flex-col items-center gap-lg">

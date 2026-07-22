@@ -22,4 +22,10 @@
   ::after {
     border-color: var(--color-hairline);
   }
+
+  /* Viền ảnh mảnh để cạnh ảnh không hòa vào nền (make-interfaces-feel-better). */
+  img {
+    outline: 1px solid rgba(0, 0, 0, 0.06);
+    outline-offset: -1px;
+  }
 }
