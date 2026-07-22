@@ -25,7 +25,7 @@ Wave 3 (03-03, 03-04, 03-05) độc lập nhau (KDS / hủy món / in — khác 
 4. **Giỏ khách là state client** (React state + sessionStorage theo `qr_token`), không ghi DB trước khi "Gửi order". Gửi = 1 POST tạo `orders + order_items + order_item_modifiers` nguyên khối.
 5. **P3 chỉ `channel=dine_in`.** Takeaway/delivery (C1–C4) để P5 theo Roadmap.
 6. **PIN gate**: duyệt/từ chối order + thêm món + đổi trạng thái KDS = chọn nhân viên hiện hành (như P1) để gắn `staff_membership_id`; **hủy món** yêu cầu PIN của membership vai trò **manager/cashier** ngay tại thao tác (D9). Owner/manager đăng nhập email thao tác trên POS thì tự gắn membership của họ.
-7. **`served` đánh ở POS** (phục vụ mang món ra); `completed` để P4 (khi đóng bill). KDS chỉ đổi `queued→preparing→ready` (D9).
+7. **`served` đánh ở POS** (phục vụ mang món ra); `completed` để P4 (khi đóng bill). **KDS = MÀN HÌNH CHỈ ĐỂ XEM (sửa 22/07/2026):** bếp tay bận/bẩn, không thao tác cảm ứng — KDS chỉ hiển thị vé (lưới, xếp cũ→mới), KHÔNG nút Bắt đầu/Xong. Vé tự ẩn khi POS bấm "Đã phục vụ" (món `queued→served`). Bỏ trạng thái item `preparing/ready` khỏi luồng thực tế (giữ trong enum cho V2 bump-bar nếu cần). Khách stepper gọn: Chờ xác nhận → Đang chuẩn bị → Đã phục vụ.
 8. **Đo ≤3s**: cột `confirmed_at` trên orders; KDS hiển thị delta (now − confirmed_at) khi vé xuất hiện lần đầu; đo 10 lần ghi bảng vào SUMMARY 03-03 (ORDER-04).
 9. **`qr_order_auto_send`** (02-04): nếu tenant bật → order QR vào thẳng `confirmed` (bỏ duyệt). Mặc định tắt = đúng luồng D8. Xử lý ngay tại Route Handler tạo order.
 
@@ -50,7 +50,17 @@ Wave 3 (03-03, 03-04, 03-05) độc lập nhau (KDS / hủy món / in — khác 
 5. Phiếu bếp in đúng khổ 58/80mm qua PDF preview, có logo+tên tenant (03-05, PRINT-01/02).
 
 ## Stack thêm cho P3
-- Không thêm dependency mới (realtime đã có trong `@supabase/supabase-js`; PIN bcryptjs từ P1; in = CSS `@media print`).
+- Realtime đã có trong `@supabase/supabase-js`; PIN bcryptjs từ P1; in = CSS `@media print`.
+- **Motion khách (CHỐT 22/07/2026):** thêm `vaul` (bottom-sheet vuốt, ~5KB) + `motion` (framer-motion) cho giao diện khách gọi món (03-01). Lý do: sheet tùy chọn/giỏ + stagger/layout animation cần cảm giác native iOS thật; `tailwindcss-animate` thuần không có drag-gesture/momentum. Thay ghi chú "không thêm dependency mới" trước đó. Chỉ dùng cho bề mặt khách; POS/KDS giữ nhẹ. Tôn trọng `prefers-reduced-motion`.
+
+## Hướng thiết kế giao diện khách (03-01)
+> Nguồn: **QD-006 (design system Mistral cố định)** + `lib/design/tokens.css` + skill `ui-ux-pro-max` + tham khảo thực tế (Emil Kowalski *Building a drawer*, vaul, Figma "QR Code Restaurant Menu" UI kit).
+- **BÁM design system có sẵn (QD-006 F1/F2):** theme sản phẩm **cố định**, KHÔNG override màu theo tenant (tenant chỉ góp logo+tên). Dùng token Tailwind đã map (`bg-primary` `#fa520f`, `bg-cream`, `text-ink/steel/slate`, `border-hairline`, `rounded-lg`, `shadow-card`, `space-*`) — không hardcode hex mới, không thêm accent ngoài palette cam/vàng/kem + status (F5).
+- **Font (F4):** tên món + tiêu đề dùng `font-display` (Fraunces), toàn bộ UI còn lại `font-sans` (Inter). Sunset stripe + Fraunces hero CHỈ ở app khách/landing (F2 nguyên tắc 2).
+- **Sheet (ModifierSheet/CartSheet):** vaul; easing iOS `cubic-bezier(0.32,0.72,0,1)` ~500ms, transform `translateY` trực tiếp (không qua CSS var), momentum drag + snap, chỉ kéo-đóng khi đã scroll đầu; radius `rounded-t-xl`, `shadow-modal`.
+- **MenuBrowser:** chip danh mục `pill-tab` scroll-snap; thẻ món `menu-item-card` stagger reveal (`opacity 0→1, scale .96→1, y 12→0`, ~350ms, ease out) qua motion; skeleton giữ chỗ ảnh (CLS<0.1).
+- **Micro-interaction:** QtyStepper số nảy spring khi +/−; "Thêm vào giỏ" bay vào icon giỏ (layout animation) + badge nảy; OrderStatusStepper pulse ở bước đang xử lý (dùng token `status-*`).
+- **Kỷ luật:** icon SVG lucide (không emoji), touch ≥44px, exit nhanh hơn enter, contrast 4.5:1, mọi animation có nhánh `prefers-reduced-motion`.
 
 ## Cách chạy manual test (chung)
 - Khách: mở `http://localhost:3000/r/pho-viet/menu?t=<qr_token>` (lấy token từ /admin/tables hoặc quét QR đã in ở P2) — giả lập mobile 360px bằng DevTools.
