@@ -8,7 +8,8 @@ const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLI
       type={type}
       ref={ref}
       className={cn(
-        "h-11 w-full rounded-md border border-hairline-strong bg-canvas px-md py-sm text-sm text-ink",
+        // text-base (16px) trên mobile để iOS Safari KHÔNG tự zoom khi focus; text-sm ở ≥640px.
+        "h-11 w-full rounded-md border border-hairline-strong bg-canvas px-md py-sm text-base text-ink sm:text-sm",
         "placeholder:text-muted",
         "focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary",
         "disabled:cursor-not-allowed disabled:opacity-50",

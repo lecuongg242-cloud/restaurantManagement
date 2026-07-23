@@ -132,9 +132,9 @@ export function CartSheet({
                             value={l.note}
                             onChange={(e) => onChangeNote(l.lineId, e.target.value)}
                             maxLength={200}
-                            placeholder="Ghi chú món này (VD: ít cay, không hành…)"
+                            placeholder="Ghi chú món này (VD: ít cay,…)"
                             aria-label={`Ghi chú cho ${item.name}`}
-                            className="mt-sm h-9 w-full rounded-md border border-hairline px-sm text-xs text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            className="mt-sm h-9 w-full rounded-md border border-hairline px-sm text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-xs"
                           />
                         </div>
                         <span className="shrink-0 text-sm font-semibold tabular-nums text-primary">
@@ -182,7 +182,7 @@ export function CartSheet({
                   onChange={(e) => onCustomerNameChange(e.target.value)}
                   maxLength={50}
                   placeholder="VD: Anh Nam"
-                  className="mt-xs h-11 w-full rounded-md border border-hairline px-md text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="mt-xs h-11 w-full rounded-md border border-hairline px-md text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
                 />
                 <label htmlFor="cust-phone" className="mt-md block text-sm font-medium text-ink">
                   Số điện thoại {online && <span className="text-status-late">*</span>}
@@ -195,7 +195,7 @@ export function CartSheet({
                   onChange={(e) => onCustomerPhoneChange(e.target.value)}
                   maxLength={20}
                   placeholder="VD: 0901 234 567"
-                  className="mt-xs h-11 w-full rounded-md border border-hairline px-md text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="mt-xs h-11 w-full rounded-md border border-hairline px-md text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
                 />
 
                 {online && channel === "delivery" && (
@@ -210,7 +210,7 @@ export function CartSheet({
                       maxLength={200}
                       rows={2}
                       placeholder="Số nhà, đường, phường/xã…"
-                      className="mt-xs w-full resize-none rounded-md border border-hairline px-md py-sm text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      className="mt-xs w-full resize-none rounded-md border border-hairline px-md py-sm text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
                     />
                   </>
                 )}
@@ -228,8 +228,8 @@ export function CartSheet({
                   onChange={(e) => onOrderNoteChange(e.target.value)}
                   maxLength={500}
                   rows={2}
-                  placeholder="VD: mang ra cùng lúc, thêm chén…"
-                  className="mt-xs w-full resize-none rounded-md border border-hairline px-md py-sm text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  placeholder="VD: thêm chén"
+                  className="mt-xs w-full resize-none rounded-md border border-hairline px-md py-sm text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
                 />
               </div>
             )}

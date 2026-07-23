@@ -32,7 +32,7 @@ export function ReservationForm({
 
   const labelClass = "flex flex-col gap-xxs text-sm text-slate";
   const fieldClass =
-    "h-11 w-full rounded-md border border-hairline-strong bg-canvas px-md py-sm text-sm text-ink focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary";
+    "h-11 w-full rounded-md border border-hairline-strong bg-canvas px-md py-sm text-base text-ink focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary sm:text-sm";
 
   return (
     <form action={action} className="flex flex-col gap-md">
@@ -91,7 +91,7 @@ export function ReservationForm({
           rows={2}
           maxLength={500}
           placeholder="Ví dụ: cần ghế em bé, gần cửa sổ…"
-          className="rounded-md border border-hairline-strong bg-canvas px-md py-sm text-sm text-ink placeholder:text-muted focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+          className="rounded-md border border-hairline-strong bg-canvas px-md py-sm text-base text-ink placeholder:text-muted focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary sm:text-sm"
         />
       </label>
 
