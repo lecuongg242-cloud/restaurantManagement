@@ -645,3 +645,81 @@ export async function cancelOrderItem(
   revalidatePath(`/r/${slug}/pos`);
   return { ok: true, orderId: item.order_id };
 }
+
+/**
+ * Hủy CẢ ĐƠN — hủy mọi món chưa phục vụ/chưa hủy rồi chuyển order sang cancelled.
+ * Cùng kiểm soát như hủy món (lý do bắt buộc, PIN cho nhân viên thường). Đơn có món ĐÃ
+ * phục vụ (đã thu tiền) thì chặn — không hủy nhầm doanh thu; xử lý từng món nếu cần.
+ */
+export async function cancelOrder(
+  slug: string,
+  input: { orderId: string; membershipId?: string; pin?: string; reason: string }
+): Promise<ActionResult> {
+  const session = await getSessionMembership(slug);
+  if (!session) return { ok: false, error: "Phiên hết hạn, đăng nhập lại." };
+  if (!canAccess(session.role, "pos")) return { ok: false, error: "Không đủ quyền." };
+
+  const reason = input.reason?.trim();
+  if (!reason) return { ok: false, error: "Vui lòng nhập lý do hủy." };
+
+  const tenantId = session.tenant.id;
+
+  // Xác định người duyệt hủy (owner/manager bỏ qua PIN).
+  let cancelledBy: string;
+  if (session.role === "owner" || session.role === "manager") {
+    cancelledBy = session.membershipId;
+  } else {
+    const gate = await verifyPinForRoles({
+      tenantId,
+      membershipId: input.membershipId ?? "",
+      pin: input.pin ?? "",
+      allowedRoles: ["manager", "cashier"],
+    });
+    if (!gate.ok) return { ok: false, error: gate.error };
+    cancelledBy = gate.staffId;
+  }
+
+  const supabase = await createClient();
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, status")
+    .eq("id", input.orderId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!order) return { ok: false, error: "Không tìm thấy đơn." };
+  if (order.status === "cancelled") return { ok: false, error: "Đơn đã hủy." };
+
+  const { data: items } = await supabase
+    .from("order_items")
+    .select("status")
+    .eq("order_id", input.orderId)
+    .eq("tenant_id", tenantId);
+  const rows = items ?? [];
+  if (rows.some((s) => s.status === "served"))
+    return { ok: false, error: "Đơn có món đã phục vụ, không thể hủy cả đơn." };
+  if (!rows.some((s) => s.status !== "cancelled"))
+    return { ok: false, error: "Đơn không còn món để hủy." };
+
+  const reasonSlice = reason.slice(0, 300);
+  const now = new Date().toISOString();
+
+  const { error: itErr } = await supabase
+    .from("order_items")
+    .update({ status: "cancelled", cancel_reason: reasonSlice, cancelled_by: cancelledBy })
+    .eq("order_id", input.orderId)
+    .eq("tenant_id", tenantId)
+    .neq("status", "cancelled");
+  if (itErr) return { ok: false, error: "Hủy đơn thất bại. Vui lòng thử lại." };
+
+  if (canTransition(order.status, "cancelled")) {
+    await supabase
+      .from("orders")
+      .update({ status: "cancelled", cancel_reason: reasonSlice, updated_at: now })
+      .eq("id", input.orderId)
+      .eq("tenant_id", tenantId);
+  }
+
+  await broadcastOrderStatus(input.orderId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, orderId: input.orderId };
+}

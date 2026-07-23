@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import Image from "next/image";
+import { Plus, Search, UtensilsCrossed } from "lucide-react";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
 import { formatVnd } from "@/lib/orders/cart";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
@@ -94,20 +95,29 @@ export function MenuPanel({
                       disabled={!canAdd}
                       aria-label={`Thêm ${it.name}`}
                       className={cn(
-                        "flex h-full min-h-[72px] w-full flex-col justify-between gap-sm rounded-lg border border-hairline-soft p-md text-left shadow-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                        "group flex h-full min-h-[76px] w-full items-center gap-md rounded-lg border border-hairline-soft p-sm text-left shadow-card transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                         canAdd ? "hover:bg-cream active:bg-cream-deeper" : "cursor-not-allowed opacity-50"
                       )}
                     >
-                      <span className="line-clamp-2 text-sm font-medium leading-snug text-ink [text-wrap:balance]">
-                        {it.name}
-                      </span>
-                      <span className="flex items-center justify-between">
+                      <span className="flex min-w-0 flex-1 flex-col gap-xxs">
+                        <span className="line-clamp-2 text-sm font-medium leading-snug text-ink [text-wrap:balance]">
+                          {it.name}
+                        </span>
                         <span className="text-sm font-semibold tabular-nums text-primary">
                           {formatVnd(it.base_price)}
                         </span>
-                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-fg">
-                          <Plus className="h-4 w-4" strokeWidth={2.5} />
-                        </span>
+                      </span>
+                      <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-hairline-soft bg-surface">
+                        {it.image_url ? (
+                          <Image src={it.image_url} alt="" fill sizes="64px" className="object-cover" />
+                        ) : (
+                          <span className="grid h-full w-full place-items-center text-stone/70">
+                            <UtensilsCrossed className="h-5 w-5" aria-hidden />
+                          </span>
+                        )}
+                      </span>
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-fg shadow-card transition-transform group-active:scale-95">
+                        <Plus className="h-4 w-4" strokeWidth={2.5} />
                       </span>
                     </button>
                   </li>

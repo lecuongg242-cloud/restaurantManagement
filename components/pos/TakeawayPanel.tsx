@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Loader2, ShoppingBag, Printer } from "lucide-react";
+import { X, Loader2, ShoppingBag, Printer, Receipt } from "lucide-react";
 import type { CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { CartLine } from "@/lib/orders/types";
 import type { BillView, PaymentMethod } from "@/lib/billing/types";
@@ -13,6 +13,7 @@ import { QtyStepper } from "@/components/customer/QtyStepper";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { Input } from "@/components/ui/input";
 import { PaymentDialog } from "./PaymentDialog";
+import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 import {
   createTakeawayOrderAction,
   openOnlineBillAction,
@@ -38,6 +39,8 @@ export function TakeawayPanel({
   onCartEdit,
   onClearCart,
   onClose,
+  cancelStaff,
+  canCancelWithoutPin,
 }: {
   slug: string;
   cart: CartLine[];
@@ -48,6 +51,8 @@ export function TakeawayPanel({
   onCartEdit: (lineId: string, line: PendingLine) => void;
   onClearCart: () => void;
   onClose: () => void;
+  cancelStaff: CancelStaff[];
+  canCancelWithoutPin: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -61,6 +66,11 @@ export function TakeawayPanel({
     lineId: string;
     item: CustomerMenuItem;
     initial: { qty: number; note: string; optionIds: string[] };
+  } | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{
+    id: string;
+    name: string;
+    variant: "item" | "order";
   } | null>(null);
 
   const cartTotal = cart.reduce((s, l) => {
@@ -221,13 +231,35 @@ export function TakeawayPanel({
                         </p>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => getPrintAdapter().printKitchenTicket({ slug, orderId: o.id })}
-                      className="inline-flex h-8 shrink-0 items-center gap-xxs rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    >
-                      <Printer className="h-3.5 w-3.5" /> In phiếu bếp
-                    </button>
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-xs">
+                      <button
+                        type="button"
+                        onClick={() => getPrintAdapter().printKitchenTicket({ slug, orderId: o.id })}
+                        className="inline-flex h-8 items-center gap-xxs rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      >
+                        <Printer className="h-3.5 w-3.5" /> Phiếu bếp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => getPrintAdapter().printCustomerTicket({ slug, orderId: o.id })}
+                        className="inline-flex h-8 items-center gap-xxs rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      >
+                        <Receipt className="h-3.5 w-3.5" /> Phiếu khách
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCancelTarget({
+                            id: o.id,
+                            name: o.kitchenNo != null ? `#${o.kitchenNo}` : "",
+                            variant: "order",
+                          })
+                        }
+                        className="inline-flex h-8 items-center rounded-md border border-status-late/40 px-sm text-xs font-medium text-status-late hover:bg-cream-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-late focus-visible:ring-offset-2"
+                      >
+                        Hủy đơn
+                      </button>
+                    </div>
                   </div>
 
                   <ul className="mt-sm flex flex-col divide-y divide-hairline-soft">
@@ -238,7 +270,16 @@ export function TakeawayPanel({
                           {it.modifiers.length > 0 && <p className="text-xs text-steel">{it.modifiers.join(" · ")}</p>}
                           {it.note && <p className="text-xs italic text-stone">“{it.note}”</p>}
                         </div>
-                        <span className="shrink-0 text-sm tabular-nums text-steel">{formatVnd(it.unitPrice * it.qty)}</span>
+                        <div className="flex shrink-0 flex-col items-end gap-xs">
+                          <span className="text-sm tabular-nums text-steel">{formatVnd(it.unitPrice * it.qty)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setCancelTarget({ id: it.id, name: it.name, variant: "item" })}
+                            className="inline-flex h-8 items-center rounded-md px-sm text-xs font-medium text-status-late hover:bg-cream-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-late focus-visible:ring-offset-2"
+                          >
+                            Hủy
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -277,6 +318,17 @@ export function TakeawayPanel({
           onClose={() => setPayBill(null)}
         />
       )}
+
+      <CancelItemDialog
+        slug={slug}
+        item={cancelTarget}
+        variant={cancelTarget?.variant ?? "item"}
+        open={cancelTarget !== null}
+        onOpenChange={(v) => !v && setCancelTarget(null)}
+        cancelStaff={cancelStaff}
+        canCancelWithoutPin={canCancelWithoutPin}
+        onDone={() => setCancelTarget(null)}
+      />
 
       <ModifierSheet
         item={editing?.item ?? null}
