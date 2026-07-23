@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
-import { getCurrentStaff } from "@/app/r/[slug]/station-actions";
 import { getPosSnapshot } from "@/lib/orders/pos";
 import { getCustomerMenu } from "@/lib/orders/customer-menu";
 import { createClient } from "@/lib/supabase/server";
@@ -25,12 +24,6 @@ export default async function PosHome({
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/pos/login`);
   if (!canAccess(session.role, "pos")) redirect(defaultRouteForRole(slug, session.role));
-
-  const current = await getCurrentStaff(slug, "pos");
-  // Chưa chọn nhân viên (và không phải owner/manager) → StationScreen hiện StaffPicker.
-  if (!current && session.role !== "owner" && session.role !== "manager") {
-    return <StationScreen slug={slug} surface="pos" />;
-  }
 
   const supabase = await createClient();
   const [{ data: snapshotData }, menu, { data: cancelStaffData }, { data: tenantRow }] = await Promise.all([

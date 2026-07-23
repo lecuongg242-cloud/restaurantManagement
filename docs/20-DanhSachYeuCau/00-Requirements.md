@@ -25,8 +25,8 @@
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
 | AUTH-01 | Owner/manager email | Đăng nhập Supabase email/mật khẩu vào đúng tenant | P1 | ☑ (checkpoint 01-02) |
-| AUTH-02 | Thiết bị trạm | POS/KDS đăng nhập 1 lần bằng tài khoản station của nhà hàng | P1 | ☑ (checkpoint 01-03) |
-| AUTH-03 | PIN nhân viên | Cashier/waiter/kitchen chọn tên + PIN 4 số; thao tác gắn `staff_id` | P1 | ☑ (checkpoint 01-03) |
+| AUTH-02 | Thiết bị trạm | POS/KDS đăng nhập 1 lần bằng tài khoản station của nhà hàng (tương thích; không còn bắt buộc sau QD-009) | P1 | ☑ (checkpoint 01-03) |
+| AUTH-03 | Đăng nhập nhân viên Email+PIN | Cashier/waiter/kitchen đăng nhập thẳng ở `/pos\|/kds/login` bằng email riêng + PIN 4 số → vào ngay bề mặt với đúng danh tính; thao tác gắn `staff_id`. Không còn bước "Chọn nhân viên" (QD-009) | P1 | ◐ (P5 — chuyển sang email+PIN) |
 | AUTH-04 | RBAC theo vai trò | Mỗi vai trò chỉ thấy/làm đúng chức năng (owner/manager/cashier/waiter/kitchen); test phân quyền | P1 | ☑ (checkpoint 01-03) |
 
 ## MENU
