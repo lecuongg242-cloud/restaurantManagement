@@ -14,6 +14,7 @@ export type SessionMembership = {
   tenant: TenantInfo;
   role: Role;
   membershipId: string;
+  displayName: string | null;
 };
 
 /**
@@ -44,7 +45,7 @@ export async function getSessionMembership(
   // Membership của chính user này trong tenant đó.
   const { data: membership } = await supabase
     .from("memberships")
-    .select("id, role")
+    .select("id, role, display_name")
     .eq("tenant_id", tenant.id)
     .eq("user_id", user.id)
     .eq("active", true)
@@ -56,6 +57,7 @@ export async function getSessionMembership(
     tenant: tenant as TenantInfo,
     role: membership.role as Role,
     membershipId: membership.id as string,
+    displayName: (membership.display_name as string | null) ?? null,
   };
 }
 

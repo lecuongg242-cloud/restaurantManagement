@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
-import { getCurrentStaff } from "@/app/r/[slug]/station-actions";
 import { createClient } from "@/lib/supabase/server";
 import { listReservationsByDay, todayVN } from "@/lib/reservations/reservations";
 import { StationScreen } from "@/components/staff/StationScreen";
@@ -37,11 +36,6 @@ export default async function PosReservationsPage({
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/pos/login`);
   if (!canAccess(session.role, "pos")) redirect(defaultRouteForRole(slug, session.role));
-
-  const current = await getCurrentStaff(slug, "pos");
-  if (!current && session.role !== "owner" && session.role !== "manager") {
-    return <StationScreen slug={slug} surface="pos" />;
-  }
 
   const validDay = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : todayVN();
   const supabase = await createClient();

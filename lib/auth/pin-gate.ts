@@ -1,13 +1,14 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyPin, isValidPin } from "@/lib/auth/pin";
 import type { Role } from "@/lib/auth/session";
 
 /**
  * PIN gate theo vai trò (D7, D9) — xác thực Ở SERVER cho thao tác nhạy cảm (hủy món 03-04;
- * P4 tái dùng cho đóng bill/giảm giá). So bcrypt pin_hash của membership; kiểm role ∈ allowedRoles.
+ * đóng bill/giảm giá). So bcrypt pin_hash của membership; kiểm role ∈ allowedRoles.
  * Thông điệp lỗi CHUNG cho mọi trường hợp sai (PIN sai / sai quyền / không tồn tại) — không lộ
- * điều kiện nào sai. Đọc membership dưới phiên RLS (chỉ trong tenant hiện hành).
+ * điều kiện nào sai. Đọc pin_hash qua service-role (cột pin_hash đã bị thu hồi quyền đọc khỏi
+ * authenticated từ QD-009); tự scope theo tenantId + membershipId nên không rò rỉ chéo tenant.
  */
 const GENERIC_ERROR = "PIN hoặc quyền không hợp lệ.";
 
@@ -26,8 +27,8 @@ export async function verifyPinForRoles({
 }): Promise<PinGateResult> {
   if (!membershipId || !isValidPin(pin)) return { ok: false, error: GENERIC_ERROR };
 
-  const supabase = await createClient();
-  const { data: staff } = await supabase
+  const admin = createAdminClient();
+  const { data: staff } = await admin
     .from("memberships")
     .select("id, role, pin_hash, active")
     .eq("id", membershipId)

@@ -81,13 +81,15 @@ insert into public.memberships (id, tenant_id, user_id, role, display_name, acti
    'owner', 'Owner Bún Bò', true)
 on conflict (id) do nothing;
 
--- ---- Vài dòng dữ liệu vô hại để test đọc chéo có mục tiêu -------------------
--- Nhân viên PIN-only mỗi tenant (user_id NULL). PIN demo băm bcrypt của '1234'.
-insert into public.memberships (id, tenant_id, user_id, role, display_name, pin_hash, active) values
+-- ---- Nhân viên demo (dùng cho test đọc chéo RLS) ---------------------------
+-- LƯU Ý (QD-009): tài khoản đăng nhập của nhân viên (email + mật khẩu SUY DẪN từ PIN bằng pepper)
+-- được tạo qua `npm run seed` (Admin API, cần STAFF_PIN_PEPPER) — SQL thuần không suy dẫn được.
+-- Dòng dưới chỉ giữ membership + email tham chiếu (user_id NULL) để RLS test có dữ liệu.
+insert into public.memberships (id, tenant_id, user_id, role, display_name, email, pin_hash, active) values
   ('a1111111-1111-1111-1111-111111111112',
-   '11111111-1111-1111-1111-111111111111', null, 'cashier', 'Lan (Phở Việt)',
+   '11111111-1111-1111-1111-111111111111', null, 'cashier', 'Lan (Phở Việt)', 'lan@pho-viet.test',
    crypt('1234', gen_salt('bf')), true),
   ('b2222222-2222-2222-2222-222222222223',
-   '22222222-2222-2222-2222-222222222222', null, 'kitchen', 'Hùng (Bún Bò)',
+   '22222222-2222-2222-2222-222222222222', null, 'kitchen', 'Hùng (Bún Bò)', 'hung@bun-bo.test',
    crypt('5678', gen_salt('bf')), true)
 on conflict (id) do nothing;

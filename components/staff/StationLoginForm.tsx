@@ -1,10 +1,10 @@
-import { stationSignIn } from "@/app/r/[slug]/station-actions";
+import { staffSignIn } from "@/app/r/[slug]/station-actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 
 /**
- * Đăng nhập tài khoản TRẠM (1 lần/thiết bị) cho POS hoặc KDS.
- * Sau khi đăng nhập trạm, nhân viên thao tác nhanh bằng PIN (StaffPicker).
+ * Đăng nhập nhân viên POS/KDS (QD-009) — 1 bước: email + PIN. Nhân viên gõ email riêng + PIN 4 số
+ * là vào thẳng bề mặt với đúng danh tính. Owner/manager gõ email + mật khẩu thường ở cùng form.
  */
 export function StationLoginForm({
   slug,
@@ -21,8 +21,7 @@ export function StationLoginForm({
       <div className="w-full max-w-sm rounded-lg border border-hairline-soft bg-canvas p-xxl shadow-card">
         <h1 className="font-display text-2xl text-ink">{title}</h1>
         <p className="mt-xxs text-sm text-steel">
-          Nhà hàng <span className="font-mono text-ink">{slug}</span> · đăng nhập thiết bị bằng
-          tài khoản trạm.
+          Nhà hàng <span className="font-mono text-ink">{slug}</span> · đăng nhập bằng email + PIN.
         </p>
 
         {error && (
@@ -34,19 +33,26 @@ export function StationLoginForm({
           </p>
         )}
 
-        <form action={stationSignIn} className="mt-lg flex flex-col gap-md">
+        <form action={staffSignIn} className="mt-lg flex flex-col gap-md">
           <input type="hidden" name="slug" value={slug} />
           <input type="hidden" name="surface" value={surface} />
           <label className="flex flex-col gap-xxs text-sm text-slate">
-            Email trạm
-            <Input name="email" type="email" required autoComplete="email" autoFocus />
+            Email
+            <Input name="email" type="email" required autoComplete="username" autoFocus />
           </label>
           <label className="flex flex-col gap-xxs text-sm text-slate">
-            Mật khẩu
-            <Input name="password" type="password" required autoComplete="current-password" />
+            PIN / mật khẩu
+            <Input
+              name="secret"
+              type="password"
+              inputMode="numeric"
+              required
+              autoComplete="current-password"
+              placeholder="••••"
+            />
           </label>
           <SubmitButton size="lg" pendingLabel="Đang đăng nhập…" className="mt-xs">
-            Đăng nhập thiết bị
+            Đăng nhập
           </SubmitButton>
         </form>
       </div>
