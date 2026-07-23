@@ -23,7 +23,7 @@ type BuiltLine = {
 };
 
 /** Validate + snapshot từng dòng theo dữ liệu menu của tenant. Không tin payload client. */
-async function validateAndBuildLines(
+export async function validateAndBuildLines(
   admin: SupabaseClient,
   tenantId: string,
   lines: OrderLineInput[]
@@ -155,12 +155,13 @@ export async function nextKitchenNo(client: SupabaseClient, tenantId: string): P
 }
 
 /** Insert orders + order_items + order_item_modifiers (snapshot). Rollback thủ công nếu lỗi. */
-async function insertOrderGraph(
+export async function insertOrderGraph(
   admin: SupabaseClient,
   args: {
     tenantId: string;
-    sessionId: string;
-    source: "qr" | "staff";
+    sessionId: string | null; // null cho đơn online (không gắn bàn)
+    channel: "dine_in" | "takeaway" | "delivery";
+    source: "qr" | "staff" | "online";
     status: "pending_confirm" | "confirmed";
     confirmedAt: string | null;
     createdBy: string | null;
@@ -177,7 +178,7 @@ async function insertOrderGraph(
     .insert({
       tenant_id: args.tenantId,
       table_session_id: args.sessionId,
-      channel: "dine_in",
+      channel: args.channel,
       source: args.source,
       status: args.status,
       confirmed_at: args.confirmedAt,
@@ -289,6 +290,7 @@ export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrde
   return insertOrderGraph(admin, {
     tenantId,
     sessionId,
+    channel: "dine_in",
     source: "qr",
     status: autoSend ? "confirmed" : "pending_confirm",
     confirmedAt: autoSend ? new Date().toISOString() : null,
@@ -337,6 +339,7 @@ export async function createStaffOrder(input: CreateStaffOrderInput): Promise<Cr
   return insertOrderGraph(admin, {
     tenantId,
     sessionId,
+    channel: "dine_in",
     source: "staff",
     status: "confirmed",
     confirmedAt: new Date().toISOString(),
@@ -344,6 +347,51 @@ export async function createStaffOrder(input: CreateStaffOrderInput): Promise<Cr
     confirmedBy: actingStaffId,
     note,
     customerContact: null,
+    built: validated.built,
+  });
+}
+
+// ---- Staff bán mang về tại quầy (không bàn) ---------------------------------
+export type CreateStaffTakeawayInput = {
+  tenantId: string;
+  lines: OrderLineInput[];
+  customerName?: string;
+  customerPhone?: string;
+  note?: string;
+  actingStaffId: string;
+};
+
+/**
+ * Nhân viên gõ đơn MANG VỀ tại quầy (walk-in): channel='takeaway', source='staff',
+ * table_session_id=null, vào thẳng confirmed (bỏ duyệt như POS thêm món) → xuống bếp + hiện ở
+ * /pos/online để làm + thu tiền. Tên/SĐT khách tùy chọn (để gọi khi món xong).
+ */
+export async function createStaffTakeawayOrder(
+  input: CreateStaffTakeawayInput
+): Promise<CreateOrderResult> {
+  const { tenantId, lines, actingStaffId } = input;
+  const note = input.note?.trim() ? input.note.trim().slice(0, 500) : null;
+
+  const admin = createAdminClient();
+  const validated = await validateAndBuildLines(admin, tenantId, lines);
+  if ("error" in validated) return { error: validated.error };
+
+  const name = input.customerName?.trim();
+  const customerContact = name
+    ? { name: name.slice(0, 50), phone: input.customerPhone?.trim() ? input.customerPhone.trim().slice(0, 20) : null }
+    : null;
+
+  return insertOrderGraph(admin, {
+    tenantId,
+    sessionId: null,
+    channel: "takeaway",
+    source: "staff",
+    status: "confirmed",
+    confirmedAt: new Date().toISOString(),
+    createdBy: actingStaffId,
+    confirmedBy: actingStaffId,
+    note,
+    customerContact,
     built: validated.built,
   });
 }

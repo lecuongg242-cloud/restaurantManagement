@@ -5,6 +5,7 @@
  */
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { listTakeawayOrders, type OnlineOrderView } from "./online";
 import type { OrderStatus, OrderItemStatus } from "./types";
 
 export type PosTable = {
@@ -59,11 +60,23 @@ export type PosSession = {
   openBill: { id: string; bill_no: number | null; total: number } | null;
 };
 
+/** Đặt bàn hôm nay đã xác nhận + gán bàn — hiện trên thẻ bàn để nhân viên biết. */
+export type PosReservation = {
+  id: string;
+  tableId: string;
+  reservedAt: string;
+  timeLabel: string; // HH:MM giờ VN
+  customerName: string;
+  partySize: number;
+};
+
 export type PosSnapshot = {
   areas: PosArea[];
   tables: PosTable[];
   pending: PosPending[];
   sessions: PosSession[];
+  reservations: PosReservation[];
+  takeawayOrders: OnlineOrderView[];
 };
 
 // Gồm 'served' để order đã phục vụ vẫn hiện trong panel tới khi ĐÓNG PHIÊN (mới cho đóng bill).
@@ -98,10 +111,17 @@ function mapItems(rows: unknown[]): PosItem[] {
     }));
 }
 
+const VN_OFFSET = 7 * 3600 * 1000;
+
 export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
   const supabase = await createClient();
 
-  const [{ data: areas }, { data: tables }, { data: sessions }, { data: orders }, { data: openBills }] =
+  // Khoảng [đầu, cuối) NGÀY VN hôm nay (UTC) để lọc đặt bàn trong ngày.
+  const dayStr = new Date(Date.now() + VN_OFFSET).toISOString().slice(0, 10);
+  const dayStartUtc = new Date(Date.parse(`${dayStr}T00:00:00Z`) - VN_OFFSET).toISOString();
+  const dayEndUtc = new Date(Date.parse(`${dayStr}T00:00:00Z`) - VN_OFFSET + 86400000).toISOString();
+
+  const [{ data: areas }, { data: tables }, { data: sessions }, { data: orders }, { data: openBills }, { data: reservationRows }, takeawayOrders] =
     await Promise.all([
       supabase
         .from("areas")
@@ -131,6 +151,16 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
         .select("id, bill_no, total, table_session_id")
         .eq("tenant_id", tenantId)
         .eq("status", "open"),
+      supabase
+        .from("reservations")
+        .select("id, table_id, reserved_at, customer_name, party_size")
+        .eq("tenant_id", tenantId)
+        .eq("status", "confirmed")
+        .not("table_id", "is", null)
+        .gte("reserved_at", dayStartUtc)
+        .lt("reserved_at", dayEndUtc)
+        .order("reserved_at", { ascending: true }),
+      listTakeawayOrders(tenantId),
     ]);
 
   const tableById = new Map((tables ?? []).map((t) => [t.id, t]));
@@ -189,6 +219,15 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     };
   });
 
+  const reservations: PosReservation[] = (reservationRows ?? []).map((r) => ({
+    id: r.id as string,
+    tableId: r.table_id as string,
+    reservedAt: r.reserved_at as string,
+    timeLabel: new Date(new Date(r.reserved_at as string).getTime() + VN_OFFSET).toISOString().slice(11, 16),
+    customerName: r.customer_name as string,
+    partySize: r.party_size as number,
+  }));
+
   return {
     areas: (areas ?? []).map((a) => ({ id: a.id, name: a.name })),
     tables: (tables ?? []).map((t) => ({
@@ -200,5 +239,7 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     })),
     pending,
     sessions: posSessions,
+    reservations,
+    takeawayOrders,
   };
 }

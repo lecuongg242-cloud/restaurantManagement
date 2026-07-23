@@ -229,24 +229,23 @@ export function OrderPanel({
                       {names.length > 0 && (
                         <p className="text-xs text-steel">{names.join(" · ")}</p>
                       )}
+                      {l.note && <p className="text-xs italic text-stone">“{l.note}”</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-sm">
                       <QtyStepper value={l.qty} onChange={(v) => onCartQty(l.lineId, v)} />
-                      {it.groups.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditing({
-                              lineId: l.lineId,
-                              item: it,
-                              initial: { qty: l.qty, note: l.note, optionIds: l.optionIds },
-                            })
-                          }
-                          className="text-xs text-primary hover:underline"
-                        >
-                          Sửa
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditing({
+                            lineId: l.lineId,
+                            item: it,
+                            initial: { qty: l.qty, note: l.note, optionIds: l.optionIds },
+                          })
+                        }
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Sửa
+                      </button>
                       <button
                         type="button"
                         onClick={() => onCartRemove(l.lineId)}

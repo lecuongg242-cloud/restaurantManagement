@@ -13,6 +13,7 @@ export type ReceiptView = {
   logoUrl: string | null;
   billNo: number | null;
   tableLabel: string;
+  contactLine: string | null; // đơn online: tên · SĐT · (địa chỉ nếu giao)
   dateTime: string | null;
   isChild: boolean;
   childNote: string | null;
@@ -57,8 +58,34 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
   const footer = parseSettings(tenantSettings?.settings).receipt_footer;
 
   const isChild = bill.splitParentId != null;
-  // Con chia đều: nhãn bàn suy từ chính table_session_id của con (giữ của cha).
-  const tableLabel = await tableLabelFor(client, tenantId, bill.tableSessionId);
+
+  // Đơn online: nhãn = kênh + dòng liên hệ khách; else nhãn bàn (dine-in / gộp).
+  const { data: billMeta } = await client
+    .from("bills")
+    .select("online_order_id")
+    .eq("id", billId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  let tableLabel: string;
+  let contactLine: string | null = null;
+  if (billMeta?.online_order_id) {
+    const { data: order } = await client
+      .from("orders")
+      .select("channel, customer_contact")
+      .eq("id", billMeta.online_order_id as string)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const ch = order?.channel as string | undefined;
+    tableLabel = ch === "delivery" ? "Giao tận nơi" : "Mang về";
+    const c = (order?.customer_contact ?? {}) as { name?: string; phone?: string; address?: string };
+    const parts = [c.name, c.phone].filter(Boolean) as string[];
+    if (ch === "delivery" && c.address) parts.push(c.address);
+    contactLine = parts.length > 0 ? parts.join(" · ") : null;
+  } else {
+    // Con chia đều: nhãn bàn suy từ chính table_session_id của con (giữ của cha).
+    tableLabel = await tableLabelFor(client, tenantId, bill.tableSessionId);
+  }
 
   const lastPayment = bill.payments.length > 0 ? bill.payments[bill.payments.length - 1] : null;
 
@@ -67,6 +94,7 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
     logoUrl: (tenant?.logo_url as string) ?? null,
     billNo: bill.billNo,
     tableLabel,
+    contactLine,
     dateTime: bill.paidAt,
     isChild,
     childNote: isChild ? bill.note : null,

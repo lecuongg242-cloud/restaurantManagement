@@ -20,6 +20,7 @@ export type KdsTicket = {
   orderId: string;
   kitchenNo: number | null;
   status: OrderStatus;
+  channel: "dine_in" | "takeaway" | "delivery";
   confirmedAt: string | null;
   tableName: string;
   items: KdsItem[];
@@ -31,7 +32,7 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
   const { data: orders } = await supabase
     .from("orders")
     .select(
-      "id, kitchen_no, status, confirmed_at, table_sessions(tables(name)), order_items(id, name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
+      "id, kitchen_no, status, channel, confirmed_at, table_sessions(tables(name)), order_items(id, name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
     )
     .eq("tenant_id", tenantId)
     .in("status", ["confirmed", "preparing", "ready"])
@@ -64,6 +65,7 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
       orderId: o.id,
       kitchenNo: (o.kitchen_no as number) ?? null,
       status: o.status as OrderStatus,
+      channel: (o.channel as KdsTicket["channel"]) ?? "dine_in",
       confirmedAt: o.confirmed_at,
       tableName,
       items,

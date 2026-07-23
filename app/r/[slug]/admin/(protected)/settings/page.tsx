@@ -6,8 +6,8 @@ import { parseSettings } from "@/lib/tenant/settings";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { LogoUpload } from "@/components/settings/LogoUpload";
-import { updateProfile, updateSettings } from "./actions";
+import { ImageUpload } from "@/components/menu/ImageUpload";
+import { updateIdentity, updateSettings } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -64,21 +64,23 @@ export default async function SettingsPage({
         {/* Nhận diện */}
         <Card>
           <CardTitle>Nhận diện nhà hàng</CardTitle>
-          <div className="mt-md grid gap-lg sm:grid-cols-2">
-            <form action={updateProfile} className="flex flex-col gap-md">
-              <input type="hidden" name="slug" value={slug} />
-              <label className="flex flex-col gap-xxs text-sm text-slate">
-                Tên hiển thị
-                <Input name="name" required defaultValue={tenant?.name ?? ""} />
-              </label>
-              <div>
-                <SubmitButton size="sm" pendingLabel="Đang lưu…">
-                  Lưu tên
-                </SubmitButton>
-              </div>
-            </form>
-            <LogoUpload slug={slug} currentUrl={tenant?.logo_url ?? null} />
-          </div>
+          <form action={updateIdentity} className="mt-md flex flex-col gap-lg">
+            <input type="hidden" name="slug" value={slug} />
+            <label className="flex max-w-sm flex-col gap-xxs text-sm text-slate">
+              Tên hiển thị
+              <Input name="name" required defaultValue={tenant?.name ?? ""} />
+            </label>
+            <ImageUpload
+              currentUrl={tenant?.logo_url ?? null}
+              shape="circle"
+              label="Logo nhà hàng (≤2MB, PNG/JPEG/WebP)"
+            />
+            <div>
+              <SubmitButton size="sm" pendingLabel="Đang lưu…">
+                Lưu nhận diện
+              </SubmitButton>
+            </div>
+          </form>
         </Card>
 
         {/* Cấu hình vận hành */}

@@ -5,7 +5,9 @@ import { Trash2, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { CartLine } from "@/lib/orders/types";
+import type { OnlineChannel } from "@/lib/orders/online";
 import { formatVnd, unitPrice } from "@/lib/orders/cart";
+import { cn } from "@/lib/utils";
 import { QtyStepper } from "./QtyStepper";
 
 /**
@@ -29,6 +31,11 @@ export function CartSheet({
   onSubmit,
   submitting,
   errorMsg,
+  online = false,
+  channel = "takeaway",
+  onChannelChange,
+  address = "",
+  onAddressChange,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -46,7 +53,18 @@ export function CartSheet({
   onSubmit: () => void;
   submitting: boolean;
   errorMsg: string | null;
+  /** Chế độ đặt online: hiện toggle kênh + địa chỉ (khi giao), SĐT bắt buộc. */
+  online?: boolean;
+  channel?: OnlineChannel;
+  onChannelChange?: (c: OnlineChannel) => void;
+  address?: string;
+  onAddressChange?: (v: string) => void;
 }) {
+  // Điều kiện gửi: luôn cần tên; online cần SĐT; giao cần địa chỉ.
+  const contactReady =
+    !!customerName.trim() &&
+    (!online || !!customerPhone.trim()) &&
+    (!online || channel !== "delivery" || !!address.trim());
   const total = lines.reduce((sum, l) => {
     const item = itemMap.get(l.itemId);
     if (!item) return sum;
@@ -129,6 +147,30 @@ export function CartSheet({
               </ul>
             )}
 
+            {lines.length > 0 && online && (
+              <div className="mt-md">
+                <span className="text-sm font-medium text-ink">Hình thức</span>
+                <div className="mt-xs grid grid-cols-2 gap-sm">
+                  {(["takeaway", "delivery"] as OnlineChannel[]).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => onChannelChange?.(c)}
+                      aria-pressed={channel === c}
+                      className={cn(
+                        "h-11 rounded-md border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                        channel === c
+                          ? "border-primary bg-primary text-primary-fg"
+                          : "border-hairline-strong bg-canvas text-ink hover:bg-surface"
+                      )}
+                    >
+                      {c === "takeaway" ? "Mang về" : "Giao tận nơi"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {lines.length > 0 && (
               <div className="mt-md">
                 <label htmlFor="cust-name" className="text-sm font-medium text-ink">
@@ -143,7 +185,7 @@ export function CartSheet({
                   className="mt-xs h-11 w-full rounded-md border border-hairline px-md text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
                 <label htmlFor="cust-phone" className="mt-md block text-sm font-medium text-ink">
-                  Số điện thoại <span className="text-xs font-normal text-steel">(không bắt buộc)</span>
+                  Số điện thoại {online && <span className="text-status-late">*</span>}
                 </label>
                 <input
                   id="cust-phone"
@@ -155,6 +197,23 @@ export function CartSheet({
                   placeholder="VD: 0901 234 567"
                   className="mt-xs h-11 w-full rounded-md border border-hairline px-md text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
+
+                {online && channel === "delivery" && (
+                  <>
+                    <label htmlFor="cust-address" className="mt-md block text-sm font-medium text-ink">
+                      Địa chỉ giao <span className="text-status-late">*</span>
+                    </label>
+                    <textarea
+                      id="cust-address"
+                      value={address}
+                      onChange={(e) => onAddressChange?.(e.target.value)}
+                      maxLength={200}
+                      rows={2}
+                      placeholder="Số nhà, đường, phường/xã…"
+                      className="mt-xs w-full resize-none rounded-md border border-hairline px-md py-sm text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                  </>
+                )}
               </div>
             )}
 
@@ -190,7 +249,7 @@ export function CartSheet({
             <button
               type="button"
               onClick={onSubmit}
-              disabled={lines.length === 0 || submitting || !customerName.trim()}
+              disabled={lines.length === 0 || submitting || !contactReady}
               className="flex h-12 w-full items-center justify-center gap-sm rounded-md bg-primary text-base font-medium text-primary-fg transition-colors hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-hairline disabled:text-muted"
             >
               {submitting ? (
@@ -199,7 +258,7 @@ export function CartSheet({
                   <span>Đang gửi…</span>
                 </>
               ) : (
-                <span>Gửi order</span>
+                <span>{online ? "Đặt đơn" : "Gửi order"}</span>
               )}
             </button>
           </div>

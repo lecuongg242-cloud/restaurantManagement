@@ -71,7 +71,7 @@ export function ReceiptDoc({
             <img src={receipt.logoUrl} alt="" className="rc-logo" />
           )}
           <div className="rc-tenant">{receipt.tenantName}</div>
-          <div className="rc-title">HÓA ĐƠN</div>
+          <div className="rc-title">{receipt.payment ? "HÓA ĐƠN" : "PHIẾU TẠM TÍNH"}</div>
         </div>
 
         <div className="rc-line" />
@@ -82,6 +82,11 @@ export function ReceiptDoc({
         <div className="rc-row">
           <span>{time}</span>
         </div>
+        {receipt.contactLine && (
+          <div className="rc-row">
+            <span>{receipt.contactLine}</span>
+          </div>
+        )}
         <div className="rc-line" />
 
         {receipt.isChild ? (

@@ -7,12 +7,28 @@ import { canAccess } from "@/lib/auth/rbac";
 import { getCurrentStaff } from "@/app/r/[slug]/station-actions";
 import { canTransition } from "@/lib/orders/status";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
-import { createStaffOrder, nextKitchenNo } from "@/lib/orders/create-order";
+import { createStaffOrder, createStaffTakeawayOrder, nextKitchenNo } from "@/lib/orders/create-order";
+import {
+  createStaffReservation,
+  decideReservation,
+  assignReservationTable,
+  type CreateStaffReservationInput,
+} from "@/lib/reservations/reservations";
+import {
+  acceptOnlineOrder,
+  rejectOnlineOrder,
+  markOnlineReady,
+  getOnlineOrder,
+  type OnlineOrderView,
+} from "@/lib/orders/online";
 import { verifyPinForRoles } from "@/lib/auth/pin-gate";
 import {
   openBillForSession,
+  openBillForOrder,
+  getBillView,
   getSessionBills,
   splitBillByItems,
+  splitBillByOrders,
   splitBillEvenly,
   mergeSessionsIntoBill,
   applyBillAdjustment,
@@ -224,6 +240,22 @@ export async function splitByItemsAction(
   return { ok: true, bills };
 }
 
+/** Tách theo đơn (04-02b): chuyển các đơn được chọn sang 1 hóa đơn mới. Trả danh sách bill. */
+export async function splitByOrdersAction(
+  slug: string,
+  sessionId: string,
+  billId: string,
+  orderIds: string[]
+): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await splitBillByOrders(auth.tenantId, billId, orderIds, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bills = await getSessionBills(auth.tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
+}
+
 /** Chia đều N người (BILL-02) → N hóa đơn con. Trả danh sách bill của phiên. */
 export async function splitEvenlyAction(
   slug: string,
@@ -325,6 +357,134 @@ export async function setChargePctAction(
   return { ok: true, bills };
 }
 
+/**
+ * Nhân viên đặt bàn hộ khách (qua điện thoại) từ POS → tạo thẳng 'confirmed'. Thu ngân/phục vụ
+ * làm được (đã có quyền POS). KHÔNG giữ bàn/mở phiên (QD-008 D-P5-2) — chỉ ghi lịch đặt.
+ */
+export async function createReservationAction(
+  slug: string,
+  input: CreateStaffReservationInput
+): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await createStaffReservation(auth.tenantId, input, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos/reservations`);
+  return { ok: true };
+}
+
+// ---- Đặt bàn: duyệt/từ chối (POS — thu ngân/phục vụ) ------------------------
+
+/** Xác nhận đặt bàn (pending → confirmed). */
+export async function confirmReservationAction(slug: string, reservationId: string): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await decideReservation({
+    tenantId: auth.tenantId,
+    reservationId,
+    decision: "confirmed",
+    decidedBy: auth.staffId,
+  });
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos/reservations`);
+  return { ok: true };
+}
+
+/** Từ chối đặt bàn (pending → rejected, bắt buộc lý do). */
+export async function rejectReservationAction(
+  slug: string,
+  reservationId: string,
+  reason: string
+): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await decideReservation({
+    tenantId: auth.tenantId,
+    reservationId,
+    decision: "rejected",
+    decidedBy: auth.staffId,
+    rejectReason: reason,
+  });
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos/reservations`);
+  return { ok: true };
+}
+
+/** Gán / đổi bàn cho đặt bàn (tableId rỗng = bỏ gán). */
+export async function assignReservationTableAction(
+  slug: string,
+  reservationId: string,
+  tableId: string | null
+): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await assignReservationTable(auth.tenantId, reservationId, tableId || null);
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos/reservations`);
+  return { ok: true };
+}
+
+// ---- Đơn online: nhận/từ chối/sẵn sàng/thu tiền (POS) -----------------------
+
+export async function acceptOnlineOrderAction(slug: string, orderId: string): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await acceptOnlineOrder(auth.tenantId, orderId, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos/online`);
+  return { ok: true };
+}
+
+export async function rejectOnlineOrderAction(
+  slug: string,
+  orderId: string,
+  reason: string
+): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await rejectOnlineOrder(auth.tenantId, orderId, reason);
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos/online`);
+  return { ok: true };
+}
+
+export async function markReadyOnlineOrderAction(slug: string, orderId: string): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await markOnlineReady(auth.tenantId, orderId);
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos/online`);
+  return { ok: true };
+}
+
+/** Mở (hoặc lấy) bill của đơn online để thu tiền. Trả BillView. */
+export async function openOnlineBillAction(
+  slug: string,
+  orderId: string
+): Promise<{ ok: true; bill: BillView } | { ok: false; error: string }> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await openBillForOrder(auth.tenantId, orderId, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  const bill = await getBillView(auth.tenantId, res.billId);
+  if (!bill) return { ok: false, error: "Không tải được hóa đơn." };
+  return { ok: true, bill };
+}
+
+/** Thu tiền + hoàn tất đơn online (payBill đặt đơn 'completed'). Trả tiền thối. */
+export async function payOnlineBillAction(
+  slug: string,
+  billId: string,
+  input: { method: PaymentMethod; amountReceived: number }
+): Promise<{ ok: true; change: number } | { ok: false; error: string }> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await payBill(auth.tenantId, billId, input, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos/online`);
+  return { ok: true, change: res.change };
+}
+
 /** Thêm món thay khách: source=staff, vào thẳng confirmed (ORDER-03). */
 export async function createStaffOrderAction(
   slug: string,
@@ -346,6 +506,42 @@ export async function createStaffOrderAction(
 
   await broadcastOrderStatus(result.orderId);
   revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, orderId: result.orderId };
+}
+
+/** Lấy chi tiết 1 đơn online/takeaway (để hiển thị món + tổng như panel bàn). */
+export async function getOnlineOrderAction(
+  slug: string,
+  orderId: string
+): Promise<{ ok: true; order: OnlineOrderView | null } | { ok: false; error: string }> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const order = await getOnlineOrder(auth.tenantId, orderId);
+  return { ok: true, order };
+}
+
+/** Bán mang về tại quầy: tạo đơn takeaway (source=staff, xác nhận ngay) → vào /pos/online. */
+export async function createTakeawayOrderAction(
+  slug: string,
+  lines: OrderLineInput[],
+  contact?: { name?: string; phone?: string },
+  note?: string
+): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const result = await createStaffTakeawayOrder({
+    tenantId: auth.tenantId,
+    lines,
+    customerName: contact?.name,
+    customerPhone: contact?.phone,
+    note,
+    actingStaffId: auth.staffId,
+  });
+  if ("error" in result) return { ok: false, error: result.error };
+
+  await broadcastOrderStatus(result.orderId);
+  revalidatePath(`/r/${slug}/pos/online`);
   return { ok: true, orderId: result.orderId };
 }
 

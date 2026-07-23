@@ -11,6 +11,7 @@ import { formatVnd } from "@/lib/orders/cart";
 import { cn } from "@/lib/utils";
 import { ModifierSheet, type PendingLine } from "./ModifierSheet";
 import { CartSheet } from "./CartSheet";
+import type { OnlineChannel } from "@/lib/orders/online";
 
 /**
  * MenuBrowser (§4.1) — điều phối luồng khách gọi món. Giỏ là state client + sessionStorage
@@ -23,12 +24,15 @@ export function MenuBrowser({
   qrToken,
   canOrder,
   tableName,
+  online = false,
 }: {
   slug: string;
   menu: CustomerMenu;
   qrToken: string | null;
   canOrder: boolean;
   tableName: string | null;
+  /** Chế độ đặt online (mang về/giao): không cần bàn/QR, thu thêm kênh + địa chỉ. */
+  online?: boolean;
 }) {
   const router = useRouter();
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -38,13 +42,25 @@ export function MenuBrowser({
   const [orderNote, setOrderNote] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [channel, setChannel] = useState<OnlineChannel>("takeaway");
+  const [address, setAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeCat, setActiveCat] = useState(menu.categories[0]?.id ?? "");
   const [badgePulse, setBadgePulse] = useState(0);
 
-  const storageKey = qrToken ? `cart:${slug}:${qrToken}` : null;
-  const contactKey = qrToken ? `contact:${slug}:${qrToken}` : null;
+  // Online: đặt được không cần token bàn. QR: cần token hợp lệ (canOrder từ server).
+  const canOrderEff = online || canOrder;
+  const storageKey = online
+    ? `cart:${slug}:online`
+    : qrToken
+      ? `cart:${slug}:${qrToken}`
+      : null;
+  const contactKey = online
+    ? `contact:${slug}:online`
+    : qrToken
+      ? `contact:${slug}:${qrToken}`
+      : null;
 
   const itemMap = useMemo(() => {
     const m = new Map<string, CustomerMenuItem>();
@@ -152,7 +168,7 @@ export function MenuBrowser({
   };
 
   const handleItemTap = (item: CustomerMenuItem) => {
-    if (!canOrder || !item.is_available) return;
+    if (!canOrderEff || !item.is_available) return;
     if (item.groups.length > 0) {
       setActiveItem(item);
       setModifierOpen(true);
@@ -175,36 +191,38 @@ export function MenuBrowser({
   };
 
   const submit = async () => {
-    if (cart.length === 0 || !qrToken) return;
+    if (cart.length === 0) return;
+    if (!online && !qrToken) return;
     setSubmitting(true);
     setErrorMsg(null);
+    const lines = cart.map((l) => ({
+      itemId: l.itemId,
+      qty: l.qty,
+      note: l.note,
+      optionIds: l.optionIds,
+    }));
     try {
-      const res = await fetch(`/r/${slug}/api/order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          qrToken,
-          note: orderNote,
-          customerName,
-          customerPhone,
-          lines: cart.map((l) => ({
-            itemId: l.itemId,
-            qty: l.qty,
-            note: l.note,
-            optionIds: l.optionIds,
-          })),
-        }),
-      });
+      const res = online
+        ? await fetch(`/r/${slug}/api/online-order`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ channel, note: orderNote, customerName, customerPhone, address, lines }),
+          })
+        : await fetch(`/r/${slug}/api/order`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ qrToken, note: orderNote, customerName, customerPhone, lines }),
+          });
       const data = await res.json();
       if (!res.ok) {
-        setErrorMsg(data?.error ?? "Gửi order thất bại. Vui lòng thử lại.");
+        setErrorMsg(data?.error ?? "Gửi đơn thất bại. Vui lòng thử lại.");
         setSubmitting(false);
         return;
       }
       // Xóa giỏ + chuyển trang theo dõi.
       if (storageKey) sessionStorage.removeItem(storageKey);
       setCart([]);
-      router.push(`/r/${slug}/order/${data.orderId}?t=${qrToken}`);
+      router.push(online ? `/r/${slug}/order/${data.orderId}` : `/r/${slug}/order/${data.orderId}?t=${qrToken}`);
     } catch {
       setErrorMsg("Mất kết nối. Vui lòng thử lại.");
       setSubmitting(false);
@@ -231,10 +249,10 @@ export function MenuBrowser({
           <div className="flex min-w-0 flex-1 flex-col leading-tight">
             <span className="truncate font-display text-base text-ink">{menu.tenant.name}</span>
             <span className="text-xs text-steel">
-              {tableName ? `Bàn ${tableName}` : "Xem thực đơn"}
+              {online ? "Đặt mang về / giao" : tableName ? `Bàn ${tableName}` : "Xem thực đơn"}
             </span>
           </div>
-          {canOrder && (
+          {canOrderEff && (
             <button
               type="button"
               onClick={() => setCartOpen(true)}
@@ -313,11 +331,11 @@ export function MenuBrowser({
                     <button
                       type="button"
                       onClick={() => handleItemTap(it)}
-                      disabled={!canOrder || !it.is_available}
+                      disabled={!canOrderEff || !it.is_available}
                       aria-label={`${it.name}${!it.is_available ? " (hết món)" : ""}`}
                       className={cn(
                         "flex w-full items-stretch gap-md rounded-lg border border-hairline-soft bg-canvas p-sm text-left shadow-card transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                        (!canOrder || !it.is_available) && "cursor-default",
+                        (!canOrderEff || !it.is_available) && "cursor-default",
                         !it.is_available && "opacity-60"
                       )}
                     >
@@ -347,7 +365,7 @@ export function MenuBrowser({
                           <span className="font-semibold tabular-nums text-primary">
                             {formatVnd(it.base_price)}
                           </span>
-                          {canOrder && it.is_available && (
+                          {canOrderEff && it.is_available && (
                             <span className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-fg shadow-card">
                               <Plus className="h-4 w-4" strokeWidth={2.5} />
                             </span>
@@ -365,7 +383,7 @@ export function MenuBrowser({
 
         {/* Thanh giỏ dính đáy */}
         <AnimatePresence>
-          {canOrder && cartCount > 0 && !cartOpen && (
+          {canOrderEff && cartCount > 0 && !cartOpen && (
             <motion.div
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -425,6 +443,11 @@ export function MenuBrowser({
           onSubmit={submit}
           submitting={submitting}
           errorMsg={errorMsg}
+          online={online}
+          channel={channel}
+          onChannelChange={setChannel}
+          address={address}
+          onAddressChange={setAddress}
         />
       </div>
     </MotionConfig>
