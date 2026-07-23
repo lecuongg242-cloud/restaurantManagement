@@ -87,7 +87,7 @@ export function TableMap({
             onClick={() => setActiveTab(t.id)}
             aria-pressed={activeTab === t.id}
             className={cn(
-              "rounded-full px-md py-xs text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+              "inline-flex min-h-[44px] items-center rounded-full px-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
               activeTab === t.id ? "bg-ink text-on-dark" : "bg-canvas text-steel hover:bg-cream"
             )}
           >

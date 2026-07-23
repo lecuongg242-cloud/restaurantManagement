@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Plus, ShoppingBag } from "lucide-react";
+import { Bell, Plus, ShoppingBag } from "lucide-react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { CartLine } from "@/lib/orders/types";
@@ -11,6 +11,7 @@ import { formatVnd } from "@/lib/orders/cart";
 import { cn } from "@/lib/utils";
 import { ModifierSheet, type PendingLine } from "./ModifierSheet";
 import { CartSheet } from "./CartSheet";
+import { CallStaffSheet } from "./CallStaffSheet";
 import type { OnlineChannel } from "@/lib/orders/online";
 
 /**
@@ -48,6 +49,8 @@ export function MenuBrowser({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeCat, setActiveCat] = useState(menu.categories[0]?.id ?? "");
   const [badgePulse, setBadgePulse] = useState(0);
+  // Gọi nhân viên (CALL-01): chỉ khi ăn tại bàn (có qrToken). Mở sheet để nhập yêu cầu kèm.
+  const [callOpen, setCallOpen] = useState(false);
 
   // Online: đặt được không cần token bàn. QR: cần token hợp lệ (canOrder từ server).
   const canOrderEff = online || canOrder;
@@ -252,6 +255,17 @@ export function MenuBrowser({
               {online ? "Đặt mang về / giao" : tableName ? `Bàn ${tableName}` : "Xem thực đơn"}
             </span>
           </div>
+          {!online && canOrder && qrToken && (
+            <button
+              type="button"
+              onClick={() => setCallOpen(true)}
+              aria-label="Gọi nhân viên đến bàn"
+              className="inline-flex h-11 shrink-0 items-center gap-xs rounded-full bg-primary/10 px-md text-sm font-medium text-primary transition-colors duration-200 hover:bg-primary/15 active:bg-primary/20 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              <Bell className="h-4 w-4" />
+              <span>Gọi NV</span>
+            </button>
+          )}
           {canOrderEff && (
             <button
               type="button"
@@ -449,6 +463,10 @@ export function MenuBrowser({
           address={address}
           onAddressChange={setAddress}
         />
+
+        {!online && canOrder && qrToken && (
+          <CallStaffSheet slug={slug} qrToken={qrToken} open={callOpen} onOpenChange={setCallOpen} />
+        )}
       </div>
     </MotionConfig>
   );

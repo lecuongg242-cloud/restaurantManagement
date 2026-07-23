@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, CalendarClock, ShoppingBag } from "lucide-react";
+import { Bell, BellRing, Check, CalendarClock, ShoppingBag } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { PosSnapshot } from "@/lib/orders/pos";
@@ -18,6 +18,7 @@ import {
   applyDiscountAction,
   setChargePctAction,
   payBillAction,
+  resolveCallAction,
 } from "@/app/r/[slug]/pos/actions";
 import type { BillView, PaymentMethod } from "@/lib/billing/types";
 import type { SplitPick } from "@/lib/billing/split";
@@ -67,6 +68,7 @@ export function PosBoard({
   const [openingBill, setOpeningBill] = useState(false);
   const [billBusy, setBillBusy] = useState(false);
   const [billError, setBillError] = useState<string | null>(null);
+  const [resolvingCall, setResolvingCall] = useState<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Realtime → refresh (gộp 400ms). QUAN TRỌNG: gắn JWT đăng nhập vào kênh realtime
@@ -94,6 +96,7 @@ export function PosBoard({
         .on("postgres_changes", { event: "*", schema: "public", table: "tables", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .on("postgres_changes", { event: "*", schema: "public", table: "bills", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .on("postgres_changes", { event: "*", schema: "public", table: "reservations", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "staff_calls", filter: `tenant_id=eq.${tenantId}` }, scheduleRefresh)
         .subscribe();
     })();
     return () => {
@@ -127,6 +130,14 @@ export function PosBoard({
   const exitTakeaway = () => {
     setTakeawayMode(false);
     setCart([]);
+  };
+
+  // "Gọi nhân viên" (CALL-01): nhân viên bấm "Đã xử lý" → resolve + refresh.
+  const handleResolveCall = async (callId: string) => {
+    setResolvingCall(callId);
+    await resolveCallAction(slug, callId);
+    router.refresh();
+    setResolvingCall(null);
   };
 
   const itemMap = useMemo(() => {
@@ -311,6 +322,36 @@ export function PosBoard({
           </button>
         </div>
       </div>
+
+      {/* Banner "Gọi nhân viên" (CALL-01) — bàn đang gọi, bấm để đánh dấu đã xử lý */}
+      {initial.calls.length > 0 && (
+        <div className="flex flex-wrap items-center gap-sm border-b border-hairline-soft bg-cream px-lg py-sm">
+          <span className="inline-flex items-center gap-xs text-sm font-semibold text-ink">
+            <BellRing className="h-4 w-4 animate-pulse text-primary" />
+            Bàn đang gọi ({initial.calls.length})
+          </span>
+          {initial.calls.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => handleResolveCall(c.id)}
+              disabled={resolvingCall === c.id}
+              title={`Bàn ${c.tableName}${c.note ? " — " + c.note : ""} · bấm để đánh dấu đã xử lý`}
+              className="group inline-flex min-h-[44px] items-center gap-xs rounded-2xl border border-primary/30 bg-canvas px-md py-xs text-left text-sm font-semibold text-ink transition-colors hover:bg-primary/5 active:bg-primary/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              <span className="shrink-0">
+                Bàn {c.tableName}
+                {c.note ? ":" : ""}
+              </span>
+              {c.note && <span className="font-normal text-slate">{c.note}</span>}
+              <Check
+                className="h-4 w-4 shrink-0 text-primary transition-transform group-active:scale-90"
+                aria-hidden
+              />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* 3 cột: bàn (trái) · thực đơn (giữa) · đơn bàn (phải) */}
       <div className="flex min-h-0 flex-1">
