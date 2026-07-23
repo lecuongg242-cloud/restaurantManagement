@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
 import { AdminShell } from "@/components/admin/AdminShell";
+import { Toaster } from "@/components/ui/toaster";
+import { readFlash } from "@/lib/flash";
 
 /**
  * Guard khu admin (server): chặn chéo tenant + RBAC vai trò.
@@ -24,9 +26,14 @@ export default async function ProtectedAdminLayout({
     redirect(defaultRouteForRole(slug, session!.role));
   }
 
+  const flash = await readFlash();
+
   return (
-    <AdminShell tenant={session!.tenant} role={session!.role}>
-      {children}
-    </AdminShell>
+    <>
+      <AdminShell tenant={session!.tenant} role={session!.role}>
+        {children}
+      </AdminShell>
+      <Toaster flash={flash} />
+    </>
   );
 }

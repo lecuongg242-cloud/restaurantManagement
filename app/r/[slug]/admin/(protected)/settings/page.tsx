@@ -13,13 +13,10 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
   const { slug } = await params;
-  const { error, ok } = await searchParams;
 
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/admin/login`);
@@ -42,23 +39,6 @@ export default async function SettingsPage({
       <p className="mt-xxs text-sm text-steel">
         Nhận diện nhà hàng (tên, logo) và cấu hình vận hành (phí phục vụ, VAT, footer hóa đơn, duyệt order QR).
       </p>
-
-      {error && (
-        <p
-          role="alert"
-          className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
-        >
-          {error}
-        </p>
-      )}
-      {ok && (
-        <p
-          role="status"
-          className="mt-md rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready"
-        >
-          {ok}
-        </p>
-      )}
 
       <div className="mt-lg grid gap-lg">
         {/* Nhận diện */}

@@ -1,20 +1,15 @@
 import { redirect } from "next/navigation";
-import { ownerSignIn } from "../actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
-import { SubmitButton } from "@/components/ui/submit-button";
-import { Input } from "@/components/ui/input";
+import { OwnerLoginForm } from "./OwnerLoginForm";
 
 export default async function AdminLoginPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string }>;
 }) {
   const { slug } = await params;
-  const { error } = await searchParams;
 
   // Đã đăng nhập đúng quyền → vào thẳng admin (hoặc khu mặc định của vai trò).
   const session = await getSessionMembership(slug);
@@ -40,29 +35,7 @@ export default async function AdminLoginPage({
           Nhà hàng <span className="font-medium text-ink">{tenantName}</span>
         </p>
 
-        {error && (
-          <p
-            role="alert"
-            className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
-          >
-            {error}
-          </p>
-        )}
-
-        <form action={ownerSignIn} className="mt-lg flex flex-col gap-md">
-          <input type="hidden" name="slug" value={slug} />
-          <label className="flex flex-col gap-xxs text-sm text-slate">
-            Email
-            <Input name="email" type="email" required autoComplete="email" autoFocus />
-          </label>
-          <label className="flex flex-col gap-xxs text-sm text-slate">
-            Mật khẩu
-            <Input name="password" type="password" required autoComplete="current-password" />
-          </label>
-          <SubmitButton pendingLabel="Đang đăng nhập…" className="mt-xs">
-            Đăng nhập
-          </SubmitButton>
-        </form>
+        <OwnerLoginForm slug={slug} />
       </div>
     </div>
   );

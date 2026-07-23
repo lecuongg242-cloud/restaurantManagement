@@ -18,13 +18,10 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default async function StaffPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
   const { slug } = await params;
-  const { error, ok } = await searchParams;
   const session = await getSessionMembership(slug);
 
   const supabase = await createClient();
@@ -42,23 +39,6 @@ export default async function StaffPage({
         Mỗi nhân viên có email riêng + PIN 4 số, đăng nhập thẳng ở POS/KDS bằng email + PIN (QD-009).
         Tạo nhiều người cùng vai trò, mỗi người một email/PIN để truy vết.
       </p>
-
-      {error && (
-        <p
-          role="alert"
-          className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
-        >
-          {error}
-        </p>
-      )}
-      {ok && (
-        <p
-          role="status"
-          className="mt-md rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready"
-        >
-          {ok}
-        </p>
-      )}
 
       {/* Thêm nhân viên */}
       <Card className="mt-lg">

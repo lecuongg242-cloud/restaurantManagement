@@ -5,7 +5,7 @@ import type { TenantInfo, Role } from "@/lib/auth/session";
 
 /**
  * Khung admin (desktop). Sidebar điều hướng + header hiện logo + tên tenant (OPS-06).
- * P1: chỉ Tổng quan / Nhân viên / Phạm vi dữ liệu hoạt động; mục khác là placeholder "chờ".
+ * P1: Tổng quan / Nhân viên / Thực đơn / Bàn / Cài đặt hoạt động; mục khác là placeholder "chờ".
  */
 export function AdminShell({
   tenant,

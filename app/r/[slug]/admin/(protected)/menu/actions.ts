@@ -11,6 +11,10 @@ import {
   deleteMenuImage,
   pathFromPublicUrl,
 } from "@/lib/storage/images";
+import { setFlash } from "@/lib/flash";
+
+// Các action cập nhật TẠI CHỖ: revalidatePath + toast (setFlash), KHÔNG redirect(?ok/?error)
+// → URL giữ nguyên /admin/menu. Reorder không toast (tránh ồn).
 
 /** Guard chung: chỉ owner/manager quản lý menu của tenant theo slug. */
 async function requireMenuManager(slug: string) {
@@ -64,8 +68,7 @@ export async function createCategory(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const name = String(formData.get("name") ?? "").trim();
-  const back = menuPath(slug);
-  if (!name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên danh mục.")}`);
+  if (!name) return;
 
   const supabase = await createClient();
   // sort_order = max + 1 để danh mục mới xuống cuối.
@@ -81,10 +84,8 @@ export async function createCategory(formData: FormData) {
   const { error } = await supabase
     .from("menu_categories")
     .insert({ tenant_id: session.tenant.id, name, sort_order });
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent(`Đã thêm danh mục "${name}"`)}`);
+  revalidatePath(menuPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : `Đã thêm danh mục "${name}".`);
 }
 
 export async function renameCategory(formData: FormData) {
@@ -92,8 +93,7 @@ export async function renameCategory(formData: FormData) {
   const session = await requireMenuManager(slug);
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const back = menuPath(slug);
-  if (!name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên danh mục.")}`);
+  if (!name) return;
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -101,17 +101,14 @@ export async function renameCategory(formData: FormData) {
     .update({ name, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(back);
+  revalidatePath(menuPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã đổi tên danh mục.");
 }
 
 export async function deleteCategory(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = menuPath(slug);
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -119,10 +116,8 @@ export async function deleteCategory(formData: FormData) {
     .delete()
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent("Đã xóa danh mục")}`);
+  revalidatePath(menuPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã xóa danh mục.");
 }
 
 export async function reorderCategory(formData: FormData) {
@@ -133,7 +128,6 @@ export async function reorderCategory(formData: FormData) {
 
   await moveInList("menu_categories", {}, session.tenant.id, id, dir);
   revalidatePath(menuPath(slug));
-  redirect(menuPath(slug));
 }
 
 // ---- Món --------------------------------------------------------------------
@@ -187,18 +181,14 @@ function readItemFields(formData: FormData) {
 export async function createItem(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
-  const back = menuPath(slug);
   const { name, description, category_id, base_price } = readItemFields(formData);
-  const fail = (m: string) => redirect(`${back}?error=${encodeURIComponent(m)}`);
 
-  if (!name) fail("Thiếu tên món.");
-  if (!category_id) fail("Chưa chọn danh mục.");
-  if (!Number.isFinite(base_price) || base_price < 0) fail("Giá không hợp lệ.");
+  if (!name || !category_id || !Number.isFinite(base_price) || base_price < 0) return;
 
   const image = formData.get("image");
   if (image instanceof File && image.size > 0) {
     const v = validateImage(image);
-    if (!v.ok) fail(v.error);
+    if (!v.ok) return;
   }
 
   const supabase = await createClient();
@@ -224,45 +214,41 @@ export async function createItem(formData: FormData) {
     })
     .select("id")
     .single();
-  if (error || !inserted) fail(error?.message ?? "Không tạo được món.");
+  if (error || !inserted) return setFlash("error", error?.message ?? "Không tạo được món.");
 
-  // Ảnh (nếu có): upload rồi cập nhật image_url.
+  // Ảnh (nếu có): upload rồi cập nhật image_url. Lỗi ảnh không chặn (giữ món, bỏ ảnh).
   if (image instanceof File && image.size > 0) {
     try {
-      const { publicUrl } = await uploadMenuImage(session.tenant.id, inserted!.id, image);
+      const { publicUrl } = await uploadMenuImage(session.tenant.id, inserted.id, image);
       await supabase
         .from("menu_items")
         .update({ image_url: publicUrl })
-        .eq("id", inserted!.id)
+        .eq("id", inserted.id)
         .eq("tenant_id", session.tenant.id);
-    } catch (e) {
-      fail(e instanceof Error ? e.message : "Upload ảnh lỗi.");
+    } catch {
+      // bỏ qua lỗi ảnh
     }
   }
 
   if (formData.get("group_picker") === "1") {
     await syncItemGroups(
       session.tenant.id,
-      inserted!.id,
+      inserted.id,
       formData.getAll("group_ids").map(String)
     );
   }
 
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent(`Đã thêm món "${name}"`)}`);
+  revalidatePath(menuPath(slug));
+  await setFlash("ok", `Đã thêm món "${name}".`);
 }
 
 export async function updateItem(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = menuPath(slug);
   const { name, description, category_id, base_price } = readItemFields(formData);
-  const fail = (m: string) => redirect(`${back}?error=${encodeURIComponent(m)}`);
 
-  if (!name) fail("Thiếu tên món.");
-  if (!category_id) fail("Chưa chọn danh mục.");
-  if (base_price < 0) fail("Giá không hợp lệ.");
+  if (!name || !category_id || base_price < 0) return;
 
   const supabase = await createClient();
   const image = formData.get("image");
@@ -270,7 +256,7 @@ export async function updateItem(formData: FormData) {
 
   if (image instanceof File && image.size > 0) {
     const v = validateImage(image);
-    if (!v.ok) fail(v.error);
+    if (!v.ok) return;
     // Ảnh cũ để xóa sau khi thay.
     const { data: current } = await supabase
       .from("menu_items")
@@ -282,8 +268,8 @@ export async function updateItem(formData: FormData) {
       const { publicUrl } = await uploadMenuImage(session.tenant.id, id, image);
       image_url = publicUrl;
       await deleteMenuImage(pathFromPublicUrl(current?.image_url ?? null));
-    } catch (e) {
-      fail(e instanceof Error ? e.message : "Upload ảnh lỗi.");
+    } catch {
+      // bỏ qua lỗi ảnh; vẫn lưu các field khác
     }
   }
 
@@ -299,7 +285,7 @@ export async function updateItem(formData: FormData) {
     })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) fail(error.message);
+  if (error) return setFlash("error", error.message);
 
   if (formData.get("group_picker") === "1") {
     await syncItemGroups(
@@ -309,15 +295,14 @@ export async function updateItem(formData: FormData) {
     );
   }
 
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent("Đã lưu món")}`);
+  revalidatePath(menuPath(slug));
+  await setFlash("ok", "Đã lưu món.");
 }
 
 export async function deleteItem(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = menuPath(slug);
 
   const supabase = await createClient();
   const { data: current } = await supabase
@@ -332,11 +317,11 @@ export async function deleteItem(formData: FormData) {
     .delete()
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
+  if (error) return setFlash("error", error.message);
 
   await deleteMenuImage(pathFromPublicUrl(current?.image_url ?? null));
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent("Đã xóa món")}`);
+  revalidatePath(menuPath(slug));
+  await setFlash("ok", "Đã xóa món.");
 }
 
 export async function reorderItem(formData: FormData) {
@@ -348,7 +333,6 @@ export async function reorderItem(formData: FormData) {
 
   await moveInList("menu_items", { category_id }, session.tenant.id, id, dir);
   revalidatePath(menuPath(slug));
-  redirect(menuPath(slug));
 }
 
 /** Bật/tắt "hết món" — tối ưu cho toggle optimistic (không redirect). */
