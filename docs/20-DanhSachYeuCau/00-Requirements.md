@@ -50,6 +50,7 @@
 | ORDER-03 | POS thêm món thay khách | Nhân viên mở bàn, thêm món vào phiên bàn (source=staff, bỏ duyệt) | P3 | ☐ |
 | ORDER-04 | KDS realtime | Món `confirmed` hiện trên KDS ≤ 3s (đo 10 lần); bếp đổi trạng thái làm/xong ở mức món | P3 | ☐ |
 | ORDER-05 | Hủy/sửa món có kiểm soát | Chỉ manager/cashier hủy món đã gửi, bắt buộc ghi lý do; có log | P3 | ☐ |
+| ORDER-06 | Gọi nhân viên từ bàn | Khách quét QR bấm "Gọi nhân viên", có thể kèm yêu cầu (chip gợi ý nhanh hoặc tự ghi) → POS hiện banner "bàn đang gọi" + nội dung yêu cầu realtime; nhân viên bấm để đánh dấu đã xử lý. Dedupe 45s theo từng nội dung | P5 | ◐ code xong; chờ đo realtime |
 
 ## BILL — Bill & thanh toán
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |

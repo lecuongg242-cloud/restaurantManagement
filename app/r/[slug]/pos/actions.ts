@@ -21,6 +21,7 @@ import {
   type OnlineOrderView,
 } from "@/lib/orders/online";
 import { verifyPinForRoles } from "@/lib/auth/pin-gate";
+import { resolveStaffCall } from "@/lib/orders/staff-calls";
 import {
   openBillForSession,
   openBillForOrder,
@@ -55,6 +56,16 @@ async function authorizePos(
   if (!session) return { error: "Phiên hết hạn, đăng nhập lại." };
   if (!canAccess(session.role, "pos")) return { error: "Không đủ quyền." };
   return { tenantId: session.tenant.id, staffId: session.membershipId };
+}
+
+/** Đánh dấu đã xử lý 1 lời "Gọi nhân viên" (CALL-01). */
+export async function resolveCallAction(slug: string, callId: string): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await resolveStaffCall(auth.tenantId, callId, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true };
 }
 
 /** Duyệt order QR: pending_confirm → confirmed (+confirmed_at, confirmed_by). */

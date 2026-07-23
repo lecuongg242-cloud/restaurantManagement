@@ -6,6 +6,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { listTakeawayOrders, type OnlineOrderView } from "./online";
+import { getPendingCalls, type PosCall } from "./staff-calls";
 import type { OrderStatus, OrderItemStatus } from "./types";
 
 export type PosTable = {
@@ -77,6 +78,7 @@ export type PosSnapshot = {
   sessions: PosSession[];
   reservations: PosReservation[];
   takeawayOrders: OnlineOrderView[];
+  calls: PosCall[];
 };
 
 // Gồm 'served' để order đã phục vụ vẫn hiện trong panel tới khi ĐÓNG PHIÊN (mới cho đóng bill).
@@ -121,7 +123,7 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
   const dayStartUtc = new Date(Date.parse(`${dayStr}T00:00:00Z`) - VN_OFFSET).toISOString();
   const dayEndUtc = new Date(Date.parse(`${dayStr}T00:00:00Z`) - VN_OFFSET + 86400000).toISOString();
 
-  const [{ data: areas }, { data: tables }, { data: sessions }, { data: orders }, { data: openBills }, { data: reservationRows }, takeawayOrders] =
+  const [{ data: areas }, { data: tables }, { data: sessions }, { data: orders }, { data: openBills }, { data: reservationRows }, takeawayOrders, calls] =
     await Promise.all([
       supabase
         .from("areas")
@@ -161,6 +163,7 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
         .lt("reserved_at", dayEndUtc)
         .order("reserved_at", { ascending: true }),
       listTakeawayOrders(tenantId),
+      getPendingCalls(tenantId),
     ]);
 
   const tableById = new Map((tables ?? []).map((t) => [t.id, t]));
@@ -241,5 +244,6 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     sessions: posSessions,
     reservations,
     takeawayOrders,
+    calls,
   };
 }
