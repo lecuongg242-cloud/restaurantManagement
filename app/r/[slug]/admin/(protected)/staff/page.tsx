@@ -30,7 +30,7 @@ export default async function StaffPage({
   const supabase = await createClient();
   const { data: staff } = await supabase
     .from("memberships")
-    .select("id, display_name, role, active, created_at")
+    .select("id, display_name, email, role, active, created_at")
     .eq("tenant_id", session!.tenant.id)
     .in("role", ["cashier", "waiter", "kitchen"])
     .order("created_at", { ascending: true });
@@ -39,8 +39,8 @@ export default async function StaffPage({
     <div className="w-full max-w-4xl">
       <h1 className="font-display text-2xl text-ink">Nhân viên</h1>
       <p className="mt-xxs text-sm text-steel">
-        Nhân viên trạm dùng PIN 4 số để thao tác trên thiết bị POS/KDS (không cần tài khoản riêng).
-        Có thể tạo nhiều người cùng vai trò, mỗi người một PIN để truy vết.
+        Mỗi nhân viên có email riêng + PIN 4 số, đăng nhập thẳng ở POS/KDS bằng email + PIN (QD-009).
+        Tạo nhiều người cùng vai trò, mỗi người một email/PIN để truy vết.
       </p>
 
       {error && (
@@ -64,12 +64,16 @@ export default async function StaffPage({
       <Card className="mt-lg">
         <form
           action={createStaff}
-          className="grid grid-cols-1 gap-md sm:grid-cols-[1fr_160px_120px_auto] sm:items-end"
+          className="grid grid-cols-1 gap-md sm:grid-cols-[1fr_1fr_150px_110px_auto] sm:items-end"
         >
           <input type="hidden" name="slug" value={slug} />
           <label className="flex flex-col gap-xxs text-sm text-slate">
             Tên hiển thị
             <Input name="display_name" required placeholder="Lan" />
+          </label>
+          <label className="flex flex-col gap-xxs text-sm text-slate">
+            Email
+            <Input name="email" type="email" required placeholder="lan@pho-viet.vn" />
           </label>
           <label className="flex flex-col gap-xxs text-sm text-slate">
             Vai trò
@@ -105,6 +109,7 @@ export default async function StaffPage({
           <thead className="bg-surface text-left text-steel">
             <tr>
               <th className="px-md py-sm font-medium">Tên</th>
+              <th className="px-md py-sm font-medium">Email</th>
               <th className="px-md py-sm font-medium">Vai trò</th>
               <th className="px-md py-sm font-medium">Trạng thái</th>
               <th className="px-md py-sm font-medium">Đặt lại PIN</th>
@@ -115,6 +120,7 @@ export default async function StaffPage({
             {(staff ?? []).map((s) => (
               <tr key={s.id} className="border-t border-hairline-soft align-middle">
                 <td className="px-md py-sm text-ink">{s.display_name}</td>
+                <td className="px-md py-sm font-mono text-xs text-steel">{s.email ?? "—"}</td>
                 <td className="px-md py-sm">
                   <Badge variant="cream">{ROLE_LABEL[s.role] ?? s.role}</Badge>
                 </td>
@@ -169,7 +175,7 @@ export default async function StaffPage({
             ))}
             {(staff ?? []).length === 0 && (
               <tr>
-                <td colSpan={5} className="px-md py-lg text-center text-steel">
+                <td colSpan={6} className="px-md py-lg text-center text-steel">
                   Chưa có nhân viên. Thêm ở form phía trên.
                 </td>
               </tr>

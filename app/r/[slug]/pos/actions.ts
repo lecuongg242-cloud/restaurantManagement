@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
-import { getCurrentStaff } from "@/app/r/[slug]/station-actions";
 import { canTransition } from "@/lib/orders/status";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { createStaffOrder, createStaffTakeawayOrder, nextKitchenNo } from "@/lib/orders/create-order";
@@ -46,9 +45,8 @@ export type PayActionResult =
   | { ok: false; error: string };
 
 /**
- * Guard chung: phải là phiên nhân viên có quyền POS. Trả staffId thao tác:
- *  - nhân viên trạm đã chọn (cookie PIN P1), hoặc
- *  - membership của owner/manager đăng nhập email.
+ * Guard chung: phải là phiên nhân viên có quyền POS. Trả staffId thao tác = membership của chính
+ * người đăng nhập (QD-009 — nhân viên đăng nhập bằng email + PIN nên phiên là danh tính thao tác).
  */
 async function authorizePos(
   slug: string
@@ -56,13 +54,7 @@ async function authorizePos(
   const session = await getSessionMembership(slug);
   if (!session) return { error: "Phiên hết hạn, đăng nhập lại." };
   if (!canAccess(session.role, "pos")) return { error: "Không đủ quyền." };
-
-  const current = await getCurrentStaff(slug, "pos");
-  if (current) return { tenantId: session.tenant.id, staffId: current.id };
-  if (session.role === "owner" || session.role === "manager") {
-    return { tenantId: session.tenant.id, staffId: session.membershipId };
-  }
-  return { error: "Vui lòng chọn nhân viên (nhập PIN) trước khi thao tác." };
+  return { tenantId: session.tenant.id, staffId: session.membershipId };
 }
 
 /** Duyệt order QR: pending_confirm → confirmed (+confirmed_at, confirmed_by). */

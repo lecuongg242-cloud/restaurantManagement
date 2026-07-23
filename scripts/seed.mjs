@@ -2,6 +2,7 @@
 // Cùng dữ liệu với supabase/seed.sql. Idempotent. Chạy: `npm run seed`.
 //
 // Cần env (đọc từ .env.local): NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
+import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { config } from "dotenv";
@@ -10,9 +11,20 @@ config({ path: ".env.local" });
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const pepper = process.env.STAFF_PIN_PEPPER;
 if (!url || !serviceKey) {
   console.error("Thiếu NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY trong .env.local");
   process.exit(1);
+}
+if (!pepper) {
+  console.error("Thiếu STAFF_PIN_PEPPER trong .env.local (QD-009).");
+  process.exit(1);
+}
+
+/** Suy dẫn mật khẩu Supabase từ PIN — KHỚP lib/auth/staff-credentials.ts (email+':'+pin, HMAC). */
+function derivePinPassword(email, pin) {
+  const mac = crypto.createHmac("sha256", pepper).update(`${email.trim().toLowerCase()}:${pin}`).digest("hex");
+  return `pin_${mac}`;
 }
 
 const admin = createClient(url, serviceKey, {
@@ -26,8 +38,8 @@ const TENANTS = [
     owner: { email: "ownerA@pho-viet.test", password: "DemoPass123!", name: "Owner Phở Việt" },
     station: { email: "station@pho-viet.test", password: "StationPass123!", name: "Trạm Phở Việt" },
     staff: [
-      { role: "cashier", name: "Lan", pin: "1234" },
-      { role: "kitchen", name: "Hùng", pin: "5678" },
+      { role: "cashier", name: "Lan", email: "lan@pho-viet.test", pin: "1234" },
+      { role: "kitchen", name: "Hùng", email: "hung@pho-viet.test", pin: "5678" },
     ],
   },
   {
@@ -35,7 +47,7 @@ const TENANTS = [
     name: "Bún Bò Huế",
     owner: { email: "ownerB@bun-bo.test", password: "DemoPass123!", name: "Owner Bún Bò" },
     station: { email: "station@bun-bo.test", password: "StationPass123!", name: "Trạm Bún Bò" },
-    staff: [{ role: "waiter", name: "Mai", pin: "4321" }],
+    staff: [{ role: "waiter", name: "Mai", email: "mai@bun-bo.test", pin: "4321" }],
   },
 ];
 
@@ -120,13 +132,20 @@ async function main() {
       active: true,
     });
 
-    // Nhân viên PIN-only
+    // Nhân viên: tài khoản Supabase riêng (email + PIN) — đăng nhập thẳng POS/KDS (QD-009).
     for (const s of t.staff) {
+      const staffUserId = await ensureUser({
+        email: s.email,
+        password: derivePinPassword(s.email, s.pin),
+        name: s.name,
+      });
+      await admin.from("profiles").upsert({ id: staffUserId, full_name: s.name });
       await ensureMembership({
         tenant_id: tenantId,
-        user_id: null,
+        user_id: staffUserId,
         role: s.role,
         display_name: s.name,
+        email: s.email,
         pin_hash: await bcrypt.hash(s.pin, 10),
         active: true,
       });

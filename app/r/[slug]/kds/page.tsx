@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
-import { getCurrentStaff } from "@/app/r/[slug]/station-actions";
 import { getKdsTickets } from "@/lib/orders/kds";
 import { StationScreen } from "@/components/staff/StationScreen";
 import { KdsBoard } from "@/components/kds/KdsBoard";
@@ -22,11 +21,6 @@ export default async function KdsHome({
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/kds/login`);
   if (!canAccess(session.role, "kds")) redirect(defaultRouteForRole(slug, session.role));
-
-  const current = await getCurrentStaff(slug, "kds");
-  if (!current && session.role !== "owner" && session.role !== "manager") {
-    return <StationScreen slug={slug} surface="kds" />;
-  }
 
   const tickets = await getKdsTickets(session.tenant.id);
   return (

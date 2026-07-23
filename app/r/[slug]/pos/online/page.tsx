@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
-import { getCurrentStaff } from "@/app/r/[slug]/station-actions";
 import { listOnlineOrders } from "@/lib/orders/online";
 import { StationScreen } from "@/components/staff/StationScreen";
 import { OnlineQueue } from "@/components/pos/OnlineQueue";
@@ -24,11 +23,6 @@ export default async function PosOnlinePage({
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/pos/login`);
   if (!canAccess(session.role, "pos")) redirect(defaultRouteForRole(slug, session.role));
-
-  const current = await getCurrentStaff(slug, "pos");
-  if (!current && session.role !== "owner" && session.role !== "manager") {
-    return <StationScreen slug={slug} surface="pos" />;
-  }
 
   const orders = await listOnlineOrders(session.tenant.id);
 
