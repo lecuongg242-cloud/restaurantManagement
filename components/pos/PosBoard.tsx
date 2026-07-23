@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, BellRing, Check, CalendarClock, ShoppingBag } from "lucide-react";
+import { Bell, BellRing, Check, CalendarClock, Search, ShoppingBag, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { PosSnapshot } from "@/lib/orders/pos";
@@ -33,6 +33,13 @@ import { TakeawayPanel } from "./TakeawayPanel";
 import { BillPanel } from "./BillPanel";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
+
+const STATUS_VN: Record<string, string> = {
+  available: "Trống",
+  occupied: "Đang phục vụ",
+  reserved: "Đã đặt",
+  cleaning: "Dọn bàn",
+};
 
 /**
  * PosBoard (§4.2, bố cục 3 cột) — Sơ đồ bàn (trái) · Đơn bàn (giữa) · Thực đơn (phải).
@@ -69,6 +76,7 @@ export function PosBoard({
   const [billBusy, setBillBusy] = useState(false);
   const [billError, setBillError] = useState<string | null>(null);
   const [resolvingCall, setResolvingCall] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Realtime → refresh (gộp 400ms). QUAN TRỌNG: gắn JWT đăng nhập vào kênh realtime
@@ -151,6 +159,44 @@ export function PosBoard({
     for (const s of initial.sessions) m.set(s.tableId, s);
     return m;
   }, [initial.sessions]);
+
+  // Tìm bàn (theo tên) + số đơn (theo kitchen_no, gồm cả mang về). Một ô lo cả hai.
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return null;
+    const tables = initial.tables.filter((t) => t.name.toLowerCase().includes(q));
+    const seen = new Set<string>();
+    const orders: { key: string; kitchenNo: number; where: string; tableId?: string }[] = [];
+    for (const s of initial.sessions) {
+      const name = initial.tables.find((t) => t.id === s.tableId)?.name ?? "?";
+      for (const o of s.orders) {
+        if (o.kitchen_no != null && String(o.kitchen_no).includes(q)) {
+          const key = `s${o.kitchen_no}-${s.tableId}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          orders.push({ key, kitchenNo: o.kitchen_no, where: `Bàn ${name}`, tableId: s.tableId });
+        }
+      }
+    }
+    for (const o of initial.takeawayOrders) {
+      if (o.kitchenNo != null && String(o.kitchenNo).includes(q)) {
+        const key = `t${o.kitchenNo}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        orders.push({ key, kitchenNo: o.kitchenNo, where: "Mang về" });
+      }
+    }
+    return { tables, orders };
+  }, [query, initial.tables, initial.sessions, initial.takeawayOrders]);
+
+  const gotoTable = (id: string) => {
+    setQuery("");
+    selectTable(id);
+  };
+  const gotoTakeaway = () => {
+    setQuery("");
+    enterTakeaway();
+  };
 
   const selectedTable = initial.tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedSession = selectedTableId ? sessionByTable.get(selectedTableId) ?? null : null;
@@ -286,12 +332,76 @@ export function PosBoard({
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-md border-b border-hairline-soft bg-canvas px-lg py-sm">
-        <span className="text-sm text-steel">
+      <div className="flex items-center gap-md border-b border-hairline-soft bg-canvas py-sm pl-md pr-lg">
+        {/* Tìm bàn / số đơn — rộng bằng khối tile bàn bên trái (aside w-80/w-96 trừ p-md hai bên) */}
+        <div className="relative w-72 shrink-0 lg:w-[22rem]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-steel" aria-hidden />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+            inputMode="search"
+            placeholder="Tìm bàn / số đơn…"
+            aria-label="Tìm bàn hoặc số đơn"
+            className="h-11 w-full rounded-full border border-hairline-strong bg-canvas pl-9 pr-9 text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Xóa tìm kiếm"
+              className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-steel hover:bg-surface"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+          {results && (
+            <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-40 max-h-80 overflow-y-auto rounded-lg border border-hairline-soft bg-canvas p-xs shadow-modal">
+              {results.tables.length === 0 && results.orders.length === 0 && (
+                <p className="px-md py-sm text-sm text-steel">Không thấy bàn/đơn khớp.</p>
+              )}
+              {results.tables.length > 0 && (
+                <>
+                  <p className="px-md pb-xxs pt-xs text-xs font-medium uppercase tracking-wide text-steel">Bàn</p>
+                  {results.tables.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => gotoTable(t.id)}
+                      className="flex min-h-[44px] w-full items-center justify-between gap-sm rounded-md px-md py-sm text-left text-sm hover:bg-surface"
+                    >
+                      <span className="font-medium text-ink">Bàn {t.name}</span>
+                      <span className="text-xs text-steel">{STATUS_VN[t.status]}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+              {results.orders.length > 0 && (
+                <>
+                  <p className="px-md pb-xxs pt-xs text-xs font-medium uppercase tracking-wide text-steel">Số đơn</p>
+                  {results.orders.map((o) => (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => (o.tableId ? gotoTable(o.tableId) : gotoTakeaway())}
+                      className="flex min-h-[44px] w-full items-center justify-between gap-sm rounded-md px-md py-sm text-left text-sm hover:bg-surface"
+                    >
+                      <span className="font-medium text-ink">Đơn #{o.kitchenNo}</span>
+                      <span className="text-xs text-steel">{o.where}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        <span className="hidden shrink-0 text-sm text-steel xl:inline">
           {initial.tables.length} bàn ·{" "}
           {initial.tables.filter((t) => t.status === "occupied").length} đang phục vụ
         </span>
-        <div className="flex items-center gap-sm">
+        <div className="ml-auto flex shrink-0 items-center gap-sm">
           <Link
             href={`/r/${slug}/pos/reservations`}
             className="inline-flex h-11 items-center gap-sm rounded-md border border-hairline-strong bg-canvas px-md text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
