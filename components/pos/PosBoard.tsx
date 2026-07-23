@@ -201,11 +201,24 @@ export function PosBoard({
   const selectedTable = initial.tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedSession = selectedTableId ? sessionByTable.get(selectedTableId) ?? null : null;
 
+  // Gộp dòng trùng: cùng món + cùng tùy chọn + cùng ghi chú → cộng dồn số lượng
+  // thay vì tạo dòng mới (chủ dự án: "chọn option giống hệt nhau thì tự gộp").
+  const lineKey = (l: Pick<CartLine, "itemId" | "optionIds" | "note">) =>
+    `${l.itemId}|${[...l.optionIds].sort().join(",")}|${l.note.trim()}`;
   const addLine = (line: PendingLine) =>
-    setCart((prev) => [
-      ...prev,
-      { lineId: crypto.randomUUID(), itemId: line.itemId, qty: line.qty, note: line.note, optionIds: line.optionIds },
-    ]);
+    setCart((prev) => {
+      const k = lineKey(line);
+      const idx = prev.findIndex((l) => lineKey(l) === k);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], qty: next[idx].qty + line.qty };
+        return next;
+      }
+      return [
+        ...prev,
+        { lineId: crypto.randomUUID(), itemId: line.itemId, qty: line.qty, note: line.note, optionIds: line.optionIds },
+      ];
+    });
   const cartQty = (lineId: string, qty: number) =>
     setCart((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, qty } : l)));
   const cartRemove = (lineId: string) => setCart((prev) => prev.filter((l) => l.lineId !== lineId));
@@ -474,6 +487,7 @@ export function PosBoard({
             selectedTableId={selectedTableId}
             onSelect={selectTable}
             takeawayActive={takeawayMode}
+            takeawayCount={initial.takeawayOrders.length}
             onSelectTakeaway={enterTakeaway}
           />
         </aside>
@@ -494,6 +508,8 @@ export function PosBoard({
               onCartEdit={cartEdit}
               onClearCart={() => setCart([])}
               onClose={exitTakeaway}
+              cancelStaff={cancelStaff}
+              canCancelWithoutPin={canCancelWithoutPin}
             />
           ) : selectedTable ? (
             <OrderPanel

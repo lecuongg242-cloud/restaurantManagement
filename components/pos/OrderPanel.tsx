@@ -159,13 +159,22 @@ export function OrderPanel({
                       </p>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => getPrintAdapter().printKitchenTicket({ slug, orderId: order.id })}
-                    className="inline-flex h-8 shrink-0 items-center gap-xxs rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                  >
-                    <Printer className="h-3.5 w-3.5" /> In phiếu bếp
-                  </button>
+                  <div className="flex shrink-0 items-center gap-xs">
+                    <button
+                      type="button"
+                      onClick={() => getPrintAdapter().printKitchenTicket({ slug, orderId: order.id })}
+                      className="inline-flex h-8 items-center gap-xxs rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      <Printer className="h-3.5 w-3.5" /> Phiếu bếp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => getPrintAdapter().printCustomerTicket({ slug, orderId: order.id })}
+                      className="inline-flex h-8 items-center gap-xxs rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      <Receipt className="h-3.5 w-3.5" /> Phiếu khách
+                    </button>
+                  </div>
                 </div>
                 <ul className="mt-xs flex flex-col divide-y divide-hairline-soft">
                   {order.items.map((it) => (

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Drawer } from "vaul";
 import { Loader2 } from "lucide-react";
 import { PinPad } from "@/components/staff/PinPad";
-import { cancelOrderItem } from "@/app/r/[slug]/pos/actions";
+import { cancelOrderItem, cancelOrder } from "@/app/r/[slug]/pos/actions";
 import { cn } from "@/lib/utils";
 
 export type CancelStaff = { id: string; name: string; role: "manager" | "cashier" };
@@ -18,6 +18,7 @@ export type CancelStaff = { id: string; name: string; role: "manager" | "cashier
 export function CancelItemDialog({
   slug,
   item,
+  variant = "item",
   open,
   onOpenChange,
   cancelStaff,
@@ -26,6 +27,8 @@ export function CancelItemDialog({
 }: {
   slug: string;
   item: { id: string; name: string } | null;
+  /** "item" = hủy một món (mặc định); "order" = hủy cả đơn (mọi món chưa phục vụ). */
+  variant?: "item" | "order";
   open: boolean;
   onOpenChange: (v: boolean) => void;
   cancelStaff: CancelStaff[];
@@ -60,12 +63,15 @@ export function CancelItemDialog({
     if (!item || !canSubmit) return;
     setSubmitting(true);
     setError(null);
-    const res = await cancelOrderItem(slug, {
-      itemId: item.id,
+    const creds = {
       membershipId: needsPin ? staffId : undefined,
       pin: needsPin ? pin : undefined,
       reason,
-    });
+    };
+    const res =
+      variant === "order"
+        ? await cancelOrder(slug, { orderId: item.id, ...creds })
+        : await cancelOrderItem(slug, { itemId: item.id, ...creds });
     setSubmitting(false);
     if (!res.ok) {
       setError(res.error);
@@ -88,10 +94,12 @@ export function CancelItemDialog({
           <div className="mx-auto mt-sm h-1.5 w-10 shrink-0 rounded-full bg-hairline-strong" />
           <div className="min-h-0 flex-1 overflow-y-auto px-lg py-sm">
             <Drawer.Title className="font-display text-xl text-status-late">
-              Hủy món: {item.name}
+              {variant === "order" ? `Hủy cả đơn ${item.name}` : `Hủy món: ${item.name}`}
             </Drawer.Title>
             <Drawer.Description className="mt-xxs text-xs text-steel">
-              Cần sửa món? Hủy dòng này rồi &quot;Thêm món&quot; mới.
+              {variant === "order"
+                ? "Hủy toàn bộ món chưa phục vụ trong đơn này."
+                : "Cần sửa món? Hủy dòng này rồi “Thêm món” mới."}
             </Drawer.Description>
 
             {error && (
