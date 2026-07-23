@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
+import { ActionForm } from "@/components/ui/action-form";
 import { createStaff, resetPin, setStaffActive, deleteStaff } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -18,13 +19,10 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default async function StaffPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
   const { slug } = await params;
-  const { error, ok } = await searchParams;
   const session = await getSessionMembership(slug);
 
   const supabase = await createClient();
@@ -43,26 +41,9 @@ export default async function StaffPage({
         Tạo nhiều người cùng vai trò, mỗi người một email/PIN để truy vết.
       </p>
 
-      {error && (
-        <p
-          role="alert"
-          className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
-        >
-          {error}
-        </p>
-      )}
-      {ok && (
-        <p
-          role="status"
-          className="mt-md rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready"
-        >
-          {ok}
-        </p>
-      )}
-
       {/* Thêm nhân viên */}
       <Card className="mt-lg">
-        <form
+        <ActionForm
           action={createStaff}
           className="grid grid-cols-1 gap-md sm:grid-cols-[1fr_1fr_150px_110px_auto] sm:items-end"
         >
@@ -100,7 +81,7 @@ export default async function StaffPage({
             />
           </label>
           <SubmitButton pendingLabel="Đang thêm…">Thêm</SubmitButton>
-        </form>
+        </ActionForm>
       </Card>
 
       {/* Danh sách */}
@@ -132,7 +113,7 @@ export default async function StaffPage({
                   )}
                 </td>
                 <td className="px-md py-sm">
-                  <form action={resetPin} className="flex items-center gap-xs">
+                  <ActionForm action={resetPin} className="flex flex-wrap items-center gap-xs">
                     <input type="hidden" name="slug" value={slug} />
                     <input type="hidden" name="id" value={s.id} />
                     <Input
@@ -147,7 +128,7 @@ export default async function StaffPage({
                     <Button type="submit" variant="secondary" size="sm">
                       Lưu
                     </Button>
-                  </form>
+                  </ActionForm>
                 </td>
                 <td className="px-md py-sm">
                   <div className="flex items-center gap-xs">

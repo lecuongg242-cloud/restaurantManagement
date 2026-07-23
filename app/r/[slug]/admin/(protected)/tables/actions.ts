@@ -6,6 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/rbac";
 
+// Các action dưới đây cập nhật TẠI CHỖ: chỉ revalidatePath, KHÔNG redirect(?ok/?error)
+// → URL giữ nguyên /admin/tables; thay đổi hiện ngay trên danh sách. Trường bắt buộc
+// đã có `required` ở input nên bỏ qua thao tác nếu thiếu (không tạo dữ liệu rác).
+
 async function requireTableManager(slug: string) {
   const session = await getSessionMembership(slug);
   if (!session || !canManage(session.role, "tables")) {
@@ -55,8 +59,7 @@ export async function createArea(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireTableManager(slug);
   const name = String(formData.get("name") ?? "").trim();
-  const back = tablesPath(slug);
-  if (!name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên khu vực.")}`);
+  if (!name) return;
 
   const supabase = await createClient();
   const { data: last } = await supabase
@@ -68,13 +71,8 @@ export async function createArea(formData: FormData) {
     .maybeSingle();
   const sort_order = (last?.sort_order ?? -1) + 1;
 
-  const { error } = await supabase
-    .from("areas")
-    .insert({ tenant_id: session.tenant.id, name, sort_order });
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent(`Đã thêm khu vực "${name}"`)}`);
+  await supabase.from("areas").insert({ tenant_id: session.tenant.id, name, sort_order });
+  revalidatePath(tablesPath(slug));
 }
 
 export async function renameArea(formData: FormData) {
@@ -82,38 +80,26 @@ export async function renameArea(formData: FormData) {
   const session = await requireTableManager(slug);
   const id = String(formData.get("id") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const back = tablesPath(slug);
-  if (!name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên khu vực.")}`);
+  if (!name) return;
 
   const supabase = await createClient();
-  const { error } = await supabase
+  await supabase
     .from("areas")
     .update({ name, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(back);
+  revalidatePath(tablesPath(slug));
 }
 
 export async function deleteArea(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireTableManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = tablesPath(slug);
 
   // Bàn thuộc khu vực này → area_id set null (FK on delete set null), không mất bàn.
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("areas")
-    .delete()
-    .eq("id", id)
-    .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent("Đã xóa khu vực (bàn chuyển sang Chưa xếp khu)")}`);
+  await supabase.from("areas").delete().eq("id", id).eq("tenant_id", session.tenant.id);
+  revalidatePath(tablesPath(slug));
 }
 
 export async function reorderArea(formData: FormData) {
@@ -124,7 +110,6 @@ export async function reorderArea(formData: FormData) {
 
   await moveInList("areas", {}, session.tenant.id, id, dir);
   revalidatePath(tablesPath(slug));
-  redirect(tablesPath(slug));
 }
 
 // ---- Bàn --------------------------------------------------------------------
@@ -132,18 +117,14 @@ export async function reorderArea(formData: FormData) {
 export async function createTable(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireTableManager(slug);
-  const back = tablesPath(slug);
   const name = String(formData.get("name") ?? "").trim();
   const areaRaw = String(formData.get("area_id") ?? "");
   const area_id = areaRaw ? areaRaw : null;
   const seats = Math.max(1, parseInt(String(formData.get("seats") ?? "2"), 10) || 2);
-  if (!name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên bàn.")}`);
+  if (!name) return;
 
   const supabase = await createClient();
-  let q = supabase
-    .from("tables")
-    .select("sort_order")
-    .eq("tenant_id", session.tenant.id);
+  let q = supabase.from("tables").select("sort_order").eq("tenant_id", session.tenant.id);
   q = area_id === null ? q.is("area_id", null) : q.eq("area_id", area_id);
   const { data: last } = await q
     .order("sort_order", { ascending: false })
@@ -152,54 +133,39 @@ export async function createTable(formData: FormData) {
   const sort_order = (last?.sort_order ?? -1) + 1;
 
   // qr_token do DB default sinh (encode(gen_random_bytes(9),'hex')).
-  const { error } = await supabase
+  await supabase
     .from("tables")
     .insert({ tenant_id: session.tenant.id, area_id, name, seats, sort_order });
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent(`Đã thêm bàn "${name}"`)}`);
+  revalidatePath(tablesPath(slug));
 }
 
 export async function updateTable(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireTableManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = tablesPath(slug);
   const name = String(formData.get("name") ?? "").trim();
   const areaRaw = String(formData.get("area_id") ?? "");
   const area_id = areaRaw ? areaRaw : null;
   const seats = Math.max(1, parseInt(String(formData.get("seats") ?? "2"), 10) || 2);
-  if (!name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên bàn.")}`);
+  if (!name) return;
 
   const supabase = await createClient();
-  const { error } = await supabase
+  await supabase
     .from("tables")
     .update({ name, area_id, seats, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(back);
+  revalidatePath(tablesPath(slug));
 }
 
 export async function deleteTable(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireTableManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = tablesPath(slug);
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("tables")
-    .delete()
-    .eq("id", id)
-    .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent("Đã xóa bàn")}`);
+  await supabase.from("tables").delete().eq("id", id).eq("tenant_id", session.tenant.id);
+  revalidatePath(tablesPath(slug));
 }
 
 export async function reorderTable(formData: FormData) {
@@ -212,5 +178,4 @@ export async function reorderTable(formData: FormData) {
 
   await moveInList("tables", { area_id }, session.tenant.id, id, dir);
   revalidatePath(tablesPath(slug));
-  redirect(tablesPath(slug));
 }

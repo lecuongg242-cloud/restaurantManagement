@@ -7,19 +7,17 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ImageUpload } from "@/components/menu/ImageUpload";
+import { ActionForm } from "@/components/ui/action-form";
 import { updateIdentity, updateSettings } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
   const { slug } = await params;
-  const { error, ok } = await searchParams;
 
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/admin/login`);
@@ -43,28 +41,11 @@ export default async function SettingsPage({
         Nhận diện nhà hàng (tên, logo) và cấu hình vận hành (phí phục vụ, VAT, footer hóa đơn, duyệt order QR).
       </p>
 
-      {error && (
-        <p
-          role="alert"
-          className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
-        >
-          {error}
-        </p>
-      )}
-      {ok && (
-        <p
-          role="status"
-          className="mt-md rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready"
-        >
-          {ok}
-        </p>
-      )}
-
       <div className="mt-lg grid gap-lg">
         {/* Nhận diện */}
         <Card>
           <CardTitle>Nhận diện nhà hàng</CardTitle>
-          <form action={updateIdentity} className="mt-md flex flex-col gap-lg">
+          <ActionForm action={updateIdentity} className="mt-md flex flex-col gap-lg">
             <input type="hidden" name="slug" value={slug} />
             <label className="flex max-w-sm flex-col gap-xxs text-sm text-slate">
               Tên hiển thị
@@ -80,13 +61,13 @@ export default async function SettingsPage({
                 Lưu nhận diện
               </SubmitButton>
             </div>
-          </form>
+          </ActionForm>
         </Card>
 
         {/* Cấu hình vận hành */}
         <Card>
           <CardTitle>Cấu hình vận hành</CardTitle>
-          <form action={updateSettings} className="mt-md flex flex-col gap-md">
+          <ActionForm action={updateSettings} className="mt-md flex flex-col gap-md">
             <input type="hidden" name="slug" value={slug} />
             <div className="grid gap-md sm:grid-cols-2">
               <label className="flex flex-col gap-xxs text-sm text-slate">
@@ -149,7 +130,7 @@ export default async function SettingsPage({
                 Lưu cấu hình
               </SubmitButton>
             </div>
-          </form>
+          </ActionForm>
         </Card>
       </div>
     </div>

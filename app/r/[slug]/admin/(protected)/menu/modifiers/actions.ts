@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/rbac";
 
+// Cập nhật TẠI CHỖ: chỉ revalidatePath, KHÔNG redirect(?ok/?error) → URL giữ nguyên
+// /admin/menu/modifiers; thay đổi hiện ngay. Bỏ qua nếu ràng buộc không hợp lệ.
+
 async function requireMenuManager(slug: string) {
   const session = await getSessionMembership(slug);
   if (!session || !canManage(session.role, "menu")) {
@@ -26,11 +29,11 @@ function readGroupFields(formData: FormData) {
   return { name, min_select, max_select, required };
 }
 
-/** Kiểm ràng buộc nhóm: max>=min và required ⇒ min>=1. Trả thông báo lỗi hoặc null. */
-function validateGroup(f: { min_select: number; max_select: number; required: boolean }): string | null {
-  if (f.max_select < f.min_select) return "Số chọn tối đa phải ≥ số chọn tối thiểu.";
-  if (f.required && f.min_select < 1) return "Nhóm bắt buộc phải có số chọn tối thiểu ≥ 1.";
-  return null;
+/** Ràng buộc nhóm hợp lệ: max>=min và required ⇒ min>=1. */
+function groupValid(f: { min_select: number; max_select: number; required: boolean }): boolean {
+  if (f.max_select < f.min_select) return false;
+  if (f.required && f.min_select < 1) return false;
+  return true;
 }
 
 // ---- Nhóm tùy chọn ----------------------------------------------------------
@@ -38,11 +41,8 @@ function validateGroup(f: { min_select: number; max_select: number; required: bo
 export async function createGroup(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
-  const back = modPath(slug);
   const f = readGroupFields(formData);
-  if (!f.name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên nhóm.")}`);
-  const err = validateGroup(f);
-  if (err) redirect(`${back}?error=${encodeURIComponent(err)}`);
+  if (!f.name || !groupValid(f)) return;
 
   const supabase = await createClient();
   const { data: last } = await supabase
@@ -54,7 +54,7 @@ export async function createGroup(formData: FormData) {
     .maybeSingle();
   const sort_order = (last?.sort_order ?? -1) + 1;
 
-  const { error } = await supabase.from("modifier_groups").insert({
+  await supabase.from("modifier_groups").insert({
     tenant_id: session.tenant.id,
     name: f.name,
     min_select: f.min_select,
@@ -62,50 +62,37 @@ export async function createGroup(formData: FormData) {
     required: f.required,
     sort_order,
   });
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent(`Đã thêm nhóm "${f.name}"`)}`);
+  revalidatePath(modPath(slug));
 }
 
 export async function updateGroup(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = modPath(slug);
   const f = readGroupFields(formData);
-  if (!f.name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên nhóm.")}`);
-  const err = validateGroup(f);
-  if (err) redirect(`${back}?error=${encodeURIComponent(err)}`);
+  if (!f.name || !groupValid(f)) return;
 
   const supabase = await createClient();
-  const { error } = await supabase
+  await supabase
     .from("modifier_groups")
     .update({ ...f, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent("Đã lưu nhóm")}`);
+  revalidatePath(modPath(slug));
 }
 
 export async function deleteGroup(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = modPath(slug);
 
   const supabase = await createClient();
-  const { error } = await supabase
+  await supabase
     .from("modifier_groups")
     .delete()
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(`${back}?ok=${encodeURIComponent("Đã xóa nhóm")}`);
+  revalidatePath(modPath(slug));
 }
 
 // ---- Option -----------------------------------------------------------------
@@ -114,11 +101,10 @@ export async function addOption(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const group_id = String(formData.get("group_id") ?? "");
-  const back = modPath(slug);
   const name = String(formData.get("name") ?? "").trim();
   const priceRaw = String(formData.get("price_delta") ?? "").replace(/[^\d]/g, "");
   const price_delta = priceRaw ? parseInt(priceRaw, 10) : 0;
-  if (!name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên tùy chọn.")}`);
+  if (!name) return;
 
   const supabase = await createClient();
   const { data: last } = await supabase
@@ -131,57 +117,46 @@ export async function addOption(formData: FormData) {
     .maybeSingle();
   const sort_order = (last?.sort_order ?? -1) + 1;
 
-  const { error } = await supabase.from("modifier_options").insert({
+  await supabase.from("modifier_options").insert({
     tenant_id: session.tenant.id,
     group_id,
     name,
     price_delta,
     sort_order,
   });
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(back);
+  revalidatePath(modPath(slug));
 }
 
 export async function updateOption(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = modPath(slug);
   const name = String(formData.get("name") ?? "").trim();
   const priceRaw = String(formData.get("price_delta") ?? "").replace(/[^\d]/g, "");
   const price_delta = priceRaw ? parseInt(priceRaw, 10) : 0;
-  if (!name) redirect(`${back}?error=${encodeURIComponent("Thiếu tên tùy chọn.")}`);
+  if (!name) return;
 
   const supabase = await createClient();
-  const { error } = await supabase
+  await supabase
     .from("modifier_options")
     .update({ name, price_delta })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(back);
+  revalidatePath(modPath(slug));
 }
 
 export async function deleteOption(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const id = String(formData.get("id") ?? "");
-  const back = modPath(slug);
 
   const supabase = await createClient();
-  const { error } = await supabase
+  await supabase
     .from("modifier_options")
     .delete()
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) redirect(`${back}?error=${encodeURIComponent(error.message)}`);
-
-  revalidatePath(back);
-  redirect(back);
+  revalidatePath(modPath(slug));
 }
 
 /** Bật/tắt "hết" cho một option (optimistic, không redirect). */
