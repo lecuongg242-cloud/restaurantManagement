@@ -112,8 +112,12 @@ export async function createTenant(formData: FormData) {
       fail("Email đã tồn tại nhưng không tra được tài khoản. Hãy dùng email khác.");
     }
     ownerId = existing!.id;
-    // Đặt lại mật khẩu tài khoản sẵn có theo mật khẩu vừa nhập.
-    await admin.auth.admin.updateUserById(ownerId, { password: ownerPassword });
+    // Đặt lại mật khẩu + confirm email: tài khoản mồ côi có thể CHƯA confirm email
+    // → Supabase chặn đăng nhập ("email_not_confirmed"). Confirm để owner vào được ngay.
+    await admin.auth.admin.updateUserById(ownerId, {
+      password: ownerPassword,
+      email_confirm: true,
+    });
   } else {
     await admin.from("tenants").delete().eq("id", tenantId);
     fail(`Không tạo được owner: ${uErr?.message ?? "email có thể đã dùng"}`);
@@ -141,22 +145,28 @@ export async function createTenant(formData: FormData) {
 }
 
 /**
+ * State trả về cho các action cập nhật TẠI CHỖ (dùng với useActionState ở client):
+ * không redirect → URL giữ nguyên /super; phản hồi hiện inline.
+ */
+export type SuperActionState = { ok?: string; error?: string };
+
+/**
  * Đặt lại mật khẩu owner của một nhà hàng — TRỰC TIẾP, không gửi email.
  * Chỉ super-admin. Dùng SERVICE ROLE (updateUserById) để đổi ngay lập tức.
  * Đây là cơ chế "quên mật khẩu" cấp hệ thống: owner mất mật khẩu → super-admin đặt lại.
  */
-export async function resetOwnerPassword(formData: FormData) {
+export async function resetOwnerPassword(
+  _prev: SuperActionState,
+  formData: FormData
+): Promise<SuperActionState> {
   const su = await isSuperAdmin();
   if (!su) redirect("/super/login");
 
   const tenantId = String(formData.get("tenant_id") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  const fail = (msg: string): never =>
-    redirect(`/super?error=${encodeURIComponent(msg)}`);
-
-  if (!tenantId) fail("Thiếu nhà hàng.");
-  if (password.length < 8) fail("Mật khẩu tối thiểu 8 ký tự.");
+  if (!tenantId) return { error: "Thiếu nhà hàng." };
+  if (password.length < 8) return { error: "Mật khẩu tối thiểu 8 ký tự." };
 
   const admin = createAdminClient();
 
@@ -171,30 +181,33 @@ export async function resetOwnerPassword(formData: FormData) {
     .limit(1)
     .maybeSingle();
 
-  if (mErr) fail(`Không tra được owner: ${mErr.message}`);
-  if (!owner) fail("Nhà hàng này chưa có tài khoản owner.");
+  if (mErr) return { error: `Không tra được owner: ${mErr.message}` };
+  if (!owner) return { error: "Nhà hàng này chưa có tài khoản owner." };
 
-  const { error: uErr } = await admin.auth.admin.updateUserById(owner!.user_id, {
+  const { error: uErr } = await admin.auth.admin.updateUserById(owner.user_id, {
     password,
+    email_confirm: true, // đảm bảo owner đăng nhập được (kể cả khi email trước đó chưa confirm)
   });
-  if (uErr) fail(`Không đổi được mật khẩu: ${uErr.message}`);
+  if (uErr) return { error: `Không đổi được mật khẩu: ${uErr.message}` };
 
-  revalidatePath("/super");
-  redirect(`/super?reset=${encodeURIComponent(owner!.display_name ?? "owner")}`);
+  return { ok: `Đã đặt lại mật khẩu cho ${owner.display_name ?? "owner"}.` };
 }
 
 /**
  * Tạm ngưng / kích hoạt lại nhà hàng (đổi tenants.status). Chỉ super-admin.
- * "suspended" hồi phục được — KHÔNG xoá dữ liệu.
+ * "suspended" hồi phục được — KHÔNG xoá dữ liệu. Cập nhật tại chỗ (pill đổi ngay).
  */
-export async function setTenantStatus(formData: FormData) {
+export async function setTenantStatus(
+  _prev: SuperActionState,
+  formData: FormData
+): Promise<SuperActionState> {
   const su = await isSuperAdmin();
   if (!su) redirect("/super/login");
 
   const tenantId = String(formData.get("tenant_id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
   if (status !== "active" && status !== "suspended") {
-    redirect(`/super?error=${encodeURIComponent("Trạng thái không hợp lệ.")}`);
+    return { error: "Trạng thái không hợp lệ." };
   }
 
   const admin = createAdminClient();
@@ -202,14 +215,10 @@ export async function setTenantStatus(formData: FormData) {
     .from("tenants")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", tenantId);
-  if (error) redirect(`/super?error=${encodeURIComponent(error.message)}`);
+  if (error) return { error: error.message };
 
   revalidatePath("/super");
-  redirect(
-    `/super?status=${encodeURIComponent(
-      status === "suspended" ? "Đã tạm ngưng nhà hàng." : "Đã kích hoạt lại nhà hàng."
-    )}`
-  );
+  return {};
 }
 
 /**
@@ -219,15 +228,17 @@ export async function setTenantStatus(formData: FormData) {
  * Xoá dòng tenant → mọi bảng con ON DELETE CASCADE tự xoá theo. KHÔNG hồi phục.
  * Tài khoản auth owner + ảnh storage giữ lại (dọn riêng nếu cần).
  */
-export async function deleteTenant(formData: FormData) {
+export async function deleteTenant(
+  _prev: SuperActionState,
+  formData: FormData
+): Promise<SuperActionState> {
   const su = await isSuperAdmin();
   if (!su) redirect("/super/login");
 
   const tenantId = String(formData.get("tenant_id") ?? "").trim();
   const confirmSlug = String(formData.get("confirm_slug") ?? "").trim();
-  const fail = (msg: string): never => redirect(`/super?error=${encodeURIComponent(msg)}`);
 
-  if (!tenantId) fail("Thiếu nhà hàng.");
+  if (!tenantId) return { error: "Thiếu nhà hàng." };
 
   const admin = createAdminClient();
   const { data: tenant } = await admin
@@ -236,17 +247,17 @@ export async function deleteTenant(formData: FormData) {
     .eq("id", tenantId)
     .maybeSingle();
 
-  if (!tenant) fail("Không tìm thấy nhà hàng.");
-  if (tenant!.status !== "suspended") {
-    fail("Chỉ xoá được nhà hàng đã tạm ngưng. Hãy tạm ngưng trước.");
+  if (!tenant) return { error: "Không tìm thấy nhà hàng." };
+  if (tenant.status !== "suspended") {
+    return { error: "Chỉ xoá được nhà hàng đã tạm ngưng. Hãy tạm ngưng trước." };
   }
-  if (confirmSlug !== tenant!.slug) {
-    fail("Slug xác nhận không khớp — nhập đúng slug để xoá.");
+  if (confirmSlug !== tenant.slug) {
+    return { error: "Slug xác nhận không khớp — nhập đúng slug để xoá." };
   }
 
   const { error } = await admin.from("tenants").delete().eq("id", tenantId);
-  if (error) fail(`Không xoá được: ${error.message}`);
+  if (error) return { error: `Không xoá được: ${error.message}` };
 
   revalidatePath("/super");
-  redirect(`/super?deleted=${encodeURIComponent(tenant!.name)}`);
+  return {};
 }

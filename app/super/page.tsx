@@ -2,10 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isSuperAdmin } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { superSignOut, resetOwnerPassword, setTenantStatus, deleteTenant } from "./actions";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { superSignOut } from "./actions";
+import {
+  StatusToggleForm,
+  ResetPasswordForm,
+  DeleteTenantForm,
+} from "./tenant-actions";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -13,17 +16,11 @@ export const dynamic = "force-dynamic";
 export default async function SuperHome({
   searchParams,
 }: {
-  searchParams: Promise<{
-    created?: string;
-    reset?: string;
-    error?: string;
-    status?: string;
-    deleted?: string;
-  }>;
+  searchParams: Promise<{ created?: string }>;
 }) {
   const su = await isSuperAdmin();
   if (!su) redirect("/super/login");
-  const { created, reset, error, status, deleted } = await searchParams;
+  const { created } = await searchParams;
 
   // Danh sách tenant (super-admin xem toàn cục qua service role).
   const admin = createAdminClient();
@@ -72,38 +69,6 @@ export default async function SuperHome({
           className="mt-lg rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready"
         >
           Đã tạo nhà hàng “{created}”. Owner có thể đăng nhập tại /r/{created}/admin/login.
-        </p>
-      )}
-      {reset && (
-        <p
-          role="status"
-          className="mt-lg rounded-md border border-status-ready bg-status-ready-bg px-md py-sm text-sm text-status-ready"
-        >
-          Đã đặt lại mật khẩu cho owner <span className="font-medium">{reset}</span>. Hãy gửi mật khẩu mới cho họ.
-        </p>
-      )}
-      {status && (
-        <p
-          role="status"
-          className="mt-lg rounded-md border border-hairline-soft bg-surface px-md py-sm text-sm text-slate"
-        >
-          {status}
-        </p>
-      )}
-      {deleted && (
-        <p
-          role="status"
-          className="mt-lg rounded-md border border-hairline-soft bg-surface px-md py-sm text-sm text-slate"
-        >
-          Đã xoá vĩnh viễn nhà hàng <span className="font-medium">{deleted}</span> và toàn bộ dữ liệu liên quan.
-        </p>
-      )}
-      {error && (
-        <p
-          role="alert"
-          className="mt-lg rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
-        >
-          {error}
         </p>
       )}
 
@@ -165,96 +130,11 @@ export default async function SuperHome({
                 </div>
               </div>
 
-              {/* Tầng hành động: full-width, panel bung thoải mái bên dưới */}
+              {/* Tầng hành động: full-width, cập nhật tại chỗ (URL không đổi) */}
               <div className="mt-md flex flex-wrap items-start gap-xs border-t border-hairline-soft pt-md">
-                {ownerEmail && (
-                  <details className="group w-full sm:w-auto">
-                    <summary
-                      className={cn(
-                        buttonVariants({ variant: "secondary", size: "sm" }),
-                        "w-full cursor-pointer list-none sm:w-auto [&::-webkit-details-marker]:hidden"
-                      )}
-                    >
-                      Đổi mật khẩu
-                    </summary>
-                    <form
-                      action={resetOwnerPassword}
-                      className="mt-sm flex flex-wrap items-center gap-xs rounded-md border border-hairline-soft bg-surface p-sm"
-                    >
-                      <input type="hidden" name="tenant_id" value={t.id} />
-                      <Input
-                        name="password"
-                        type="text"
-                        required
-                        minLength={8}
-                        placeholder="Mật khẩu mới (≥ 8 ký tự)"
-                        autoComplete="off"
-                        className="h-9 w-full sm:w-52"
-                      />
-                      <SubmitButton size="sm" pendingLabel="Đang đổi…">
-                        Lưu
-                      </SubmitButton>
-                    </form>
-                  </details>
-                )}
-
-                <form action={setTenantStatus} className="w-full sm:w-auto">
-                  <input type="hidden" name="tenant_id" value={t.id} />
-                  <input
-                    type="hidden"
-                    name="status"
-                    value={isSuspended ? "active" : "suspended"}
-                  />
-                  <SubmitButton
-                    variant="secondary"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                    pendingLabel="…"
-                  >
-                    {isSuspended ? "Kích hoạt" : "Tạm ngưng"}
-                  </SubmitButton>
-                </form>
-
-                {isSuspended && (
-                  <details className="w-full sm:w-auto">
-                    <summary
-                      className={cn(
-                        buttonVariants({ variant: "secondary", size: "sm" }),
-                        "w-full cursor-pointer list-none border-status-late/40 text-status-late hover:bg-cream-soft sm:w-auto [&::-webkit-details-marker]:hidden"
-                      )}
-                    >
-                      Xoá vĩnh viễn
-                    </summary>
-                    <form
-                      action={deleteTenant}
-                      className="mt-sm flex max-w-md flex-col gap-xs rounded-md border border-status-late/30 bg-cream-soft p-sm"
-                    >
-                      <input type="hidden" name="tenant_id" value={t.id} />
-                      <p className="text-xs text-slate">
-                        Xoá toàn bộ dữ liệu nhà hàng, không hồi phục. Gõ{" "}
-                        <span className="font-mono font-medium text-ink">{t.slug}</span> để xác nhận.
-                      </p>
-                      <div className="flex flex-wrap items-center gap-xs">
-                        <Input
-                          name="confirm_slug"
-                          type="text"
-                          required
-                          placeholder={t.slug}
-                          autoComplete="off"
-                          className="h-9 w-full sm:w-44"
-                        />
-                        <SubmitButton
-                          variant="secondary"
-                          size="sm"
-                          className="border-status-late/50 text-status-late hover:bg-cream-deeper"
-                          pendingLabel="Đang xoá…"
-                        >
-                          Xoá
-                        </SubmitButton>
-                      </div>
-                    </form>
-                  </details>
-                )}
+                {ownerEmail && <ResetPasswordForm tenantId={t.id} />}
+                <StatusToggleForm tenantId={t.id} isSuspended={isSuspended} />
+                {isSuspended && <DeleteTenantForm tenantId={t.id} slug={t.slug} />}
               </div>
             </div>
           );
