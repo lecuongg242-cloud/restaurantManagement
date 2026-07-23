@@ -5,9 +5,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/rbac";
+import { setFlash } from "@/lib/flash";
 
-// Cập nhật TẠI CHỖ: chỉ revalidatePath, KHÔNG redirect(?ok/?error) → URL giữ nguyên
-// /admin/menu/modifiers; thay đổi hiện ngay. Bỏ qua nếu ràng buộc không hợp lệ.
+// Cập nhật TẠI CHỖ: revalidatePath + toast (setFlash), KHÔNG redirect(?ok/?error) →
+// URL giữ nguyên /admin/menu/modifiers.
 
 async function requireMenuManager(slug: string) {
   const session = await getSessionMembership(slug);
@@ -54,7 +55,7 @@ export async function createGroup(formData: FormData) {
     .maybeSingle();
   const sort_order = (last?.sort_order ?? -1) + 1;
 
-  await supabase.from("modifier_groups").insert({
+  const { error } = await supabase.from("modifier_groups").insert({
     tenant_id: session.tenant.id,
     name: f.name,
     min_select: f.min_select,
@@ -63,6 +64,7 @@ export async function createGroup(formData: FormData) {
     sort_order,
   });
   revalidatePath(modPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : `Đã thêm nhóm "${f.name}".`);
 }
 
 export async function updateGroup(formData: FormData) {
@@ -73,12 +75,13 @@ export async function updateGroup(formData: FormData) {
   if (!f.name || !groupValid(f)) return;
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("modifier_groups")
     .update({ ...f, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(modPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã lưu nhóm.");
 }
 
 export async function deleteGroup(formData: FormData) {
@@ -87,12 +90,13 @@ export async function deleteGroup(formData: FormData) {
   const id = String(formData.get("id") ?? "");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("modifier_groups")
     .delete()
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(modPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã xóa nhóm.");
 }
 
 // ---- Option -----------------------------------------------------------------
@@ -117,7 +121,7 @@ export async function addOption(formData: FormData) {
     .maybeSingle();
   const sort_order = (last?.sort_order ?? -1) + 1;
 
-  await supabase.from("modifier_options").insert({
+  const { error } = await supabase.from("modifier_options").insert({
     tenant_id: session.tenant.id,
     group_id,
     name,
@@ -125,6 +129,7 @@ export async function addOption(formData: FormData) {
     sort_order,
   });
   revalidatePath(modPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : `Đã thêm tùy chọn "${name}".`);
 }
 
 export async function updateOption(formData: FormData) {
@@ -137,12 +142,13 @@ export async function updateOption(formData: FormData) {
   if (!name) return;
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("modifier_options")
     .update({ name, price_delta })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(modPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã lưu tùy chọn.");
 }
 
 export async function deleteOption(formData: FormData) {
@@ -151,12 +157,13 @@ export async function deleteOption(formData: FormData) {
   const id = String(formData.get("id") ?? "");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("modifier_options")
     .delete()
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(modPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã xóa tùy chọn.");
 }
 
 /** Bật/tắt "hết" cho một option (optimistic, không redirect). */

@@ -11,10 +11,10 @@ import {
   deleteMenuImage,
   pathFromPublicUrl,
 } from "@/lib/storage/images";
+import { setFlash } from "@/lib/flash";
 
-// Các action cập nhật TẠI CHỖ: chỉ revalidatePath, KHÔNG redirect(?ok/?error) → URL
-// giữ nguyên /admin/menu; thay đổi hiện ngay trên danh sách. Trường bắt buộc có `required`
-// nên bỏ qua nếu thiếu (không tạo dữ liệu rác).
+// Các action cập nhật TẠI CHỖ: revalidatePath + toast (setFlash), KHÔNG redirect(?ok/?error)
+// → URL giữ nguyên /admin/menu. Reorder không toast (tránh ồn).
 
 /** Guard chung: chỉ owner/manager quản lý menu của tenant theo slug. */
 async function requireMenuManager(slug: string) {
@@ -81,10 +81,11 @@ export async function createCategory(formData: FormData) {
     .maybeSingle();
   const sort_order = (last?.sort_order ?? -1) + 1;
 
-  await supabase
+  const { error } = await supabase
     .from("menu_categories")
     .insert({ tenant_id: session.tenant.id, name, sort_order });
   revalidatePath(menuPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : `Đã thêm danh mục "${name}".`);
 }
 
 export async function renameCategory(formData: FormData) {
@@ -95,12 +96,13 @@ export async function renameCategory(formData: FormData) {
   if (!name) return;
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("menu_categories")
     .update({ name, updated_at: new Date().toISOString() })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(menuPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã đổi tên danh mục.");
 }
 
 export async function deleteCategory(formData: FormData) {
@@ -109,12 +111,13 @@ export async function deleteCategory(formData: FormData) {
   const id = String(formData.get("id") ?? "");
 
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("menu_categories")
     .delete()
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(menuPath(slug));
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã xóa danh mục.");
 }
 
 export async function reorderCategory(formData: FormData) {
@@ -211,7 +214,7 @@ export async function createItem(formData: FormData) {
     })
     .select("id")
     .single();
-  if (error || !inserted) return;
+  if (error || !inserted) return setFlash("error", error?.message ?? "Không tạo được món.");
 
   // Ảnh (nếu có): upload rồi cập nhật image_url. Lỗi ảnh không chặn (giữ món, bỏ ảnh).
   if (image instanceof File && image.size > 0) {
@@ -236,6 +239,7 @@ export async function createItem(formData: FormData) {
   }
 
   revalidatePath(menuPath(slug));
+  await setFlash("ok", `Đã thêm món "${name}".`);
 }
 
 export async function updateItem(formData: FormData) {
@@ -269,7 +273,7 @@ export async function updateItem(formData: FormData) {
     }
   }
 
-  await supabase
+  const { error } = await supabase
     .from("menu_items")
     .update({
       name,
@@ -281,6 +285,7 @@ export async function updateItem(formData: FormData) {
     })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
+  if (error) return setFlash("error", error.message);
 
   if (formData.get("group_picker") === "1") {
     await syncItemGroups(
@@ -291,6 +296,7 @@ export async function updateItem(formData: FormData) {
   }
 
   revalidatePath(menuPath(slug));
+  await setFlash("ok", "Đã lưu món.");
 }
 
 export async function deleteItem(formData: FormData) {
@@ -306,10 +312,16 @@ export async function deleteItem(formData: FormData) {
     .eq("tenant_id", session.tenant.id)
     .maybeSingle();
 
-  await supabase.from("menu_items").delete().eq("id", id).eq("tenant_id", session.tenant.id);
+  const { error } = await supabase
+    .from("menu_items")
+    .delete()
+    .eq("id", id)
+    .eq("tenant_id", session.tenant.id);
+  if (error) return setFlash("error", error.message);
 
   await deleteMenuImage(pathFromPublicUrl(current?.image_url ?? null));
   revalidatePath(menuPath(slug));
+  await setFlash("ok", "Đã xóa món.");
 }
 
 export async function reorderItem(formData: FormData) {

@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
-import { ActionForm } from "@/components/ui/action-form";
 import { createStaff, resetPin, setStaffActive, deleteStaff } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +42,7 @@ export default async function StaffPage({
 
       {/* Thêm nhân viên */}
       <Card className="mt-lg">
-        <ActionForm
+        <form
           action={createStaff}
           className="grid grid-cols-1 gap-md sm:grid-cols-[1fr_1fr_150px_110px_auto] sm:items-end"
         >
@@ -81,7 +80,7 @@ export default async function StaffPage({
             />
           </label>
           <SubmitButton pendingLabel="Đang thêm…">Thêm</SubmitButton>
-        </ActionForm>
+        </form>
       </Card>
 
       {/* Danh sách */}
@@ -113,7 +112,7 @@ export default async function StaffPage({
                   )}
                 </td>
                 <td className="px-md py-sm">
-                  <ActionForm action={resetPin} className="flex flex-wrap items-center gap-xs">
+                  <form action={resetPin} className="flex items-center gap-xs">
                     <input type="hidden" name="slug" value={slug} />
                     <input type="hidden" name="id" value={s.id} />
                     <Input
@@ -128,7 +127,7 @@ export default async function StaffPage({
                     <Button type="submit" variant="secondary" size="sm">
                       Lưu
                     </Button>
-                  </ActionForm>
+                  </form>
                 </td>
                 <td className="px-md py-sm">
                   <div className="flex items-center gap-xs">

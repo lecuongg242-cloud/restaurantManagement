@@ -11,7 +11,7 @@ import {
   type TenantSettings,
 } from "@/lib/tenant/settings";
 import { uploadImage, deleteMenuImage, pathFromPublicUrl } from "@/lib/storage/images";
-import type { FormState } from "@/lib/forms";
+import { setFlash } from "@/lib/flash";
 
 async function requireSettingsManager(slug: string) {
   const session = await getSessionMembership(slug);
@@ -55,14 +55,11 @@ export async function updateProfile(formData: FormData) {
  * Lưu nhận diện nhà hàng trong 1 lần: tên (bắt buộc) + logo (tùy chọn, chỉ upload
  * khi có tệp mới). Cập nhật TẠI CHỖ (useActionState) — không đổi link.
  */
-export async function updateIdentity(
-  _prev: FormState,
-  formData: FormData
-): Promise<FormState> {
+export async function updateIdentity(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireSettingsManager(slug);
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "Thiếu tên nhà hàng." };
+  if (!name) return setFlash("error", "Thiếu tên nhà hàng.");
 
   const supabase = await createClient();
   const update: { name: string; logo_url?: string; updated_at: string } = {
@@ -84,7 +81,7 @@ export async function updateIdentity(
       const { publicUrl } = await uploadImage(file, session.tenant.id, "logo");
       update.logo_url = publicUrl;
     } catch (e) {
-      return { error: e instanceof Error ? e.message : "Upload logo lỗi." };
+      return setFlash("error", e instanceof Error ? e.message : "Upload logo lỗi.");
     }
   }
 
@@ -92,20 +89,17 @@ export async function updateIdentity(
     .from("tenants")
     .update(update)
     .eq("id", session.tenant.id);
-  if (error) return { error: error.message };
+  if (error) return setFlash("error", error.message);
 
   // Dọn logo cũ sau khi ghi DB thành công (không chặn luồng nếu xóa lỗi).
   if (update.logo_url) await deleteMenuImage(pathFromPublicUrl(oldLogo));
 
   revalidatePath(settingsPath(slug), "layout");
-  return { ok: "Đã lưu nhận diện nhà hàng." };
+  await setFlash("ok", "Đã lưu nhận diện nhà hàng.");
 }
 
 /** Lưu cấu hình vận hành vào tenants.settings (merge + clamp). Cập nhật tại chỗ. */
-export async function updateSettings(
-  _prev: FormState,
-  formData: FormData
-): Promise<FormState> {
+export async function updateSettings(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireSettingsManager(slug);
 
@@ -130,10 +124,10 @@ export async function updateSettings(
     .from("tenants")
     .update({ settings: next, updated_at: new Date().toISOString() })
     .eq("id", session.tenant.id);
-  if (error) return { error: error.message };
+  if (error) return setFlash("error", error.message);
 
   revalidatePath(settingsPath(slug));
-  return { ok: "Đã lưu cấu hình." };
+  await setFlash("ok", "Đã lưu cấu hình.");
 }
 
 /** Upload logo tenant vào menu-images/{tenant_id}/logo-{rand}; cập nhật logo_url. */

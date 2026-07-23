@@ -12,7 +12,6 @@ export function AdminNav({ base }: { base: string }) {
   const items: NavItem[] = [
     { key: "dashboard", label: "Tổng quan", href: base },
     { key: "staff", label: "Nhân viên", href: `${base}/staff` },
-    { key: "data-scope", label: "Phạm vi dữ liệu", href: `${base}/data-scope` },
     { key: "menu", label: "Thực đơn", href: `${base}/menu` },
     { key: "tables", label: "Bàn & QR", href: `${base}/tables` },
     { key: "reports", label: "Báo cáo", href: `${base}/reports` },

@@ -7,7 +7,7 @@ import { canManageStaff } from "@/lib/auth/rbac";
 import { hashPin, isValidPin } from "@/lib/auth/pin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { derivePinPassword } from "@/lib/auth/staff-credentials";
-import type { FormState } from "@/lib/forms";
+import { setFlash } from "@/lib/flash";
 
 const PIN_ROLES: Role[] = ["cashier", "waiter", "kitchen"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -29,10 +29,7 @@ function staffPath(slug: string) {
  * Tạo nhân viên (QD-009): cấp 1 tài khoản Supabase (email + mật khẩu suy dẫn từ PIN) rồi gắn
  * membership. Cập nhật tại chỗ (useActionState) — phản hồi inline, không đổi link.
  */
-export async function createStaff(
-  _prev: FormState,
-  formData: FormData
-): Promise<FormState> {
+export async function createStaff(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireManager(slug);
 
@@ -41,10 +38,10 @@ export async function createStaff(
   const role = String(formData.get("role") ?? "") as Role;
   const pin = String(formData.get("pin") ?? "");
 
-  if (!displayName) return { error: "Thiếu tên nhân viên." };
-  if (!EMAIL_RE.test(email)) return { error: "Email không hợp lệ." };
-  if (!PIN_ROLES.includes(role)) return { error: "Vai trò phải là thu ngân / phục vụ / bếp." };
-  if (!isValidPin(pin)) return { error: "PIN phải gồm đúng 4 chữ số." };
+  if (!displayName) return setFlash("error", "Thiếu tên nhân viên.");
+  if (!EMAIL_RE.test(email)) return setFlash("error", "Email không hợp lệ.");
+  if (!PIN_ROLES.includes(role)) return setFlash("error", "Vai trò phải là thu ngân / phục vụ / bếp.");
+  if (!isValidPin(pin)) return setFlash("error", "PIN phải gồm đúng 4 chữ số.");
 
   const admin = createAdminClient();
 
@@ -56,9 +53,10 @@ export async function createStaff(
   });
   if (cErr || !created?.user) {
     const dup = /registered|already/i.test(cErr?.message ?? "");
-    return {
-      error: dup ? "Email đã được dùng." : `Không tạo được tài khoản: ${cErr?.message ?? "lỗi"}`,
-    };
+    return setFlash(
+      "error",
+      dup ? "Email đã được dùng." : `Không tạo được tài khoản: ${cErr?.message ?? "lỗi"}`
+    );
   }
 
   const userId = created.user.id;
@@ -75,24 +73,21 @@ export async function createStaff(
   if (mErr) {
     // Rollback tài khoản vừa tạo để tránh mồ côi.
     await admin.auth.admin.deleteUser(userId);
-    return { error: `Không tạo được nhân viên: ${mErr.message}` };
+    return setFlash("error", `Không tạo được nhân viên: ${mErr.message}`);
   }
 
   revalidatePath(staffPath(slug));
-  return { ok: `Đã thêm ${displayName} (${email}).` };
+  await setFlash("ok", `Đã thêm ${displayName} (${email}).`);
 }
 
-/** Đặt lại PIN: cập nhật mật khẩu Supabase (suy dẫn) + pin_hash. Phản hồi inline. */
-export async function resetPin(
-  _prev: FormState,
-  formData: FormData
-): Promise<FormState> {
+/** Đặt lại PIN: cập nhật mật khẩu Supabase (suy dẫn) + pin_hash. */
+export async function resetPin(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireManager(slug);
   const id = String(formData.get("id") ?? "");
   const pin = String(formData.get("pin") ?? "");
 
-  if (!isValidPin(pin)) return { error: "PIN phải 4 chữ số." };
+  if (!isValidPin(pin)) return setFlash("error", "PIN phải 4 chữ số.");
 
   const admin = createAdminClient();
   const { data: m } = await admin
@@ -101,13 +96,13 @@ export async function resetPin(
     .eq("id", id)
     .eq("tenant_id", session.tenant.id)
     .maybeSingle();
-  if (!m) return { error: "Không tìm thấy nhân viên." };
+  if (!m) return setFlash("error", "Không tìm thấy nhân viên.");
 
   if (m.user_id && m.email) {
     const { error } = await admin.auth.admin.updateUserById(m.user_id, {
       password: derivePinPassword(m.email, pin),
     });
-    if (error) return { error: `Không đặt lại được PIN: ${error.message}` };
+    if (error) return setFlash("error", `Không đặt lại được PIN: ${error.message}`);
   }
 
   const pin_hash = await hashPin(pin);
@@ -116,10 +111,10 @@ export async function resetPin(
     .update({ pin_hash })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) return { error: error.message };
+  if (error) return setFlash("error", error.message);
 
   revalidatePath(staffPath(slug));
-  return { ok: "Đã đặt lại PIN." };
+  await setFlash("ok", "Đã đặt lại PIN.");
 }
 
 /**
@@ -153,6 +148,7 @@ export async function setStaffActive(formData: FormData) {
   }
 
   revalidatePath(staffPath(slug));
+  await setFlash("ok", active ? "Đã bật nhân viên." : "Đã tắt nhân viên.");
 }
 
 /** Xóa cứng nhân viên: xóa membership + tài khoản Supabase. Không đụng owner/station. */
@@ -168,8 +164,10 @@ export async function deleteStaff(formData: FormData) {
     .eq("id", id)
     .eq("tenant_id", session.tenant.id)
     .maybeSingle();
-  if (!m) return;
-  if (!PIN_ROLES.includes(m.role as Role)) return;
+  if (!m) return setFlash("error", "Không tìm thấy nhân viên.");
+  if (!PIN_ROLES.includes(m.role as Role)) {
+    return setFlash("error", "Chỉ xóa được nhân viên (thu ngân/phục vụ/bếp).");
+  }
 
   await admin
     .from("memberships")
@@ -180,4 +178,5 @@ export async function deleteStaff(formData: FormData) {
   if (m.user_id) await admin.auth.admin.deleteUser(m.user_id);
 
   revalidatePath(staffPath(slug));
+  await setFlash("ok", "Đã xóa nhân viên.");
 }

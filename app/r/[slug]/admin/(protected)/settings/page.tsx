@@ -7,7 +7,6 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ImageUpload } from "@/components/menu/ImageUpload";
-import { ActionForm } from "@/components/ui/action-form";
 import { updateIdentity, updateSettings } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +44,7 @@ export default async function SettingsPage({
         {/* Nhận diện */}
         <Card>
           <CardTitle>Nhận diện nhà hàng</CardTitle>
-          <ActionForm action={updateIdentity} className="mt-md flex flex-col gap-lg">
+          <form action={updateIdentity} className="mt-md flex flex-col gap-lg">
             <input type="hidden" name="slug" value={slug} />
             <label className="flex max-w-sm flex-col gap-xxs text-sm text-slate">
               Tên hiển thị
@@ -61,13 +60,13 @@ export default async function SettingsPage({
                 Lưu nhận diện
               </SubmitButton>
             </div>
-          </ActionForm>
+          </form>
         </Card>
 
         {/* Cấu hình vận hành */}
         <Card>
           <CardTitle>Cấu hình vận hành</CardTitle>
-          <ActionForm action={updateSettings} className="mt-md flex flex-col gap-md">
+          <form action={updateSettings} className="mt-md flex flex-col gap-md">
             <input type="hidden" name="slug" value={slug} />
             <div className="grid gap-md sm:grid-cols-2">
               <label className="flex flex-col gap-xxs text-sm text-slate">
@@ -130,7 +129,7 @@ export default async function SettingsPage({
                 Lưu cấu hình
               </SubmitButton>
             </div>
-          </ActionForm>
+          </form>
         </Card>
       </div>
     </div>
