@@ -34,6 +34,7 @@ import { MenuPanel } from "./MenuPanel";
 import { PendingOrdersDrawer } from "./PendingOrdersDrawer";
 import { TakeawayPanel } from "./TakeawayPanel";
 import { BillPanel } from "./BillPanel";
+import { PAY_OFFLINE_MSG } from "./PaymentDialog";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
 
@@ -56,6 +57,7 @@ export function PosBoard({
   menu,
   cancelStaff,
   canCancelWithoutPin,
+  canBackdatePayment,
   allowDiscount,
   serviceMode = "table",
 }: {
@@ -65,6 +67,8 @@ export function PosBoard({
   menu: CustomerMenu | null;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
+  /** Chủ/quản lý mới được ghi lùi thời điểm nhận tiền (thu bù đơn tồn). */
+  canBackdatePayment: boolean;
   allowDiscount: boolean;
   serviceMode?: ServiceMode;
 }) {
@@ -389,12 +393,19 @@ export function PosBoard({
     if (!selectedSession) return { ok: false, error: "Chưa chọn bàn." };
     setBillBusy(true);
     setBillError(null);
-    const res = await payBillAction(slug, selectedSession.id, billId, { method, amountReceived });
-    setBillBusy(false);
-    if (!res.ok) return { ok: false, error: res.error };
-    setBills(res.bills);
-    router.refresh();
-    return { ok: true, change: res.change };
+    // Mạng rớt giữa chừng ⇒ server action NÉM. Không có finally thì `setBillBusy(false)` không bao
+    // giờ chạy: nút kẹt quay mãi, không một chữ báo lỗi, nhân viên tưởng đã thu xong.
+    try {
+      const res = await payBillAction(slug, selectedSession.id, billId, { method, amountReceived });
+      if (!res.ok) return { ok: false, error: res.error };
+      setBills(res.bills);
+      router.refresh();
+      return { ok: true, change: res.change };
+    } catch {
+      return { ok: false, error: PAY_OFFLINE_MSG };
+    } finally {
+      setBillBusy(false);
+    }
   };
   const doPrintReceipt = (billId: string) => getPrintAdapter().printReceipt({ slug, billId });
 
@@ -712,6 +723,7 @@ export function PosBoard({
               onClose={exitTakeaway}
               cancelStaff={cancelStaff}
               canCancelWithoutPin={canCancelWithoutPin}
+              canBackdatePayment={canBackdatePayment}
               counter={counter}
               filterOrderId={filterOrderId}
               onClearFilter={() => setFilterOrderId(null)}

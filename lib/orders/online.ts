@@ -201,12 +201,15 @@ export type TakeawayBillInfo = {
 
 /** Con số của CẢ khoảng lọc — không phải của trang đang xem. */
 export type TakeawayHistorySummary = {
-  /** Số NHÓM đơn khớp bộ lọc, đếm chính xác ở DB (không kéo dòng nào về). */
+  /** Số NHÓM đơn khớp bộ lọc, đếm chính xác ở DB (không kéo dòng nào về). Theo ngày TẠO đơn. */
   orderCount: number;
-  /** Σ bill đã thu. */
+  /**
+   * Σ tiền THU trong kỳ — theo `bills.paid_at`, cùng gốc với trang Báo cáo (xem 0027).
+   * KHÁC gốc với `orderCount` (ngày tạo đơn): đơn hôm qua chốt bù sáng nay tính vào hôm nay.
+   */
   paidTotal: number;
-  /** Chạm trần `SUM_ROW_CAP` → `paidTotal` là con số THIẾU, màn hình phải nói rõ. */
-  paidTotalCapped: boolean;
+  /** Số hóa đơn tạo nên `paidTotal` — để nhãn nói rõ đây là tiền thu, không phải tiền của N đơn. */
+  paidBills: number;
 };
 
 export type TakeawayHistoryPage = {
@@ -232,8 +235,6 @@ const VN_OFFSET = 7 * 3600 * 1000;
 const HISTORY_PAGE = 20;
 /** Trần số đơn khớp một lần tìm. Tìm ra hơn ngần này thì từ khóa quá rộng, không phải nhu cầu thật. */
 const SEARCH_MATCH_CAP = 500;
-/** Trần số bill gom vào tổng tiền. Mỗi dòng chỉ có cột `total` nên rất nhẹ. */
-const SUM_ROW_CAP = 5000;
 
 /**
  * Chuỗi tìm kiếm đi THẲNG vào bộ lọc `or=(...)` của PostgREST, nơi `,()"*\` là ký tự CÚ PHÁP —
@@ -279,7 +280,7 @@ export async function listTakeawayHistory(
     orders: [],
     bills: [],
     nextCursor: null,
-    summary: { orderCount: 0, paidTotal: 0, paidTotalCapped: false },
+    summary: { orderCount: 0, paidTotal: 0, paidBills: 0 },
     matchedIds: [],
   };
 
@@ -417,13 +418,17 @@ export async function listTakeawayHistory(
 }
 
 /**
- * Số đơn + tiền đã thu của CẢ khoảng lọc (không phải của trang đang xem).
+ * Số đơn của danh sách + tiền THU của CẢ khoảng lọc (không phải của trang đang xem).
  *
- * Trước đây hai con số này cộng từ tập đã tải nên khi danh sách bị cắt là hiện SỐ TIỀN SAI mà
- * không báo gì. Nay: đếm bằng `count: exact` (không kéo dòng nào về), cộng tiền bằng một truy vấn
- * chỉ lấy cột `total` của bill.
+ * Tiền đi qua RPC `takeaway_paid_total` (0027) vì hai lý do đã đo trên dữ liệu thật:
+ *  - Gốc ngày: cộng theo `bills.paid_at` để KHỚP trang Báo cáo. Bản cũ neo theo ngày TẠO đơn nên
+ *    đơn hôm trước chốt bù sáng hôm sau bị tính nhầm sang ngày cũ (14/08/2026: POS 13.585.000đ
+ *    trong khi Báo cáo 18.350.000đ — lệch đúng 37 hóa đơn chốt bù).
+ *  - Trần dòng: PostgREST chặn cứng 1000 dòng bất kể `.limit(5000)`, mà một tháng của quán đông
+ *    khách đã hơn 1000 hóa đơn ⇒ cộng thiếu âm thầm. SUM chạy trong Postgres thì không có trần.
  *
- * Không dùng hàm tổng hợp của PostgREST vì project Supabase này tắt chúng (PGRST123).
+ * `orderCount` vẫn đếm theo ngày TẠO đơn vì nó mô tả DANH SÁCH bên dưới — nhãn phải nói rõ hai
+ * con số khác gốc, đừng ghép thành "N đơn thu được X".
  */
 async function takeawayHistorySummary(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -443,36 +448,23 @@ async function takeawayHistorySummary(
     .lt("created_at", toUtc);
   if (searchRootIds) countQ = countQ.in("id", searchRootIds);
 
-  // Đang tìm kiếm thì đã có sẵn danh sách gốc khớp (≤ SEARCH_MATCH_CAP) → lọc thẳng theo id.
-  // Không tìm kiếm thì neo bill vào khoảng ngày của ĐƠN GỐC qua join inner, để con số khớp đúng
-  // danh sách bên dưới (lọc theo created_at của đơn, không phải paid_at của bill).
-  const sumQ = searchRootIds
-    ? supabase
-        .from("bills")
-        .select("total")
-        .eq("tenant_id", tenantId)
-        .eq("status", "paid")
-        .in("online_order_id", searchRootIds)
-        .limit(SUM_ROW_CAP)
-    : supabase
-        .from("bills")
-        .select("total, orders!inner(created_at, channel, status, parent_order_id)")
-        .eq("tenant_id", tenantId)
-        .eq("status", "paid")
-        .eq("orders.channel", "takeaway")
-        .is("orders.parent_order_id", null)
-        .in("orders.status", ["completed", "cancelled"])
-        .gte("orders.created_at", fromUtc)
-        .lt("orders.created_at", toUtc)
-        .limit(SUM_ROW_CAP);
+  const sumQ = supabase.rpc("takeaway_paid_total", {
+    p_tenant: tenantId,
+    p_from: fromUtc,
+    p_to: toUtc,
+    p_root_ids: searchRootIds,
+  });
 
-  const [{ count }, { data: totals }] = await Promise.all([countQ, sumQ]);
+  const [{ count }, { data: totals, error: sumError }] = await Promise.all([countQ, sumQ]);
 
-  const rows = (totals ?? []) as { total: number }[];
+  // Lỗi RPC mà nuốt đi thì màn hình hiện "đã thu 0đ" — sai còn tệ hơn báo lỗi (xem lib/billing/reports.ts).
+  if (sumError) throw new Error(`Lịch sử đơn: không cộng được tiền đã thu — ${sumError.message}`);
+
+  const row = (totals as { paid_total: number; paid_bills: number }[] | null)?.[0];
   return {
     orderCount: count ?? 0,
-    paidTotal: rows.reduce((s, r) => s + (r.total ?? 0), 0),
-    paidTotalCapped: rows.length >= SUM_ROW_CAP,
+    paidTotal: Number(row?.paid_total ?? 0),
+    paidBills: Number(row?.paid_bills ?? 0),
   };
 }
 

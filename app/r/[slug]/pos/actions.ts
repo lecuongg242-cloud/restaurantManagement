@@ -60,11 +60,16 @@ const MAX_HISTORY_DAYS = 92;
  */
 async function authorizePos(
   slug: string
-): Promise<{ tenantId: string; staffId: string } | { error: string }> {
+): Promise<{ tenantId: string; staffId: string; canBackdate: boolean } | { error: string }> {
   const session = await getSessionMembership(slug);
   if (!session) return { error: "Phiên hết hạn, đăng nhập lại." };
   if (!canAccess(session.role, "pos")) return { error: "Không đủ quyền." };
-  return { tenantId: session.tenant.id, staffId: session.membershipId };
+  return {
+    tenantId: session.tenant.id,
+    staffId: session.membershipId,
+    // Ghi lùi thời điểm nhận tiền = sửa được doanh thu ⇒ chỉ người chịu trách nhiệm sổ sách.
+    canBackdate: session.role === "owner" || session.role === "manager",
+  };
 }
 
 /** Đánh dấu đã xử lý 1 lời "Gọi nhân viên" (CALL-01). */
@@ -342,11 +347,11 @@ export async function payBillAction(
   slug: string,
   sessionId: string,
   billId: string,
-  input: { method: PaymentMethod; amountReceived: number; note?: string }
+  input: { method: PaymentMethod; amountReceived: number; note?: string; receivedAt?: string }
 ): Promise<PayActionResult> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
-  const res = await payBill(auth.tenantId, billId, input, auth.staffId);
+  const res = await payBill(auth.tenantId, billId, input, auth.staffId, { canBackdate: auth.canBackdate });
   if ("error" in res) return { ok: false, error: res.error };
   const bills = await getSessionBills(auth.tenantId, sessionId);
   revalidatePath(`/r/${slug}/pos`);
@@ -487,11 +492,11 @@ export async function openOnlineBillAction(
 export async function payOnlineBillAction(
   slug: string,
   billId: string,
-  input: { method: PaymentMethod; amountReceived: number }
+  input: { method: PaymentMethod; amountReceived: number; receivedAt?: string }
 ): Promise<{ ok: true; change: number } | { ok: false; error: string }> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
-  const res = await payBill(auth.tenantId, billId, input, auth.staffId);
+  const res = await payBill(auth.tenantId, billId, input, auth.staffId, { canBackdate: auth.canBackdate });
   if ("error" in res) return { ok: false, error: res.error };
   revalidatePath(`/r/${slug}/pos/online`);
   return { ok: true, change: res.change };

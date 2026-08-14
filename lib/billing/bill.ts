@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { parseSettings } from "@/lib/tenant/settings";
 import { computeBillTotals } from "./compute";
+import { resolveReceivedAt } from "./received-at";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
@@ -350,8 +351,15 @@ async function closeSessionIfSettled(client: SupabaseClient, tenantId: string, s
 export async function payBill(
   tenantId: string,
   billId: string,
-  input: { method: "cash" | "transfer"; amountReceived: number; note?: string | null },
-  actorMembershipId: string | null
+  input: {
+    method: "cash" | "transfer";
+    amountReceived: number;
+    note?: string | null;
+    /** Mốc tiền THỰC SỰ về, khi khác thời điểm bấm nút (thu bù). Bỏ trống = bây giờ. */
+    receivedAt?: string | null;
+  },
+  actorMembershipId: string | null,
+  opts: { canBackdate?: boolean } = {}
 ): Promise<{ ok: true; change: number } | { error: string }> {
   const client = await createClient();
   const { data: bill } = await client
@@ -367,11 +375,18 @@ export async function payBill(
   if (total <= 0) return { error: "Hóa đơn chưa có tiền để thu." };
 
   const now = new Date().toISOString();
+  // `paidAt` = lúc TIỀN VỀ (nguồn sự thật của báo cáo); `now` = lúc BẤM NÚT, giữ ở `updated_at`
+  // để vẫn truy được ai thu bù lúc nào.
+  const received = resolveReceivedAt(input.receivedAt, opts.canBackdate === true);
+  if ("error" in received) return { error: received.error };
+  const paidAt = received.at;
+
   const { error: pErr } = await client.from("payments").insert({
     tenant_id: tenantId,
     bill_id: billId,
     method: input.method,
     amount: total,
+    received_at: paidAt,
     received_by: actorMembershipId,
     note: input.note?.trim() ? input.note.trim().slice(0, 200) : null,
   });
@@ -379,7 +394,7 @@ export async function payBill(
 
   await client
     .from("bills")
-    .update({ status: "paid", paid_at: now, closed_by: actorMembershipId, updated_at: now })
+    .update({ status: "paid", paid_at: paidAt, closed_by: actorMembershipId, updated_at: now })
     .eq("id", billId)
     .eq("tenant_id", tenantId);
 
@@ -392,7 +407,7 @@ export async function payBill(
       .eq("tenant_id", tenantId)
       .eq("split_parent_id", parentId);
     if ((sib ?? []).every((s) => s.status === "paid"))
-      await client.from("bills").update({ status: "paid", paid_at: now, updated_at: now }).eq("id", parentId).eq("tenant_id", tenantId);
+      await client.from("bills").update({ status: "paid", paid_at: paidAt, updated_at: now }).eq("id", parentId).eq("tenant_id", tenantId);
   }
 
   // Đánh dấu món ĐÃ THU ĐỦ = 'served' (rời KDS — "vé tự xóa khi thanh toán") + gom phiên để đóng.
