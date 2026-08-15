@@ -98,6 +98,10 @@ export type OnlineOrderItem = {
   status: OrderItemStatus;
   unitPrice: number;
   modifiers: string[];
+  /** Chỉ có nghĩa khi status = 'cancelled'. */
+  cancelReason: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
 };
 
 export type OnlineOrderView = {
@@ -112,10 +116,12 @@ export type OnlineOrderView = {
   total: number;
   /** Đơn gốc nếu đây là lượt "gọi thêm" (QD-011); null = đơn gốc. */
   parentOrderId: string | null;
+  cancelReason: string | null;
+  cancelledAt: string | null;
 };
 
 const ONLINE_ORDER_SELECT =
-  "id, channel, status, kitchen_no, note, customer_contact, created_at, parent_order_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))";
+  "id, channel, status, kitchen_no, note, customer_contact, created_at, parent_order_id, cancel_reason, cancelled_at, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, created_at, cancel_reason, cancelled_by, cancelled_at, order_item_modifiers(name_snapshot))";
 
 /**
  * Map 1 row order (kèm items) → OnlineOrderView.
@@ -139,6 +145,9 @@ function toOnlineOrderView(
       status: it.status as OrderItemStatus,
       unitPrice: it.unit_price_snapshot as number,
       modifiers: ((it.order_item_modifiers as { name_snapshot: string }[]) ?? []).map((m) => m.name_snapshot),
+      cancelReason: (it.cancel_reason as string) ?? null,
+      cancelledBy: (it.cancelled_by as string) ?? null,
+      cancelledAt: (it.cancelled_at as string) ?? null,
     }));
   const total = items
     .filter((it) => it.status !== "cancelled")
@@ -155,6 +164,8 @@ function toOnlineOrderView(
     items,
     total,
     parentOrderId: (o.parent_order_id as string | null) ?? null,
+    cancelReason: (o.cancel_reason as string) ?? null,
+    cancelledAt: (o.cancelled_at as string) ?? null,
   };
 }
 
@@ -209,6 +220,9 @@ export type TakeawayHistorySummary = {
   paidTotalCapped: boolean;
 };
 
+/** Người từng duyệt hủy — tra tên ở tầng app vì `cancelled_by` KHÔNG có FK sang memberships. */
+export type CancelActorRow = { id: string; name: string; role: string };
+
 export type TakeawayHistoryPage = {
   /** Đơn gốc + đơn con của TRANG này (chưa gom nhóm — gom ở client). */
   orders: OnlineOrderView[];
@@ -225,6 +239,12 @@ export type TakeawayHistoryPage = {
    * "khớp lượt #90".
    */
   matchedIds: string[];
+  /**
+   * Nhân sự của tenant để tra `cancelled_by → tên`. Không thêm FK sang `memberships` vì dữ liệu
+   * cũ có thể trỏ tới membership đã xóa — migration thêm FK sẽ fail giữa chừng. Tra không ra thì
+   * component tự bỏ phần tên.
+   */
+  actors: CancelActorRow[];
 };
 
 const VN_OFFSET = 7 * 3600 * 1000;
@@ -281,6 +301,7 @@ export async function listTakeawayHistory(
     nextCursor: null,
     summary: { orderCount: 0, paidTotal: 0, paidTotalCapped: false },
     matchedIds: [],
+    actors: [],
   };
 
   // ---- 1. Tìm kiếm chạy Ở SERVER, trên CẢ khoảng ngày ----------------------
@@ -359,7 +380,7 @@ export async function listTakeawayHistory(
     : await takeawayHistorySummary(supabase, tenantId, fromUtc, toUtc, searchRootIds);
 
   if (rootIds.length === 0)
-    return { orders: [], bills: [], nextCursor: null, summary, matchedIds: [] };
+    return { orders: [], bills: [], nextCursor: null, summary, matchedIds: [], actors: [] };
 
   // ---- 3. Cây đơn đầy đủ của đúng các gốc trong trang ------------------------
   const idList = rootIds.join(",");
@@ -407,12 +428,23 @@ export async function listTakeawayHistory(
     methods: methodsByBill.get(b.id as string) ?? [],
   }));
 
+  const { data: actorRows } = await supabase
+    .from("memberships")
+    .select("id, display_name, role")
+    .eq("tenant_id", tenantId);
+  const actors: CancelActorRow[] = (actorRows ?? []).map((m) => ({
+    id: m.id as string,
+    name: (m.display_name as string) ?? "—",
+    role: (m.role as string) ?? "",
+  }));
+
   return {
     orders,
     bills,
     nextCursor,
     summary,
     matchedIds: matchedAll ? orders.filter((o) => matchedAll.has(o.id)).map((o) => o.id) : [],
+    actors,
   };
 }
 

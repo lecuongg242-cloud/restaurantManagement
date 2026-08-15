@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarRange, ChevronDown, Loader2, Printer } from "lucide-react";
 import type {
+  CancelActorRow,
   OnlineOrderView,
   TakeawayBillInfo,
   TakeawayHistorySummary,
 } from "@/lib/orders/online";
 import { groupTakeawayOrders } from "@/lib/orders/takeaway-group";
 import { formatVnd } from "@/lib/orders/cart";
+import { formatCancelNote, type CancelActor } from "@/lib/orders/cancel-label";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import { listTakeawayHistoryAction } from "@/app/r/[slug]/pos/actions";
 import { cn } from "@/lib/utils";
@@ -53,11 +55,27 @@ const PRESETS: Preset[] = [
 ];
 
 /** Danh sách món của một đơn trong lịch sử — món đã hủy gạch ngang, không biến mất. */
-function HistoryLines({ order }: { order: OnlineOrderView }) {
+function HistoryLines({
+  order,
+  actorById,
+}: {
+  order: OnlineOrderView;
+  actorById: Map<string, CancelActor>;
+}) {
   return (
     <ul className="mt-sm flex flex-col divide-y divide-hairline-soft">
       {order.items.map((it) => {
         const cancelled = it.status === "cancelled";
+        // Hủy CẢ ĐƠN thì mọi món mang cùng một lý do — đã hiện một lần ở đầu thẻ, khỏi lặp
+        // lại ở từng dòng.
+        const note =
+          cancelled && !order.cancelReason
+            ? formatCancelNote({
+                reason: it.cancelReason,
+                at: it.cancelledAt,
+                actor: (it.cancelledBy && actorById.get(it.cancelledBy)) || null,
+              })
+            : null;
         return (
           <li key={it.id} className="flex items-start justify-between gap-md py-xs">
             <div className="min-w-0">
@@ -68,6 +86,7 @@ function HistoryLines({ order }: { order: OnlineOrderView }) {
                 <p className="text-xs text-steel">{it.modifiers.join(" · ")}</p>
               )}
               {it.note && <p className="text-xs italic text-stone">“{it.note}”</p>}
+              {note && <p className="text-xs text-status-late">{note}</p>}
             </div>
             <span
               className={
@@ -122,6 +141,7 @@ export function TakeawayHistory({
   const [summary, setSummary] = useState<TakeawayHistorySummary | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [matched, setMatched] = useState<Set<string>>(new Set());
+  const [actors, setActors] = useState<CancelActorRow[]>([]);
 
   // Ô tìm nằm ở thanh POS (component cha) nên chữ tới đây theo từng phím → tự hoãn ở đây.
   const [debouncedQuery, setDebouncedQuery] = useState(query);
@@ -147,6 +167,7 @@ export function TakeawayHistory({
       setCursor(null);
       setSummary(null);
       setMatched(new Set());
+      setActors([]);
       return;
     }
     setOrders(res.history.orders);
@@ -154,6 +175,7 @@ export function TakeawayHistory({
     setCursor(res.history.nextCursor);
     setSummary(res.history.summary);
     setMatched(new Set(res.history.matchedIds));
+    setActors(res.history.actors);
     setExpanded(new Set());
   }, [slug, from, to, debouncedQuery]);
 
@@ -206,6 +228,10 @@ export function TakeawayHistory({
 
   const billByOrderId = useMemo(() => new Map(bills.map((b) => [b.orderId, b])), [bills]);
   const groups = useMemo(() => groupTakeawayOrders(orders, { newestFirst: true }), [orders]);
+  const actorById = useMemo(
+    () => new Map(actors.map((a) => [a.id, { name: a.name, role: a.role }])),
+    [actors]
+  );
 
   const emptyLabel = counter
     ? "Không có đơn nào đã xong trong khoảng này."
@@ -357,6 +383,16 @@ export function TakeawayHistory({
                   )}
                 </div>
 
+                {cancelled && g.root.cancelReason && (
+                  <p className="mt-xxs text-xs text-status-late">
+                    {formatCancelNote({
+                      reason: g.root.cancelReason,
+                      at: g.root.cancelledAt,
+                      actor: null,
+                    })}
+                  </p>
+                )}
+
                 {(g.root.contact?.name || g.root.contact?.phone) && (
                   <p className="mt-xxs flex flex-wrap items-baseline gap-x-xs text-xs">
                     {g.root.contact?.name && (
@@ -381,7 +417,7 @@ export function TakeawayHistory({
                         <span className="ml-xs font-normal">{vnStamp(g.root.createdAt)}</span>
                       </p>
                     )}
-                    <HistoryLines order={g.root} />
+                    <HistoryLines order={g.root} actorById={actorById} />
                     {g.children.map((c) => (
                       <div
                         key={c.id}
@@ -393,7 +429,7 @@ export function TakeawayHistory({
                             {vnStamp(c.createdAt)}
                           </span>
                         </p>
-                        <HistoryLines order={c} />
+                        <HistoryLines order={c} actorById={actorById} />
                       </div>
                     ))}
                   </>
