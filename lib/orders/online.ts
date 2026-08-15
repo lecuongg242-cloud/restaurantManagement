@@ -528,12 +528,14 @@ export async function rejectOnlineOrder(
 ): Promise<MutateResult> {
   if (!reason?.trim()) return { error: "Vui lòng nhập lý do từ chối." };
   const supabase = await createClient();
+  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("orders")
     .update({
       status: "cancelled",
       cancel_reason: reason.trim().slice(0, 300),
-      updated_at: new Date().toISOString(),
+      cancelled_at: now,
+      updated_at: now,
     })
     .eq("tenant_id", tenantId)
     .eq("id", orderId)

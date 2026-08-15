@@ -138,7 +138,7 @@ export async function rejectOrder(
   const now = new Date().toISOString();
   const { error } = await supabase
     .from("orders")
-    .update({ status: "cancelled", cancel_reason: trimmed.slice(0, 300), updated_at: now })
+    .update({ status: "cancelled", cancel_reason: trimmed.slice(0, 300), cancelled_at: now, updated_at: now })
     .eq("id", orderId)
     .eq("tenant_id", auth.tenantId)
     .eq("status", "pending_confirm");
@@ -146,7 +146,7 @@ export async function rejectOrder(
 
   await supabase
     .from("order_items")
-    .update({ status: "cancelled", cancel_reason: trimmed.slice(0, 300) })
+    .update({ status: "cancelled", cancel_reason: trimmed.slice(0, 300), cancelled_at: now })
     .eq("order_id", orderId)
     .eq("tenant_id", auth.tenantId)
     .neq("status", "cancelled");
@@ -652,9 +652,16 @@ export async function cancelOrderItem(
   if (item.status === "served" || item.status === "cancelled")
     return { ok: false, error: "Món đã phục vụ hoặc đã hủy, không thể hủy." };
 
+  const now = new Date().toISOString();
+
   const { error } = await supabase
     .from("order_items")
-    .update({ status: "cancelled", cancel_reason: reason.slice(0, 300), cancelled_by: cancelledBy })
+    .update({
+      status: "cancelled",
+      cancel_reason: reason.slice(0, 300),
+      cancelled_by: cancelledBy,
+      cancelled_at: now,
+    })
     .eq("id", input.itemId)
     .eq("tenant_id", tenantId);
   if (error) return { ok: false, error: "Hủy món thất bại. Vui lòng thử lại." };
@@ -666,7 +673,6 @@ export async function cancelOrderItem(
     .eq("order_id", item.order_id)
     .eq("tenant_id", tenantId);
   const rows = siblings ?? [];
-  const now = new Date().toISOString();
   if (rows.length > 0 && rows.every((s) => s.status === "cancelled")) {
     const { data: ord } = await supabase
       .from("orders")
@@ -676,7 +682,12 @@ export async function cancelOrderItem(
     if (ord && canTransition(ord.status, "cancelled")) {
       await supabase
         .from("orders")
-        .update({ status: "cancelled", cancel_reason: "Tất cả món bị hủy", updated_at: now })
+        .update({
+          status: "cancelled",
+          cancel_reason: "Tất cả món bị hủy",
+          cancelled_at: now,
+          updated_at: now,
+        })
         .eq("id", item.order_id)
         .eq("tenant_id", tenantId);
     }
@@ -776,7 +787,12 @@ export async function cancelOrder(
 
   const { error: itErr } = await supabase
     .from("order_items")
-    .update({ status: "cancelled", cancel_reason: reasonSlice, cancelled_by: cancelledBy })
+    .update({
+      status: "cancelled",
+      cancel_reason: reasonSlice,
+      cancelled_by: cancelledBy,
+      cancelled_at: now,
+    })
     .in("order_id", targetIds)
     .eq("tenant_id", tenantId)
     .neq("status", "cancelled");
@@ -793,7 +809,7 @@ export async function cancelOrder(
   if (cancellable.length > 0) {
     await supabase
       .from("orders")
-      .update({ status: "cancelled", cancel_reason: reasonSlice, updated_at: now })
+      .update({ status: "cancelled", cancel_reason: reasonSlice, cancelled_at: now, updated_at: now })
       .in("id", cancellable)
       .eq("tenant_id", tenantId);
   }
