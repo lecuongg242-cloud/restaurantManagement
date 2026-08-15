@@ -242,6 +242,19 @@ export function TakeawayHistory({
     [actors]
   );
 
+  // Mẫu số của "Tải thêm" PHẢI bám chip — khác dòng tổng kết ở trên (luôn cả khoảng ngày, không
+  // theo chip). Dòng tổng kết trả lời "khoảng ngày này có gì"; dòng này trả lời "danh sách ĐANG
+  // XEM (đã lọc theo chip) còn bao nhiêu chưa tải" — tử số `groups.length` đã lọc theo chip ở
+  // server nên mẫu số lệch chip sẽ cho tỉ lệ sai (vd: chọn "Đã hủy" mà mẫu vẫn cộng cả đơn đã thu).
+  const shownTotal =
+    status === "cancelled"
+      ? summary?.cancelledCount
+      : status === "paid"
+        ? summary?.paidCount
+        : summary
+          ? summary.paidCount + summary.cancelledCount
+          : undefined;
+
   const emptyLabel =
     status === "cancelled"
       ? "Không có đơn nào bị hủy trong khoảng này."
@@ -527,9 +540,7 @@ export function TakeawayHistory({
                 </>
               ) : (
                 `Tải thêm${
-                  summary
-                    ? ` (đang hiện ${groups.length}/${summary.paidCount + summary.cancelledCount})`
-                    : ""
+                  shownTotal !== undefined ? ` (đang hiện ${groups.length}/${shownTotal})` : ""
                 }`
               )}
             </button>
