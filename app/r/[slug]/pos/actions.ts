@@ -37,6 +37,7 @@ import {
   applyBillAdjustment,
   setBillCharges,
   payBill,
+  dropCancelledItemsFromOpenBills,
 } from "@/lib/billing/bill";
 import type { BillView, DiscountType, PaymentMethod } from "@/lib/billing/types";
 import type { SplitPick } from "@/lib/billing/split";
@@ -709,6 +710,9 @@ export async function cancelOrderItem(
     }
   }
 
+  // Món đã ra khỏi hóa đơn thì tiền phải giảm theo (BILL-06).
+  await dropCancelledItemsFromOpenBills(tenantId, [input.itemId]);
+
   await broadcastOrderStatus(item.order_id);
   revalidatePath(`/r/${slug}/pos`);
   return { ok: true, orderId: item.order_id };
@@ -785,7 +789,7 @@ export async function cancelOrder(
   const reasonSlice = reason.slice(0, 300);
   const now = new Date().toISOString();
 
-  const { error: itErr } = await supabase
+  const { data: cancelledItems, error: itErr } = await supabase
     .from("order_items")
     .update({
       status: "cancelled",
@@ -795,7 +799,8 @@ export async function cancelOrder(
     })
     .in("order_id", targetIds)
     .eq("tenant_id", tenantId)
-    .neq("status", "cancelled");
+    .neq("status", "cancelled")
+    .select("id");
   if (itErr) return { ok: false, error: "Hủy đơn thất bại. Vui lòng thử lại." };
 
   const { data: targets } = await supabase
@@ -813,6 +818,11 @@ export async function cancelOrder(
       .in("id", cancellable)
       .eq("tenant_id", tenantId);
   }
+
+  await dropCancelledItemsFromOpenBills(
+    tenantId,
+    (cancelledItems ?? []).map((r) => r.id as string)
+  );
 
   for (const oid of targetIds) await broadcastOrderStatus(oid);
   revalidatePath(`/r/${slug}/pos`);

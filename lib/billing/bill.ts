@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseSettings } from "@/lib/tenant/settings";
 import { computeBillTotals } from "./compute";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
+import { planCancelledBillCleanup } from "./cancel-cleanup";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
 import type { BillView, BillLineView, DiscountType } from "./types";
@@ -963,4 +964,57 @@ export async function mergeSessionsIntoBill(
 
   await recomputeBill(client, tenantId, newBillId);
   return { billId: newBillId };
+}
+
+/**
+ * Gỡ các `order_item` vừa bị hủy khỏi mọi hóa đơn ĐANG MỞ rồi tính lại tổng (BILL-06).
+ *
+ * Không có bước này thì bàn đã bấm "Tính tiền" xong mới hủy món sẽ vẫn bị tính tiền món đã hủy:
+ * `openBillForSession` chỉ THÊM món chưa phân bổ, không XÓA món đã hủy. Luồng đơn nhóm mang về
+ * đã có `syncGroupBillItems` lo việc này — dine-in thì chưa.
+ *
+ * Nuốt lỗi có chủ đích: món đã hủy là sự thật vận hành rồi, không được để lỗi dọn hóa đơn làm
+ * hỏng cả thao tác hủy. Hóa đơn lệch còn sửa được ở lần mở bill sau.
+ */
+export async function dropCancelledItemsFromOpenBills(
+  tenantId: string,
+  orderItemIds: string[]
+): Promise<void> {
+  if (orderItemIds.length === 0) return;
+  const client = await createClient();
+
+  const { data: lines } = await client
+    .from("bill_items")
+    .select("id, bill_id, order_item_id, bills!inner(status)")
+    .eq("tenant_id", tenantId)
+    .eq("bills.status", "open")
+    .in("order_item_id", orderItemIds);
+
+  const cancelledLines = (lines ?? []).map((r) => ({
+    billItemId: r.id as string,
+    billId: r.bill_id as string,
+    orderItemId: r.order_item_id as string,
+  }));
+  if (cancelledLines.length === 0) return;
+
+  const touchedBillIds = [...new Set(cancelledLines.map((l) => l.billId))];
+
+  const [{ data: allLines }, { data: pays }] = await Promise.all([
+    client.from("bill_items").select("id, bill_id").eq("tenant_id", tenantId).in("bill_id", touchedBillIds),
+    client.from("payments").select("bill_id").eq("tenant_id", tenantId).in("bill_id", touchedBillIds),
+  ]);
+
+  const plan = planCancelledBillCleanup({
+    cancelledLines,
+    billLines: (allLines ?? []).map((r) => ({ billItemId: r.id as string, billId: r.bill_id as string })),
+    billsWithPayments: [...new Set((pays ?? []).map((r) => r.bill_id as string))],
+  });
+
+  if (plan.deleteBillItemIds.length > 0) {
+    await client.from("bill_items").delete().in("id", plan.deleteBillItemIds).eq("tenant_id", tenantId);
+  }
+  for (const billId of plan.recomputeBillIds) await recomputeBill(client, tenantId, billId);
+  if (plan.deleteBillIds.length > 0) {
+    await client.from("bills").delete().in("id", plan.deleteBillIds).eq("tenant_id", tenantId);
+  }
 }
