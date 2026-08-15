@@ -16,6 +16,7 @@ import {
   type CreateOrderResult,
 } from "./create-order";
 import { broadcastOrderStatus } from "./broadcast";
+import { historyStatuses, type HistoryStatusFilter } from "./history-filter";
 import type { BillStatus, PaymentMethod } from "@/lib/billing/types";
 import type { OrderItemStatus, OrderStatus } from "./types";
 import type { OrderLineInput } from "./types";
@@ -212,8 +213,10 @@ export type TakeawayBillInfo = {
 
 /** Con số của CẢ khoảng lọc — không phải của trang đang xem. */
 export type TakeawayHistorySummary = {
-  /** Số NHÓM đơn khớp bộ lọc, đếm chính xác ở DB (không kéo dòng nào về). */
-  orderCount: number;
+  /** Số nhóm đơn ĐÃ THU (completed), đếm chính xác ở DB. */
+  paidCount: number;
+  /** Số nhóm đơn ĐÃ HỦY — tách riêng vì không cùng mẫu số với `paidTotal`. */
+  cancelledCount: number;
   /** Σ bill đã thu. */
   paidTotal: number;
   /** Chạm trần `SUM_ROW_CAP` → `paidTotal` là con số THIẾU, màn hình phải nói rõ. */
@@ -290,16 +293,17 @@ export async function listTakeawayHistory(
   tenantId: string,
   fromDay: string,
   toDay: string,
-  opts: { cursor?: string | null; query?: string } = {}
+  opts: { cursor?: string | null; query?: string; status?: HistoryStatusFilter } = {}
 ): Promise<TakeawayHistoryPage> {
   const supabase = await createClient();
   const { fromUtc, toUtc } = vnDayRangeToUtc(fromDay, toDay);
   const q = sanitizeSearch(opts.query ?? "");
+  const statuses = historyStatuses(opts.status ?? "all");
   const empty: TakeawayHistoryPage = {
     orders: [],
     bills: [],
     nextCursor: null,
-    summary: { orderCount: 0, paidTotal: 0, paidTotalCapped: false },
+    summary: { paidCount: 0, cancelledCount: 0, paidTotal: 0, paidTotalCapped: false },
     matchedIds: [],
     actors: [],
   };
@@ -323,7 +327,7 @@ export async function listTakeawayHistory(
       .select("id, parent_order_id")
       .eq("tenant_id", tenantId)
       .eq("channel", "takeaway")
-      .in("status", ["completed", "cancelled"])
+      .in("status", statuses)
       .gte("created_at", fromUtc)
       .lt("created_at", toUtc)
       .or(ors.join(","))
@@ -346,7 +350,7 @@ export async function listTakeawayHistory(
     .select("id, created_at")
     .eq("tenant_id", tenantId)
     .eq("channel", "takeaway")
-    .in("status", ["completed", "cancelled"])
+    .in("status", statuses)
     .is("parent_order_id", null)
     .gte("created_at", fromUtc)
     .lt("created_at", toUtc)
@@ -464,16 +468,19 @@ async function takeawayHistorySummary(
   toUtc: string,
   searchRootIds: string[] | null
 ): Promise<TakeawayHistorySummary> {
-  let countQ = supabase
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("channel", "takeaway")
-    .in("status", ["completed", "cancelled"])
-    .is("parent_order_id", null)
-    .gte("created_at", fromUtc)
-    .lt("created_at", toUtc);
-  if (searchRootIds) countQ = countQ.in("id", searchRootIds);
+  const countFor = (status: "completed" | "cancelled") => {
+    let q = supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("channel", "takeaway")
+      .eq("status", status)
+      .is("parent_order_id", null)
+      .gte("created_at", fromUtc)
+      .lt("created_at", toUtc);
+    if (searchRootIds) q = q.in("id", searchRootIds);
+    return q;
+  };
 
   // Đang tìm kiếm thì đã có sẵn danh sách gốc khớp (≤ SEARCH_MATCH_CAP) → lọc thẳng theo id.
   // Không tìm kiếm thì neo bill vào khoảng ngày của ĐƠN GỐC qua join inner, để con số khớp đúng
@@ -498,11 +505,16 @@ async function takeawayHistorySummary(
         .lt("orders.created_at", toUtc)
         .limit(SUM_ROW_CAP);
 
-  const [{ count }, { data: totals }] = await Promise.all([countQ, sumQ]);
+  const [{ count: paid }, { count: cancelled }, { data: totals }] = await Promise.all([
+    countFor("completed"),
+    countFor("cancelled"),
+    sumQ,
+  ]);
 
   const rows = (totals ?? []) as { total: number }[];
   return {
-    orderCount: count ?? 0,
+    paidCount: paid ?? 0,
+    cancelledCount: cancelled ?? 0,
     paidTotal: rows.reduce((s, r) => s + (r.total ?? 0), 0),
     paidTotalCapped: rows.length >= SUM_ROW_CAP,
   };

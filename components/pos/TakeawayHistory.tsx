@@ -11,6 +11,7 @@ import type {
 import { groupTakeawayOrders } from "@/lib/orders/takeaway-group";
 import { formatVnd } from "@/lib/orders/cart";
 import { formatCancelNote, type CancelActor } from "@/lib/orders/cancel-label";
+import type { HistoryStatusFilter } from "@/lib/orders/history-filter";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import { listTakeawayHistoryAction } from "@/app/r/[slug]/pos/actions";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,12 @@ const PRESETS: Preset[] = [
   { key: "yesterday", label: "Hôm qua", from: () => vnDay(-1), to: () => vnDay(-1) },
   { key: "7d", label: "7 ngày", from: () => vnDay(-6), to: () => vnDay(0) },
   { key: "30d", label: "30 ngày", from: () => vnDay(-29), to: () => vnDay(0) },
+];
+
+const STATUS_CHIPS: { key: HistoryStatusFilter; label: string }[] = [
+  { key: "all", label: "Tất cả" },
+  { key: "paid", label: "Đã thu" },
+  { key: "cancelled", label: "Đã hủy" },
 ];
 
 /** Danh sách món của một đơn trong lịch sử — món đã hủy gạch ngang, không biến mất. */
@@ -132,6 +139,7 @@ export function TakeawayHistory({
   const [preset, setPreset] = useState<string>("today");
   const [from, setFrom] = useState(() => vnDay(0));
   const [to, setTo] = useState(() => vnDay(0));
+  const [status, setStatus] = useState<HistoryStatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -157,7 +165,7 @@ export function TakeawayHistory({
     const run = ++runId.current;
     setLoading(true);
     setError(null);
-    const res = await listTakeawayHistoryAction(slug, from, to, { query: debouncedQuery });
+    const res = await listTakeawayHistoryAction(slug, from, to, { query: debouncedQuery, status });
     if (run !== runId.current) return;
     setLoading(false);
     if (!res.ok) {
@@ -177,7 +185,7 @@ export function TakeawayHistory({
     setMatched(new Set(res.history.matchedIds));
     setActors(res.history.actors);
     setExpanded(new Set());
-  }, [slug, from, to, debouncedQuery]);
+  }, [slug, from, to, debouncedQuery, status]);
 
   useEffect(() => {
     void loadFirst();
@@ -190,6 +198,7 @@ export function TakeawayHistory({
     const res = await listTakeawayHistoryAction(slug, from, to, {
       cursor,
       query: debouncedQuery,
+      status,
     });
     if (run !== runId.current) return; // bộ lọc đã đổi giữa chừng → bỏ trang này
     setLoadingMore(false);
@@ -233,9 +242,14 @@ export function TakeawayHistory({
     [actors]
   );
 
-  const emptyLabel = counter
-    ? "Không có đơn nào đã xong trong khoảng này."
-    : "Không có đơn mang về nào đã xong trong khoảng này.";
+  const emptyLabel =
+    status === "cancelled"
+      ? "Không có đơn nào bị hủy trong khoảng này."
+      : status === "paid"
+        ? "Không có đơn nào đã thu trong khoảng này."
+        : counter
+          ? "Không có đơn nào đã xong trong khoảng này."
+          : "Không có đơn mang về nào đã xong trong khoảng này.";
 
   return (
     <div className="flex flex-col">
@@ -264,6 +278,20 @@ export function TakeawayHistory({
             <CalendarRange className="mr-xxs h-3.5 w-3.5" aria-hidden />
             Tùy chọn
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-xs" role="group" aria-label="Lọc theo trạng thái">
+          {STATUS_CHIPS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setStatus(s.key)}
+              aria-pressed={status === s.key}
+              className={chip(status === s.key)}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
 
         {preset === "custom" && (
@@ -296,12 +324,15 @@ export function TakeawayHistory({
           <span className="text-xs text-steel">{rangeLabel(from, to)}</span>
           {!loading && !error && summary && (
             <span className="text-sm text-steel">
-              <span className="font-medium text-ink">{summary.orderCount} đơn</span>
-              {" · đã thu "}
+              <span className="font-medium text-ink">{summary.paidCount} đơn đã thu</span>
+              {" · "}
               <span className="font-semibold tabular-nums text-ink">
                 {summary.paidTotalCapped ? "≥ " : ""}
                 {formatVnd(summary.paidTotal)}
               </span>
+              {summary.cancelledCount > 0 && (
+                <span className="text-status-late"> · {summary.cancelledCount} đơn hủy</span>
+              )}
             </span>
           )}
         </div>
@@ -496,7 +527,9 @@ export function TakeawayHistory({
                 </>
               ) : (
                 `Tải thêm${
-                  summary ? ` (đang hiện ${groups.length}/${summary.orderCount})` : ""
+                  summary
+                    ? ` (đang hiện ${groups.length}/${summary.paidCount + summary.cancelledCount})`
+                    : ""
                 }`
               )}
             </button>

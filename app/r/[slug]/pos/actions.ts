@@ -23,6 +23,7 @@ import {
   type TakeawayHistoryPage,
 } from "@/lib/orders/online";
 import { resolveGroupRoot, groupOrderIds, groupIsPaid } from "@/lib/orders/order-group";
+import { isHistoryStatusFilter, type HistoryStatusFilter } from "@/lib/orders/history-filter";
 import { verifyPinForRoles } from "@/lib/auth/pin-gate";
 import { resolveStaffCall } from "@/lib/orders/staff-calls";
 import {
@@ -541,7 +542,7 @@ export async function listTakeawayHistoryAction(
   slug: string,
   fromDay: string,
   toDay: string,
-  opts: { cursor?: string | null; query?: string } = {}
+  opts: { cursor?: string | null; query?: string; status?: HistoryStatusFilter } = {}
 ): Promise<{ ok: true; history: TakeawayHistoryPage } | { ok: false; error: string }> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -557,6 +558,8 @@ export async function listTakeawayHistoryAction(
   const history = await listTakeawayHistory(auth.tenantId, fromDay, toDay, {
     cursor: opts.cursor ?? null,
     query: opts.query ?? "",
+    // Không tin giá trị từ client — rơi về "all" nếu lạ.
+    status: isHistoryStatusFilter(opts.status) ? opts.status : "all",
   });
   return { ok: true, history };
 }
