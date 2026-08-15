@@ -4,6 +4,10 @@
  *
  * Phần nào thiếu thì BỎ HẲN thay vì in "—": dòng này nằm ngay dưới tên món, mỗi ký tự thừa là
  * một lần nhân viên phải đọc lướt qua thứ không mang tin.
+ *
+ * `memberships.display_name` là cột NULLABLE — tra ra membership nhưng không có tên thì RƠI VỀ
+ * VAI TRÒ thay vì bỏ hẳn: "Quản lý" vẫn giữ được thông tin quan trọng nhất cho việc giám sát (CÓ
+ * người ở cấp đó duyệt), chỉ khi cả tên lẫn vai trò đều không có mới bỏ hẳn phần người duyệt.
  */
 
 const VN_OFFSET = 7 * 3600 * 1000;
@@ -35,8 +39,10 @@ export function formatCancelNote(input: {
   const reason = input.reason?.trim();
   if (reason) parts.push(`"${reason}"`);
   if (input.actor) {
+    const name = input.actor.name.trim();
     const role = ROLE_LABEL[input.actor.role];
-    parts.push(role ? `${input.actor.name} (${role})` : input.actor.name);
+    const actorPart = name && role ? `${name} (${role})` : name || role || null;
+    if (actorPart) parts.push(actorPart);
   }
   return parts.join(" · ");
 }

@@ -44,4 +44,16 @@ describe("formatCancelNote (ORDER-17)", () => {
       formatCancelNote({ reason: null, at: "2026-08-16T17:30:00.000Z", actor: null })
     ).toBe("Đã hủy 00:30");
   });
+
+  it("membership tra ra nhưng không có tên (display_name null → rỗng) + vai trò hợp lệ → rơi về vai trò", () => {
+    expect(
+      formatCancelNote({ reason: "khách đổi ý", at: AT, actor: { name: "", role: "manager" } })
+    ).toBe('Đã hủy 20:15 · "khách đổi ý" · Quản lý');
+  });
+
+  it("không có tên (chỉ khoảng trắng) + vai trò lạ → bỏ hẳn phần người duyệt", () => {
+    expect(
+      formatCancelNote({ reason: "khách đổi ý", at: AT, actor: { name: "   ", role: "robot" } })
+    ).toBe('Đã hủy 20:15 · "khách đổi ý"');
+  });
 });

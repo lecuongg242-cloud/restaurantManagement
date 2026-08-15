@@ -434,7 +434,7 @@ export async function listTakeawayHistory(
     .eq("tenant_id", tenantId);
   const actors: CancelActorRow[] = (actorRows ?? []).map((m) => ({
     id: m.id as string,
-    name: (m.display_name as string) ?? "—",
+    name: (m.display_name as string) ?? "",
     role: (m.role as string) ?? "",
   }));
 
