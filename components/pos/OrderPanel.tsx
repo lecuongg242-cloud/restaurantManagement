@@ -79,6 +79,7 @@ export function OrderPanel({
   // 'served' = đã thu đủ (payBill đánh dấu). Bình thường phiên tự đóng khi thu hết; nút này chỉ
   // hữu ích khi bàn toàn món đã hủy (không doanh thu) — cho phép dọn bàn.
   const canClose = !!session && activeItems.every((i) => i.status === "served");
+  const splitEvenly = session?.openBill?.splitCount != null;
   const sessionTotal = activeItems.reduce((s, i) => s + i.unit_price * i.qty, 0);
   const cartTotal = cart.reduce((s, l) => {
     const it = itemMap.get(l.itemId);
@@ -137,6 +138,13 @@ export function OrderPanel({
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
+        {/* Bàn đã chia đều: hủy món bị server chặn (tiền của hóa đơn chia đều không giảm theo được
+            — BILL-06), nên ẩn nút Hủy và nói rõ phải làm gì thay vì để nhân viên bấm rồi ăn lỗi. */}
+        {splitEvenly && (
+          <p className="mb-md rounded-md bg-surface px-md py-sm text-xs text-steel">
+            Hóa đơn đã chia đều — gỡ chia ở khối hóa đơn trước khi hủy món.
+          </p>
+        )}
         {/* Món đã gọi — nhóm theo order, mỗi order in phiếu bếp riêng */}
         {session && session.orders.length > 0 ? (
           <div className="flex flex-col gap-lg">
@@ -190,7 +198,7 @@ export function OrderPanel({
                       <div className="flex shrink-0 flex-col items-end gap-xs">
                         {/* Chỉ đánh dấu món đã thu; món đang chờ để trống (POS lo tính tiền, không theo dõi bếp). */}
                         {it.status === "served" && <ItemStatusBadge status={it.status} />}
-                        {it.status !== "served" && it.status !== "cancelled" && (
+                        {it.status !== "served" && it.status !== "cancelled" && !splitEvenly && (
                           <button
                             type="button"
                             onClick={() => setCancelItem({ id: it.id, name: it.name })}

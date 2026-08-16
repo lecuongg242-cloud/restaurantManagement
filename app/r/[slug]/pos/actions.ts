@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
@@ -68,6 +69,33 @@ async function authorizePos(
   if (!session) return { error: "Phiên hết hạn, đăng nhập lại." };
   if (!canAccess(session.role, "pos")) return { error: "Không đủ quyền." };
   return { tenantId: session.tenant.id, staffId: session.membershipId };
+}
+
+/**
+ * Bàn đã chia đều hóa đơn thì KHÔNG cho hủy món (BILL-06). `dropCancelledItemsFromOpenBills` chừa
+ * hóa đơn chia đều ra có chủ đích (dọn dòng của "vỏ" sẽ làm cha ≠ Σ con, và vỏ rỗng bị xóa kéo
+ * theo cascade cả con lẫn `payments`), nên hủy lúc này = món 'cancelled' mà khách vẫn trả đủ tiền.
+ * Lối thoát cho nhân viên: bấm "Gỡ chia" ở khối hóa đơn rồi hủy.
+ *
+ * KHÔNG export: file "use server" chỉ được export hàm async dùng làm action.
+ */
+const SPLIT_EVENLY_CANCEL_ERROR = "Hóa đơn đã chia đều — gỡ chia trước khi hủy món.";
+
+/** Phiên bàn có hóa đơn 'open' đang ở trạng thái chia đều (vỏ) hay không. */
+async function sessionHasEvenSplitBill(
+  supabase: SupabaseClient,
+  tenantId: string,
+  sessionId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("bills")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("table_session_id", sessionId)
+    .eq("status", "open")
+    .not("split_count", "is", null)
+    .limit(1);
+  return (data ?? []).length > 0;
 }
 
 /** Đánh dấu đã xử lý 1 lời "Gọi nhân viên" (CALL-01). */
@@ -684,13 +712,19 @@ export async function cancelOrderItem(
   const supabase = await createClient();
   const { data: item } = await supabase
     .from("order_items")
-    .select("id, order_id, status")
+    .select("id, order_id, status, orders(table_session_id)")
     .eq("id", input.itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (!item) return { ok: false, error: "Không tìm thấy món." };
   if (item.status === "served" || item.status === "cancelled")
     return { ok: false, error: "Món đã phục vụ hoặc đã hủy, không thể hủy." };
+
+  // Chốt chặn chia đều — ngay trước lệnh ghi đầu tiên (xem SPLIT_EVENLY_CANCEL_ERROR).
+  // Chỉ đơn CÓ phiên bàn mới dính: mang về/giao không chia đều.
+  const sessionId = (item.orders as { table_session_id?: string | null } | null)?.table_session_id ?? null;
+  if (sessionId && (await sessionHasEvenSplitBill(supabase, tenantId, sessionId)))
+    return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
 
   const now = new Date().toISOString();
 
@@ -793,12 +827,17 @@ export async function cancelOrder(
   const supabase = await createClient();
   const { data: order } = await supabase
     .from("orders")
-    .select("id, status, channel, parent_order_id")
+    .select("id, status, channel, parent_order_id, table_session_id")
     .eq("id", input.orderId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (!order) return { ok: false, error: "Không tìm thấy đơn." };
   if (order.status === "cancelled") return { ok: false, error: "Đơn đã hủy." };
+
+  // Chốt chặn chia đều (xem SPLIT_EVENLY_CANCEL_ERROR). Đủ khi xét đơn này: nhóm gọi thêm chỉ có ở
+  // đơn KHÔNG gắn bàn (isGroupRoot bên dưới đòi channel ≠ dine_in), nên đơn có phiên bàn luôn đi lẻ.
+  if (order.table_session_id && (await sessionHasEvenSplitBill(supabase, tenantId, order.table_session_id)))
+    return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
 
   // Hủy ĐƠN GỐC của nhóm gọi thêm = hủy CẢ NHÓM, một lý do, một lần duyệt PIN (QD-011 §5).
   // Chỉ hủy đúng đơn gốc sẽ để đơn con mồ côi và bill mất mốc neo. Hủy đơn con thì chỉ đơn đó.
