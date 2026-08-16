@@ -134,11 +134,16 @@ export async function openBillForSession(
   if (sessionItems.length === 0) return { error: "Bàn chưa có món để tính tiền." };
 
   // order_item_id đã phân bổ vào bill open|paid (của tenant) → không thêm lại.
-  const { data: allocated } = await client
+  const { data: allocated, error: allocErr } = await client
     .from("bill_items")
     .select("order_item_id, bills!inner(status)")
     .eq("tenant_id", tenantId)
     .in("bills.status", ["open", "paid"]);
+  // Fail-closed: đọc hỏng thì DỪNG. Rơi xuống với danh sách rỗng nghĩa là coi MỌI món của phiên là
+  // CHƯA phân bổ ⇒ chèn lại toàn bộ vào bill đang mở. `bill_items` KHÔNG có unique
+  // (bill_id, order_item_id) (0012) nên DB không chặn hộ ⇒ khách bị tính tiền hai lần. Lệch theo
+  // hướng thu THỪA — đúng thứ tuyệt đối không được nuốt lỗi.
+  if (allocErr) return { error: "Không kiểm được món đã lên hóa đơn. Vui lòng thử lại." };
   const allocatedIds = new Set((allocated ?? []).map((r) => r.order_item_id as string));
 
   const unallocated = sessionItems.filter((i) => !allocatedIds.has(i.id));
@@ -1075,12 +1080,14 @@ export async function mergeSessionsIntoBill(
       if (it.status !== "cancelled") items.push({ id: it.id, unit: it.unit_price_snapshot, qty: it.qty });
   if (items.length === 0) return { error: "Các bàn chưa có món để gộp." };
 
-  // Loại order_item đã phân bổ (open|paid).
-  const { data: allocated } = await client
+  // Loại order_item đã phân bổ (open|paid). Fail-closed y hệt `openBillForSession`: đọc hỏng mà rơi
+  // xuống thì mọi món đang nằm ở hóa đơn khác bị gom lại vào hóa đơn gộp ⇒ tính tiền hai lần.
+  const { data: allocated, error: allocErr } = await client
     .from("bill_items")
     .select("order_item_id, bills!inner(status)")
     .eq("tenant_id", tenantId)
     .in("bills.status", ["open", "paid"]);
+  if (allocErr) return { error: "Không kiểm được món đã lên hóa đơn. Vui lòng thử lại." };
   const allocatedIds = new Set((allocated ?? []).map((r) => r.order_item_id as string));
   const unallocated = items.filter((i) => !allocatedIds.has(i.id));
   if (unallocated.length === 0)
