@@ -1,4 +1,4 @@
-// scripts/check-unsplit-rpc.mjs — Kiểm RPC `unsplit_bill_evenly` (0030/0031) trên DB THẬT.
+// scripts/check-unsplit-rpc.mjs — Kiểm RPC `unsplit_bill_evenly` (0031/0032) trên DB THẬT.
 //
 // VÌ SAO KHÔNG PHẢI UNIT TEST: luật "con đã thu thì không gỡ" đã dời hẳn xuống SQL, và thứ nó sinh
 // ra để làm — CHẶN lượt thu tiền chen ngang bằng khóa hàng — chỉ quan sát được với HAI KẾT NỐI
@@ -80,7 +80,7 @@ async function billStatus(id) {
 }
 
 // ---- Ca (b): chia → gỡ → chia lại → gỡ LẦN HAI ------------------------------
-// Đúng lỗ hổng của 0030: con `void` của lượt gỡ trước vẫn mang `split_parent_id`, bị đếm vào chốt
+// Đúng lỗ hổng của 0031: con `void` của lượt gỡ trước vẫn mang `split_parent_id`, bị đếm vào chốt
 // "đã thu chưa" ⇒ lượt gỡ thứ hai trả 'has_payment' dù chưa ai thu đồng nào ⇒ bàn khóa cứng.
 async function caseSecondUnsplit() {
   console.log("\n[b] Chia đều → gỡ → chia lại → gỡ lần hai");
@@ -103,22 +103,22 @@ async function caseSecondUnsplit() {
     again.push(rows[0].id);
   }
 
-  // Chứng minh bài kiểm này KHÔNG rỗng: chạy đúng vị từ của 0030 (không loại 'void') lên cùng dữ
+  // Chứng minh bài kiểm này KHÔNG rỗng: chạy đúng vị từ của 0031 (không loại 'void') lên cùng dữ
   // liệu — nó phải đếm ra > 0, tức bản cũ sẽ trả 'has_payment' ngay tại đây.
   const { rows: probe } = await A.query(
     `select
        (select count(*) from public.bills c
          where c.tenant_id = $1 and c.split_parent_id = $2
            and (c.status <> 'open'
-                or exists (select 1 from public.payments p where p.tenant_id = $1 and p.bill_id = c.id))) as old_0030,
+                or exists (select 1 from public.payments p where p.tenant_id = $1 and p.bill_id = c.id))) as old_0031,
        (select count(*) from public.bills c
          where c.tenant_id = $1 and c.split_parent_id = $2 and c.status <> 'void'
            and (c.status <> 'open'
-                or exists (select 1 from public.payments p where p.tenant_id = $1 and p.bill_id = c.id))) as new_0031`,
+                or exists (select 1 from public.payments p where p.tenant_id = $1 and p.bill_id = c.id))) as new_0032`,
     [tenantId, shell]
   );
-  check("vị từ 0030 (cũ) SẼ chặn — bài kiểm không rỗng", Number(probe[0].old_0030) > 0, JSON.stringify(probe[0]));
-  check("vị từ 0031 (mới) không chặn", Number(probe[0].new_0031) === 0, JSON.stringify(probe[0]));
+  check("vị từ 0031 (cũ) SẼ chặn — bài kiểm không rỗng", Number(probe[0].old_0031) > 0, JSON.stringify(probe[0]));
+  check("vị từ 0032 (mới) không chặn", Number(probe[0].new_0032) === 0, JSON.stringify(probe[0]));
 
   const r2 = await unsplit(A, shell);
   check("gỡ lần 2 KHÔNG bị con void chặn", r2?.ok === true, JSON.stringify(r2));

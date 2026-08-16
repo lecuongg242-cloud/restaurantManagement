@@ -123,7 +123,7 @@ describe("orderCancelActorId (ORDER-18)", () => {
     expect(orderCancelActorId([{ cancelledBy: "A", cancelledAt: AT_A }], AT_B)).toBe(null);
   });
 
-  it("dữ liệu trước 0027 (cancelled_at món backfill từ created_at, lệch mốc đơn) → null", () => {
+  it("dữ liệu trước 0028 (cancelled_at món backfill từ created_at, lệch mốc đơn) → null", () => {
     expect(
       orderCancelActorId([{ cancelledBy: "A", cancelledAt: "2026-08-01T03:00:00.000Z" }], AT_B)
     ).toBe(null);

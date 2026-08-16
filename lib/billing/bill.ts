@@ -82,7 +82,7 @@ async function recomputeBill(client: SupabaseClient, tenantId: string, billId: s
  *
  * VÌ SAO PHẢI HỎI TRƯỚC KHI XÓA BILL: `bills.split_parent_id` là `on delete cascade` (0013) và
  * `payments.bill_id` cũng vậy (0012). Xóa một VỎ đã gỡ chia sẽ kéo theo toàn bộ con `void` của nó
- * — dấu vết lượt chia biến mất và `bill_no` đã cấp bị dùng lại. Đổi gỡ chia từ XÓA sang VOID (0030)
+ * — dấu vết lượt chia biến mất và `bill_no` đã cấp bị dùng lại. Đổi gỡ chia từ XÓA sang VOID (0031)
  * mới bịt được đường xóa CON; đường xóa VỎ vẫn hở nếu không kiểm ở đây.
  */
 async function billIdsWithChildren(
@@ -467,7 +467,7 @@ export async function payBill(
   });
   if (pErr) return { error: "Ghi nhận thanh toán thất bại. Vui lòng thử lại." };
 
-  // `.eq("status","open")` là chốt chống ĐUA với gỡ chia đều: nếu RPC `unsplit_bill_evenly` (0030)
+  // `.eq("status","open")` là chốt chống ĐUA với gỡ chia đều: nếu RPC `unsplit_bill_evenly` (0031)
   // giành khóa trước và void con này, lệnh dưới KHÔNG được lật nó ngược về 'paid'. Con void hóa
   // 'paid' sẽ vào thẳng doanh thu (report_summary lọc `status='paid' and split_count is null`)
   // trong khi vỏ đã trở lại hóa đơn thường và sẽ được thu TOÀN BỘ lần nữa ⇒ thu trùng của khách,
@@ -489,7 +489,7 @@ export async function payBill(
     };
 
   // Con chia đều: mọi con paid → cha paid.
-  // Bỏ con 'void' (tàn dư của một lượt chia ĐÃ GỠ, vẫn giữ `split_parent_id` — 0030) khỏi phép
+  // Bỏ con 'void' (tàn dư của một lượt chia ĐÃ GỠ, vẫn giữ `split_parent_id` — 0031) khỏi phép
   // kiểm: sau chuỗi chia → gỡ → chia lại, tập con là [void cũ…, paid mới…] nên `every(paid)` không
   // bao giờ đúng, vỏ mãi 'open', món không lên 'served' và phiên bàn kẹt "đang phục vụ" vĩnh viễn.
   // KÈM kiểm tập KHÔNG RỖNG: `[].every(...)` trả true, sẽ đánh 'paid' cho vỏ không có con nào.
@@ -956,7 +956,7 @@ export async function splitBillByOrders(
  * `on delete cascade` (0013/0012) nên mỗi dòng xóa nhầm là mất luôn dấu vết thu tiền:
  *  - `.eq("split_parent_id", billId)`: không chạm bill ngoài lượt chia này;
  *  - `.in("id", childIds)`: chỉ con vừa sinh trong CHÍNH lời gọi này. Vỏ từng chia-rồi-gỡ vẫn còn
- *    con `void` mang `split_parent_id` (0030 — void thay vì xóa), thiếu bộ lọc này là quét luôn
+ *    con `void` mang `split_parent_id` (0031 — void thay vì xóa), thiếu bộ lọc này là quét luôn
  *    chúng và cascade mất `payments` của lượt chia cũ;
  *  - `.eq("status", "open")`: con vừa tạo VẪN CÓ THỂ đã được thu. `getSessionBills` cố ý trả cả
  *    hóa đơn con (con thừa hưởng `table_session_id` của vỏ) và `payBill` chỉ chặn VỎ
@@ -1068,7 +1068,7 @@ export async function splitBillEvenly(
  * Đây là lối thoát cho BILL-06: hủy/thêm món trên bàn đã chia đều bị chặn (tiền của vỏ không đổi
  * theo được), nhân viên phải gỡ chia → sửa món → chia lại.
  *
- * TOÀN BỘ nghiệp vụ nằm ở RPC `unsplit_bill_evenly` (0030): kiểm điều kiện, chặn khi có con đã thu,
+ * TOÀN BỘ nghiệp vụ nằm ở RPC `unsplit_bill_evenly` (0031): kiểm điều kiện, chặn khi có con đã thu,
  * void con và bỏ cờ vỏ — trong MỘT transaction có khóa hàng. Hàm này chỉ gọi và dịch kết quả.
  * Đừng thêm lại một lớp kiểm ở đây: chốt tiền ở tầng app chốt ở thời điểm ĐỌC, cách lệnh ghi vài
  * lượt gọi mạng, nên nó vừa thừa vừa lệch được với luật thật.
@@ -1113,7 +1113,7 @@ export async function mergeSessionsIntoBill(
 
   // Không gộp nếu bàn nào đã có hóa đơn chốt/chia đều.
   // Bỏ 'void' ngay ở DB: hóa đơn con của một lượt chia đều ĐÃ GỠ nằm lại vĩnh viễn với
-  // `split_parent_id` còn nguyên (0030 — void thay vì xóa để payments không cascade mất). Không
+  // `split_parent_id` còn nguyên (0031 — void thay vì xóa để payments không cascade mất). Không
   // loại ra thì vòng kiểm bên dưới thấy `split_parent_id != null` và bàn đó KHÔNG BAO GIỜ gộp
   // được nữa, dù lượt chia đó đã gỡ xong từ lâu.
   const { data: existing } = await client

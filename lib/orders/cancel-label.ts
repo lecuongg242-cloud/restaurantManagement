@@ -79,7 +79,7 @@ export function isSharedOrderCancelReason(
  * này chặt vì `cancelOrder` ghi CÙNG một `now` cho cả `orders` lẫn `order_items`.
  *
  * Không món nào khớp mốc → null (không hiện người duyệt). Đây là ca của dữ liệu trước migration
- * 0027: `order_items.cancelled_at` khi đó backfill từ `created_at` nên không thể khớp
+ * 0028: `order_items.cancelled_at` khi đó backfill từ `created_at` nên không thể khớp
  * `orders.cancelled_at`. Thà bỏ trống còn hơn chỉ sai người.
  */
 export function orderCancelActorId(

@@ -67,7 +67,7 @@ export function CancellationPanel({ data, prev }: { data: CancellationData; prev
         mất — khách hủy món này thường gọi món khác thay thế.
       </p>
 
-      {/* 0027 backfill `cancelled_at = created_at` cho dòng cũ (bảng order_items không có
+      {/* 0028 backfill `cancelled_at = created_at` cho dòng cũ (bảng order_items không có
           updated_at, không có mốc nào tốt hơn). Kỳ vắt qua ngày này trộn mốc xấp xỉ với mốc thật,
           kể cả delta "so kỳ trước" của tỷ lệ hủy — người đọc phải biết trước khi đi kết luận. */}
       <p className="text-xs text-steel">

@@ -1,10 +1,10 @@
 /**
- * Đọc kết quả của RPC `unsplit_bill_evenly` (0030) thành thứ tầng UI dùng được. Thuần, không IO —
+ * Đọc kết quả của RPC `unsplit_bill_evenly` (0031) thành thứ tầng UI dùng được. Thuần, không IO —
  * `bill.ts` lo phần gọi RPC, giống cặp `planSplitByItems` ↔ `splitBillByItems`.
  *
  * VÌ SAO CHỈ CÒN PHẦN ĐỌC KẾT QUẢ: luật "con đã thu thì không gỡ" trước đây nằm ở hàm thuần
  * `planUnsplit`, nhưng nó chốt ở thời điểm ĐỌC rồi mới ghi ở 2-3 lượt gọi mạng sau — lượt thu tiền
- * chen vào giữa vẫn lọt. 0030 dời luật đó xuống một Postgres function chạy trong MỘT transaction
+ * chen vào giữa vẫn lọt. 0031 dời luật đó xuống một Postgres function chạy trong MỘT transaction
  * có khóa hàng, tức là chốt và lệnh ghi không còn tách rời được nữa. Giữ lại bản TS song song là
  * dựng hai nguồn sự thật cho cùng một luật tiền — lệch nhau một nhịp là chặn nhầm hoặc lọt lưới.
  * Nên bên TS chỉ còn đúng việc nó làm tốt hơn SQL: dịch mã lỗi ra câu tiếng Việt cho thu ngân.

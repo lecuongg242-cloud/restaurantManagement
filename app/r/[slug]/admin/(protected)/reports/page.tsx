@@ -44,7 +44,7 @@ export default async function ReportsPage({
   let data: ReportData;
   let prev: ComparisonData;
   // Khối "Món bị hủy" tự nuốt lỗi của riêng nó (xem getCancellationBlock) — REPORT-10 hỏng thì
-  // REPORT-01..09 vẫn phải hiện. Nhờ vậy cũng không còn ràng buộc thứ tự triển khai code ↔ 0028.
+  // REPORT-01..09 vẫn phải hiện. Nhờ vậy cũng không còn ràng buộc thứ tự triển khai code ↔ 0029.
   let cancellations: CancellationBlock;
   try {
     [data, prev, cancellations] = await Promise.all([
@@ -145,7 +145,7 @@ export default async function ReportsPage({
             <p className="text-sm font-medium text-status-late">Không tải được thống kê món bị hủy.</p>
             <p className="mt-xs text-sm text-steel">
               {cancellations.message} Kiểm tra migration{" "}
-              <code className="font-mono text-xs">0028_cancel_report_rpcs.sql</code> đã chạy chưa. Các
+              <code className="font-mono text-xs">0029_cancel_report_rpcs.sql</code> đã chạy chưa. Các
               khối còn lại của báo cáo không bị ảnh hưởng.
             </p>
           </div>

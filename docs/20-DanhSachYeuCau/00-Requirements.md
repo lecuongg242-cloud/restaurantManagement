@@ -64,8 +64,8 @@
 | ORDER-11 | Bottom sheet không vỡ khi mở bàn phím | Chạm ô text trong sheet (giỏ, ghi chú món, gọi nhân viên, lý do hủy) → sheet KHÔNG trôi lên/mất phần trên, ô nhập vẫn chạm được. Tắt `repositionInputs` của vaul (nó set height/bottom px sai trên iOS Safari) + `interactiveWidget: resizes-content` | P5 | ◐ code xong; **chờ kiểm trên iPhone thật** |
 | ORDER-15 | Gọi món tại bàn bằng điện thoại | Nhân viên đã đăng nhập mở `/r/{slug}/pos/m` → danh sách bàn (nhóm theo khu vực, hiện bàn nào đang có món) → chọn bàn → thực đơn (tìm món, tùy chọn, ghi chú, báo hết món) → "Gửi về quầy". Đơn vào thẳng `confirmed` (`source=staff`, KHÔNG qua hàng chờ duyệt), gắn đúng phiên bàn nên gọi thêm gom chung một bill. Gửi xong hiện xác nhận "Đã gửi về quầy · Bàn X · N món" + lối về danh sách bàn. Không vỡ ở 360px, mọi nút ≥44px, từ mở màn tới gửi ≤ 8 chạm. Chế độ quầy (`service_mode=counter`) không có bàn → màn báo rõ và trỏ về POS quầy | P6 | ☐ |
 | ORDER-16 | Đơn cần in phiếu bếp không thể bỏ lỡ | POS quầy hiện banner **"Đơn cần in phiếu (N)"** liệt kê đơn CÓ BÀN, đã `confirmed` trong ngày VN, mà `print_jobs` chưa có phiếu bếp nào. Chip từng đơn (Bàn · #số đơn · N món · giờ) bấm là in ngay tại máy quầy; in xong chip rời banner ≤2s; hết đơn thì banner biến mất. Sinh ra vì đơn gõ từ điện thoại (ORDER-15) không đi qua hàng chờ duyệt nên trước đó quầy không có tín hiệu nào để biết phải in | P6 | ☐ |
-| ORDER-17 | Lịch sử POS hiện lý do hủy | Tab "Đã xong" → đơn/món bị hủy hiện `Đã hủy HH:MM · "<lý do>" · <tên> (<vai trò>)`; hủy cả đơn thì lý do hiện MỘT lần ở đầu thẻ, không lặp ở từng món | P7 | ◐ code+kiểm xong (unit 194/194, tsc+lint sạch; 0027+0028 đã áp dev); chờ checkpoint |
-| ORDER-18 | Lọc đơn hủy + tách con số tổng kết | Chip **Tất cả / Đã thu / Đã hủy** lọc ở SERVER (đơn ngoài trang hiện tại vẫn ra); dòng tổng kết tách `<N> đơn đã thu · <tiền>` và `<M> đơn hủy` | P7 | ◐ code+kiểm xong (unit 194/194, tsc+lint sạch; 0027+0028 đã áp dev); chờ checkpoint |
+| ORDER-17 | Lịch sử POS hiện lý do hủy | Tab "Đã xong" → đơn/món bị hủy hiện `Đã hủy HH:MM · "<lý do>" · <tên> (<vai trò>)`; hủy cả đơn thì lý do hiện MỘT lần ở đầu thẻ, không lặp ở từng món | P7 | ◐ code+kiểm xong (unit 194/194, tsc+lint sạch; 0028+0029 đã áp dev); chờ checkpoint |
+| ORDER-18 | Lọc đơn hủy + tách con số tổng kết | Chip **Tất cả / Đã thu / Đã hủy** lọc ở SERVER (đơn ngoài trang hiện tại vẫn ra); dòng tổng kết tách `<N> đơn đã thu · <tiền>` và `<M> đơn hủy` | P7 | ◐ code+kiểm xong (unit 194/194, tsc+lint sạch; 0028+0029 đã áp dev); chờ checkpoint |
 
 ## BILL — Bill & thanh toán
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
@@ -75,7 +75,7 @@
 | BILL-03 | Điều chỉnh bill | Thêm giảm giá (số tiền/%), phí phục vụ %, VAT % (cấu hình tenant); tổng tính đúng công thức | P4 | ☐ |
 | BILL-04 | Thanh toán | Ghi nhận tiền mặt/chuyển khoản; đóng bill; bàn về trạng thái phù hợp | P4 | ☐ |
 | BILL-05 | Doanh thu khớp 100% | Doanh thu ngày trên dashboard = tổng bill đã đóng (đối chiếu 20 bill test) | P4 | ☐ |
-| BILL-06 | Hủy món trừ đúng tiền hóa đơn đang mở | Bàn có bill `open`, hủy 1 món → tổng bill giảm đúng tiền món đó; hủy hết món → bill bị xóa, bàn về "chưa có hóa đơn". Không đụng bill `paid` | P7 | ◐ code+kiểm xong (unit 194/194, tsc+lint sạch; 0027+0028 đã áp dev); chờ checkpoint |
+| BILL-06 | Hủy món trừ đúng tiền hóa đơn đang mở | Bàn có bill `open`, hủy 1 món → tổng bill giảm đúng tiền món đó; hủy hết món → bill bị xóa, bàn về "chưa có hóa đơn". Không đụng bill `paid` | P7 | ◐ code+kiểm xong (unit 194/194, tsc+lint sạch; 0028+0029 đã áp dev); chờ checkpoint |
 
 ## PRINT — In ấn
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
@@ -103,7 +103,7 @@
 | REPORT-07 | So sánh kỳ trước | Mỗi KPI hiện delta % đúng dấu so kỳ liền trước (tháng → tháng trước theo lịch); kỳ trước = 0 → hiện "–", không chia 0. Biểu đồ chồng đường kỳ trước. Kỳ hiện tại "Tuần này"/"Tháng này" **cắt tới hôm nay** (nhãn `Tháng 8/2026 · đến 12/08`), kỳ trước cắt cho bằng số ngày để so tháng-đến-ngày với tháng-đến-ngày; kỳ đã trôi qua vẫn lấy trọn tuần/tháng | P4 | ◐ code+kiểm xong (0023 RPC; unit 30/30, e2e 6/6 trên tenant thật); chờ checkpoint |
 | REPORT-08 | Cơ cấu doanh thu đa chiều | Tách doanh thu theo nhóm món, theo NƠI PHỤC VỤ, theo khu vực & bàn. Nơi phục vụ dùng chung `orderPlaceGroup` với phiếu bếp/hóa đơn: quán chế độ quầy có đơn `channel=takeaway` không gắn bàn phải hiện **"Tại quán"**, KHÔNG phải "Mang về". Quán không gắn bàn nào → ẩn hẳn khối "Theo khu vực & bàn". Σ mỗi chiều = tổng doanh thu KPI | P4 | ◐ code+kiểm xong (0023 RPC; unit 30/30, e2e 6/6 trên tenant thật); chờ checkpoint |
 | REPORT-09 | Khung giờ cao điểm | Heatmap 7 × 24 (thứ × giờ) khi kỳ ≥ 7 ngày; KPI "Giờ cao điểm" hiện khung giờ doanh thu cao nhất | P4 | ◐ code+kiểm xong (0023 RPC; unit 30/30, e2e 6/6 trên tenant thật); chờ checkpoint |
-| REPORT-10 | Thống kê món bị hủy | `/admin/reports` có khối "Món bị hủy": 3 KPI (số món · giá trị · tỷ lệ % kèm biến động theo ĐIỂM) + theo người duyệt + top món + chi tiết; **gồm cả dine-in lẫn mang về** | P7 | ◐ code+kiểm xong (unit 194/194, tsc+lint sạch; 0027+0028 đã áp dev); chờ checkpoint |
+| REPORT-10 | Thống kê món bị hủy | `/admin/reports` có khối "Món bị hủy": 3 KPI (số món · giá trị · tỷ lệ % kèm biến động theo ĐIỂM) + theo người duyệt + top món + chi tiết; **gồm cả dine-in lẫn mang về** | P7 | ◐ code+kiểm xong (unit 194/194, tsc+lint sạch; 0028+0029 đã áp dev); chờ checkpoint |
 
 ## MKT — Trang giới thiệu & khách quan tâm
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
