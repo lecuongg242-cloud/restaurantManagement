@@ -975,6 +975,10 @@ export async function mergeSessionsIntoBill(
  *
  * Nuốt lỗi có chủ đích: món đã hủy là sự thật vận hành rồi, không được để lỗi dọn hóa đơn làm
  * hỏng cả thao tác hủy. Hóa đơn lệch còn sửa được ở lần mở bill sau.
+ *
+ * KHÔNG đụng hóa đơn chia đều (vỏ lẫn con) — vỏ vẫn mang status 'open' nên phải loại tường minh
+ * bằng `split_count`/`split_parent_id`, giống mọi mutator khác của file. Luật nằm ở
+ * `planCancelledBillCleanup` (có test), đây chỉ đọc hai cờ đó lên.
  */
 export async function dropCancelledItemsFromOpenBills(
   tenantId: string,
@@ -985,16 +989,21 @@ export async function dropCancelledItemsFromOpenBills(
 
   const { data: lines } = await client
     .from("bill_items")
-    .select("id, bill_id, order_item_id, bills!inner(status)")
+    .select("id, bill_id, order_item_id, bills!inner(status, split_count, split_parent_id)")
     .eq("tenant_id", tenantId)
     .eq("bills.status", "open")
     .in("order_item_id", orderItemIds);
 
-  const cancelledLines = (lines ?? []).map((r) => ({
-    billItemId: r.id as string,
-    billId: r.bill_id as string,
-    orderItemId: r.order_item_id as string,
-  }));
+  const cancelledLines = (lines ?? []).map((r) => {
+    const b = r.bills as { split_count?: number | null; split_parent_id?: string | null } | null;
+    return {
+      billItemId: r.id as string,
+      billId: r.bill_id as string,
+      orderItemId: r.order_item_id as string,
+      splitCount: b?.split_count ?? null,
+      splitParentId: b?.split_parent_id ?? null,
+    };
+  });
   if (cancelledLines.length === 0) return;
 
   const touchedBillIds = [...new Set(cancelledLines.map((l) => l.billId))];
@@ -1013,7 +1022,11 @@ export async function dropCancelledItemsFromOpenBills(
   if (plan.deleteBillItemIds.length > 0) {
     await client.from("bill_items").delete().in("id", plan.deleteBillItemIds).eq("tenant_id", tenantId);
   }
-  for (const billId of plan.recomputeBillIds) await recomputeBill(client, tenantId, billId);
+  // Tính lại CẢ bill sắp xóa (một lượt thừa trên đường hiếm): hàm này nuốt lỗi, nên nếu DELETE
+  // bills hỏng thì thứ còn lại phải là bill 'open' tổng 0 chứ không phải bill rỗng còn mang tổng
+  // cũ — thu ngân mở ra sẽ thu đúng số tiền không còn món nào đứng sau.
+  for (const billId of [...plan.recomputeBillIds, ...plan.deleteBillIds])
+    await recomputeBill(client, tenantId, billId);
   if (plan.deleteBillIds.length > 0) {
     await client.from("bills").delete().in("id", plan.deleteBillIds).eq("tenant_id", tenantId);
   }
