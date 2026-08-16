@@ -1114,18 +1114,26 @@ export async function mergeSessionsIntoBill(
         .eq("status", "open");
   }
 
-  // order_items ≠cancelled của các phiên.
-  const { data: orders } = await client
+  // Món được tính tiền của các phiên — DÙNG CHUNG luật với `openBillForSession`
+  // (`collectBillableSessionItems`, có test). Trước đây chỗ này chỉ lọc trạng thái MÓN nên món của
+  // đơn CHƯA DUYỆT vẫn lên hóa đơn gộp: hai đường vào cùng một loại hóa đơn mà hai luật khác nhau.
+  // Vì vậy phải lấy CẢ `orders.status`, không chỉ `order_items.status`.
+  const { data: orders, error: ordErr } = await client
     .from("orders")
-    .select("id, table_session_id, order_items(id, unit_price_snapshot, qty, status)")
+    .select("status, order_items(id, unit_price_snapshot, qty, status)")
     .eq("tenant_id", tenantId)
     .in("table_session_id", sessionIds);
+  // Fail-closed: đọc hỏng thì DỪNG, đừng báo "chưa có món" cho một lần đọc lỗi.
+  if (ordErr) return { error: "Không đọc được món của bàn. Vui lòng thử lại." };
 
-  type OI = { id: string; unit: number; qty: number };
-  const items: OI[] = [];
-  for (const o of orders ?? [])
-    for (const it of (o.order_items as { id: string; unit_price_snapshot: number; qty: number; status: string }[]) ?? [])
-      if (it.status !== "cancelled") items.push({ id: it.id, unit: it.unit_price_snapshot, qty: it.qty });
+  const items = collectBillableSessionItems(
+    (orders ?? []).map((o) => ({
+      status: o.status as string,
+      items: ((o.order_items as { id: string; unit_price_snapshot: number; qty: number; status: string }[]) ?? []).map(
+        (it) => ({ id: it.id, unitPrice: it.unit_price_snapshot, qty: it.qty, status: it.status })
+      ),
+    }))
+  );
   if (items.length === 0) return { error: "Các bàn chưa có món để gộp." };
 
   // Loại order_item đã phân bổ (open|paid). Fail-closed y hệt `openBillForSession`: đọc hỏng mà rơi
