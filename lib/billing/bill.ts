@@ -11,7 +11,12 @@ import { computeBillTotals } from "./compute";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
 import { planCancelledBillCleanup } from "./cancel-cleanup";
 import { parseUnsplitResult } from "./unsplit";
-import { collectBillableSessionItems, hasUnapprovedSessionItems, pickSessionOpenBill } from "./session-bill";
+import {
+  collectBillableSessionItems,
+  hasUnapprovedSessionItems,
+  pickSessionOpenBill,
+  planSessionItemAllocation,
+} from "./session-bill";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
 import type { BillView, BillLineView, DiscountType } from "./types";
@@ -98,9 +103,11 @@ async function billIdsWithChildren(
 /**
  * Mở/đồng bộ bill của 1 phiên bàn — IDEMPOTENT. Gom order_item (≠cancelled) của các order ĐÃ DUYỆT
  * thuộc phiên CHƯA được phân bổ vào bill nào (open|paid) → thêm vào bill 'open' hiện có (hoặc tạo
- * mới). Gọi lại sau khi bàn gọi thêm món → chỉ thêm phần mới. Trả billId (null nếu không có món).
+ * mới). Gọi lại sau khi bàn gọi thêm món → chỉ thêm phần mới. Trả `billId`, hoặc `error` khi bàn
+ * chưa có món tính tiền được / đọc hỏng (KHÔNG bao giờ trả null).
  *
- * HAI CHỐT GIỮ TIỀN, xem chi tiết ở `collectBillableSessionItems` và ngay chỗ chèn `bill_items`:
+ * HAI CHỐT GIỮ TIỀN, cả hai là hàm thuần có test trong `session-bill.ts`
+ * (`collectBillableSessionItems`, `planSessionItemAllocation`):
  *  1. món của order chưa duyệt (`pending_confirm`) KHÔNG lên hóa đơn;
  *  2. bill được chọn là VỎ chia đều thì KHÔNG chèn thêm món vào nó.
  * Hàm này là đường ghi duy nhất mà panel POS gọi mỗi lần mở hóa đơn của bàn (kể cả chỉ để thu tiền
@@ -151,9 +158,7 @@ export async function openBillForSession(
   // (bill_id, order_item_id) (0012) nên DB không chặn hộ ⇒ khách bị tính tiền hai lần. Lệch theo
   // hướng thu THỪA — đúng thứ tuyệt đối không được nuốt lỗi.
   if (allocErr) return { error: "Không kiểm được món đã lên hóa đơn. Vui lòng thử lại." };
-  const allocatedIds = new Set((allocated ?? []).map((r) => r.order_item_id as string));
-
-  const unallocated = sessionItems.filter((i) => !allocatedIds.has(i.id));
+  const allocatedItemIds = (allocated ?? []).map((r) => r.order_item_id as string);
 
   // Bill 'open' hiện có của phiên? Một phiên có thể có NHIỀU bill 'open' (vỏ + N con chia đều,
   // hoặc bill nguồn + bill tách) nên KHÔNG dùng `.maybeSingle()`: gặp nhiều dòng nó trả lỗi
@@ -172,19 +177,13 @@ export async function openBillForSession(
   // đường sinh rác dữ liệu trước đây).
   if (openErr) return { error: "Không đọc được hóa đơn của bàn. Vui lòng thử lại." };
 
-  const existingBillId = pickSessionOpenBill(
-    (openBills ?? []).map((b) => ({
-      id: b.id as string,
-      splitCount: b.split_count as number | null,
-      splitParentId: b.split_parent_id as string | null,
-      createdAt: b.created_at as string,
-    }))
-  );
-  // Bill được chọn có phải VỎ chia đều không — đọc lại từ chính danh sách vừa lấy, khỏi thêm một
-  // truy vấn (và khỏi thêm một đường hỏng). `pickSessionOpenBill` ưu tiên vỏ nên ca này rất thật.
-  const pickedIsShell =
-    existingBillId != null &&
-    (openBills ?? []).some((b) => (b.id as string) === existingBillId && b.split_count != null);
+  const sessionBills = (openBills ?? []).map((b) => ({
+    id: b.id as string,
+    splitCount: b.split_count as number | null,
+    splitParentId: b.split_parent_id as string | null,
+    createdAt: b.created_at as string,
+  }));
+  const existingBillId = pickSessionOpenBill(sessionBills);
 
   let billId: string;
   if (existingBillId) {
@@ -209,9 +208,9 @@ export async function openBillForSession(
     billId = created.id as string;
   }
 
-  // Vỏ chia đều: KHÔNG chèn thêm món. Vỏ là chỗ duy nhất giữ `bill_items`, nên mỗi dòng thêm vào
-  // đây đội tổng vỏ lên trong khi N con vẫn mang số tiền cố định từ lúc chia ⇒ Σ con < vỏ ⇒ thu đủ
-  // các con vẫn thiếu tiền. Lớp này giữ bất biến kể cả với những đường vào chưa lường hết.
+  // CHỐT 2: quyết định "chèn dòng nào" nằm ở hàm THUẦN `planSessionItemAllocation` (có test — vỏ
+  // chia đều ⇒ rỗng). Ở đây chỉ ghi. `billId` có thể là bill vừa tạo, không nằm trong
+  // `sessionBills` — hàm thuần hiểu đúng ca đó (bill mới không thể là vỏ).
   //
   // BỎ QUA IM LẶNG, KHÔNG trả lỗi: hàm này chạy mỗi lần thu ngân MỞ panel hóa đơn — thao tác đọc,
   // và là thao tác bắt buộc để bấm "Thu tiền" cho từng con. Fail cứng ở đây sẽ chặn luôn việc thu
@@ -225,8 +224,14 @@ export async function openBillForSession(
   //  - ca chính rơi vào đây là món của đơn `pending_confirm` (khách QR gọi thêm khi bàn đang chia),
   //    mà chốt 1 — `collectBillableSessionItems` — vẫn loại nó cho tới khi nhân viên duyệt đơn;
   //  - chèn thật sự chỉ xảy ra ở LẦN MỞ BILL KẾ TIẾP, tức chính đoạn dưới đây.
-  if (unallocated.length > 0 && !pickedIsShell) {
-    const rows = unallocated.map((i) => ({
+  const toInsert = planSessionItemAllocation({
+    billableItems: sessionItems,
+    allocatedItemIds,
+    openBills: sessionBills,
+    targetBillId: billId,
+  });
+  if (toInsert.length > 0) {
+    const rows = toInsert.map((i) => ({
       tenant_id: tenantId,
       bill_id: billId,
       order_item_id: i.id,

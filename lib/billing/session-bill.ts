@@ -59,6 +59,42 @@ export function collectBillableSessionItems(orders: SessionOrderForBill[]): Bill
   return out;
 }
 
+export type SessionItemAllocationInput = {
+  /** Món của phiên được phép tính tiền — kết quả `collectBillableSessionItems`. */
+  billableItems: BillableSessionItem[];
+  /** order_item_id đang nằm trong một bill open|paid nào đó của tenant (đã phân bổ). */
+  allocatedItemIds: string[];
+  /** Các bill 'open' không-con của phiên — đúng danh sách đã đưa cho `pickSessionOpenBill`. */
+  openBills: SessionOpenBill[];
+  /** Bill sắp ghi món vào: bill `pickSessionOpenBill` chọn, hoặc bill vừa được tạo mới. */
+  targetBillId: string;
+};
+
+/**
+ * CHỐT 2 giữ tiền — món nào thật sự được chèn vào bill đích. THUẦN, không I/O (test ở
+ * tests/billing/session-bill.test.ts), cùng cặp "plan* thuần ↔ apply có I/O" như `planSplitEvenly`.
+ *
+ * Hai luật, theo thứ tự:
+ *  1. bill đích là VỎ chia đều (`splitCount != null`) hoặc hóa đơn CON (`splitParentId != null`)
+ *     ⇒ KHÔNG chèn dòng nào;
+ *  2. còn lại ⇒ chỉ chèn món CHƯA phân bổ vào bill open|paid nào.
+ *
+ * VÌ SAO CHẶN VỎ: vỏ là chỗ duy nhất giữ `bill_items`, nên mỗi dòng thêm vào đây đội tổng vỏ lên
+ * trong khi N con vẫn mang số tiền cố định từ lúc chia ⇒ Σ con < vỏ ⇒ thu đủ tất cả các con vẫn
+ * THIẾU tiền. Con cũng bị chặn dù `pickSessionOpenBill` không bao giờ trả con (và truy vấn cũng lọc
+ * sẵn): chèn món vào một con là đội tiền đúng một người trong khi vỏ giữ nguyên — fail-closed thì
+ * chặn ở đây rẻ hơn là tin vào hai lớp lọc phía trên.
+ *
+ * Bill VỪA TẠO không nằm trong `openBills` nên không khớp luật 1 ⇒ chèn bình thường. Đúng ý: bill
+ * mới toanh không thể là vỏ của lượt chia nào.
+ */
+export function planSessionItemAllocation(input: SessionItemAllocationInput): BillableSessionItem[] {
+  const target = input.openBills.find((b) => b.id === input.targetBillId);
+  if (target && (target.splitCount != null || target.splitParentId != null)) return [];
+  const allocated = new Set(input.allocatedItemIds);
+  return input.billableItems.filter((i) => !allocated.has(i.id));
+}
+
 /**
  * Phiên có món đang chờ DUYỆT không? — THUẦN, không I/O.
  *

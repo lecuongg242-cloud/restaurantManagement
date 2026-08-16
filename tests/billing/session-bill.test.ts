@@ -3,6 +3,7 @@ import {
   collectBillableSessionItems,
   hasUnapprovedSessionItems,
   pickSessionOpenBill,
+  planSessionItemAllocation,
   type SessionOpenBill,
   type SessionOrderForBill,
 } from "@/lib/billing/session-bill";
@@ -136,6 +137,66 @@ describe("collectBillableSessionItems", () => {
 
   it("chỉ có order chưa duyệt → rỗng (bên gọi báo 'chưa có món ĐÃ DUYỆT')", () => {
     expect(collectBillableSessionItems([order("pending_confirm", [{ id: "oi1" }])])).toEqual([]);
+  });
+});
+
+describe("planSessionItemAllocation", () => {
+  const item = (id: string, unit = 50000, qty = 1) => ({ id, unit, qty });
+  const plan = (over: Partial<Parameters<typeof planSessionItemAllocation>[0]> = {}) =>
+    planSessionItemAllocation({
+      billableItems: [item("oi1"), item("oi2")],
+      allocatedItemIds: [],
+      openBills: [bill("b1", "2026-08-16T09:00:00Z")],
+      targetBillId: "b1",
+      ...over,
+    });
+
+  it("bill thường → chèn mọi món chưa phân bổ", () => {
+    expect(plan().map((i) => i.id)).toEqual(["oi1", "oi2"]);
+  });
+
+  it("bỏ món đã nằm trong bill open|paid khác (không tính tiền hai lần)", () => {
+    expect(plan({ allocatedItemIds: ["oi1"] }).map((i) => i.id)).toEqual(["oi2"]);
+  });
+
+  it("đã phân bổ hết → rỗng, không chèn dòng nào", () => {
+    expect(plan({ allocatedItemIds: ["oi1", "oi2"] })).toEqual([]);
+  });
+
+  it("bill đích là VỎ chia đều → RỖNG, dù món chưa phân bổ (giữ Σ con = vỏ)", () => {
+    const got = plan({
+      openBills: [bill("vo", "2026-08-16T09:00:00Z", { splitCount: 3 })],
+      targetBillId: "vo",
+    });
+    expect(got).toEqual([]);
+  });
+
+  it("bill đích là hóa đơn CON → RỖNG (con chỉ mang số tiền phần chia, không mang món)", () => {
+    const got = plan({
+      openBills: [bill("con1", "2026-08-16T09:00:00Z", { splitParentId: "vo" })],
+      targetBillId: "con1",
+    });
+    expect(got).toEqual([]);
+  });
+
+  it("bill VỪA TẠO (chưa có trong danh sách) → chèn bình thường, không thể là vỏ", () => {
+    expect(plan({ openBills: [], targetBillId: "bill-moi" }).map((i) => i.id)).toEqual(["oi1", "oi2"]);
+  });
+
+  it("phiên có vỏ nhưng ghi vào bill thường khác → vẫn chèn (chỉ chặn đúng bill đích)", () => {
+    const got = plan({
+      openBills: [
+        bill("vo", "2026-08-16T09:00:00Z", { splitCount: 2 }),
+        bill("thuong", "2026-08-16T09:30:00Z"),
+      ],
+      targetBillId: "thuong",
+    });
+    expect(got.map((i) => i.id)).toEqual(["oi1", "oi2"]);
+  });
+
+  it("giữ nguyên giá/số lượng của món để bên gọi tính amount", () => {
+    const got = plan({ billableItems: [item("oi9", 45000, 3)] });
+    expect(got).toEqual([{ id: "oi9", unit: 45000, qty: 3 }]);
   });
 });
 
