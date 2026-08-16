@@ -78,13 +78,16 @@ async function authorizePos(
  * sẽ làm vỏ ≠ Σ con), nên hủy lúc này = món 'cancelled' mà khách vẫn trả đủ tiền.
  * Thêm: món mới rơi vào VỎ (chỗ duy nhất giữ `bill_items`) làm tổng vỏ tăng trong khi các con giữ
  * nguyên số cũ ⇒ Σ con < vỏ, mà vỏ thì không thu trực tiếp được ⇒ thu thiếu đúng phần vừa gọi.
+ * Duyệt đơn QR: y hệt ca "thêm", chỉ khác món do KHÁCH gõ. Khách vẫn gửi được đơn (createQrOrder
+ * giữ nguyên) — hàng rào ở bước duyệt, vì nhân viên mới là người biết phải gỡ chia rồi duyệt lại.
  *
- * Lối thoát cho nhân viên trong cả hai ca: bấm "Gỡ chia" ở khối hóa đơn → sửa món → chia lại.
+ * Lối thoát cho nhân viên ở cả ba ca: bấm "Gỡ chia" ở khối hóa đơn → sửa/duyệt món → chia lại.
  *
  * KHÔNG export: file "use server" chỉ được export hàm async dùng làm action.
  */
 const SPLIT_EVENLY_CANCEL_ERROR = "Hóa đơn đã chia đều — gỡ chia trước khi hủy món.";
 const SPLIT_EVENLY_ADD_ERROR = "Hóa đơn đã chia đều — gỡ chia trước khi thêm món.";
+const SPLIT_EVENLY_APPROVE_ERROR = "Hóa đơn đã chia đều — gỡ chia trước khi duyệt đơn.";
 
 /** Không kiểm chứng được trạng thái hóa đơn thì KHÔNG cho sửa — chốt bảo vệ tiền phải fail-closed. */
 const SPLIT_CHECK_FAILED_ERROR = "Không kiểm được trạng thái hóa đơn. Vui lòng thử lại.";
@@ -156,13 +159,32 @@ export async function approveOrder(slug: string, orderId: string): Promise<Actio
 
   const { data: order } = await supabase
     .from("orders")
-    .select("id, status")
+    .select("id, status, table_session_id")
     .eq("id", orderId)
     .eq("tenant_id", auth.tenantId)
     .maybeSingle();
   if (!order) return { ok: false, error: "Không tìm thấy đơn." };
   if (!canTransition(order.status, "confirmed"))
     return { ok: false, error: "Đơn không ở trạng thái chờ duyệt." };
+
+  // Chốt chặn chia đều — TRƯỚC lệnh ghi đầu tiên (xem SPLIT_EVENLY_APPROVE_ERROR). Khách QR vẫn
+  // gửi được đơn (createQrOrder không chặn — khách không hiểu "gỡ chia" giữa bữa ăn); người biết
+  // phải làm gì tiếp là nhân viên, nên hàng rào dựng đúng ở bước duyệt.
+  // Truy vấn món hỏng thì DỪNG: đưa mảng rỗng vào chốt là tự tay tắt nhánh bắt hóa đơn gộp.
+  const { data: oiRows, error: oiErr } = await supabase
+    .from("order_items")
+    .select("id")
+    .eq("order_id", orderId)
+    .eq("tenant_id", auth.tenantId);
+  if (oiErr) return { ok: false, error: SPLIT_CHECK_FAILED_ERROR };
+  const guard = await evenSplitBlocksEdit(
+    supabase,
+    auth.tenantId,
+    (order.table_session_id as string) ?? null,
+    (oiRows ?? []).map((r) => r.id as string)
+  );
+  if ("error" in guard) return { ok: false, error: guard.error };
+  if (guard.blocked) return { ok: false, error: SPLIT_EVENLY_APPROVE_ERROR };
 
   const kitchenNo = await nextKitchenNo(supabase, auth.tenantId);
   const { error } = await supabase

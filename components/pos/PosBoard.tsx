@@ -289,6 +289,22 @@ export function PosBoard({
       ? bills.some((b) => b.status === "open" && b.splitCount != null)
       : selectedSession?.openBill?.splitCount != null;
 
+  /**
+   * Các bàn đang chia đều — drawer "Chờ duyệt" dùng để báo trước vì sao không duyệt được đơn của
+   * bàn đó (server chặn, BILL-06). Lấy từ chính ảnh chụp phiên bàn đã có, KHÔNG kéo thêm dữ liệu.
+   * Bàn đang chọn ưu tiên `splitEvenlyNow` vì nó mới hơn ảnh chụp một nhịp (xem trên).
+   */
+  const splitEvenlyTableIds = useMemo(() => {
+    const ids = new Set(
+      initial.sessions.filter((s) => s.openBill?.splitCount != null).map((s) => s.tableId)
+    );
+    if (selectedTableId) {
+      if (splitEvenlyNow) ids.add(selectedTableId);
+      else ids.delete(selectedTableId);
+    }
+    return ids;
+  }, [initial.sessions, selectedTableId, splitEvenlyNow]);
+
   // Gộp dòng trùng: cùng món + cùng tùy chọn + cùng ghi chú → cộng dồn số lượng
   // thay vì tạo dòng mới (chủ dự án: "chọn option giống hệt nhau thì tự gộp").
   const lineKey = (l: Pick<CartLine, "itemId" | "optionIds" | "note">) =>
@@ -773,6 +789,7 @@ export function PosBoard({
         open={pendingOpen}
         onOpenChange={setPendingOpen}
         pending={initial.pending}
+        splitEvenlyTableIds={splitEvenlyTableIds}
       />
 
       {billOpen && (
