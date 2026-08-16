@@ -31,6 +31,34 @@ export type AreaSlice = { areaName: string; tableName: string; revenue: number; 
 export type PaymentSlice = { method: PaymentMethod; amount: number; count: number };
 export type HourCell = { dow: number; hour: number; revenue: number; billCount: number };
 
+export type CancelSummary = { cancelledQty: number; cancelledAmount: number; orderedQty: number };
+export type CancelActorSlice = {
+  membershipId: string | null;
+  name: string;
+  role: string;
+  cnt: number;
+  qty: number;
+  amount: number;
+};
+export type CancelItemSlice = { name: string; qty: number; amount: number };
+export type CancelRow = {
+  cancelledAt: string;
+  place: string;
+  itemName: string;
+  qty: number;
+  amount: number;
+  reason: string;
+  actorName: string;
+};
+export type CancellationData = {
+  summary: CancelSummary;
+  actors: CancelActorSlice[];
+  items: CancelItemSlice[];
+  rows: CancelRow[];
+  /** Còn dòng phía sau `rows` → màn hình hiện nút "Tải thêm". */
+  hasMore: boolean;
+};
+
 export type OrderChannel = "dine_in" | "takeaway" | "delivery";
 export type OrderSource = "qr" | "staff";
 
@@ -49,7 +77,7 @@ export type ReportData = {
   serviceMode: ServiceMode;
 };
 
-export type ComparisonData = { summary: RevenueSummary; series: number[] };
+export type ComparisonData = { summary: RevenueSummary; series: number[]; cancel: CancelSummary };
 
 type Client = Awaited<ReturnType<typeof createClient>>;
 
@@ -177,6 +205,85 @@ export async function getReportData(tenantId: string, range: ReportRange): Promi
   };
 }
 
+/** Số dòng chi tiết mỗi lần tải. */
+export const CANCEL_PAGE = 20;
+
+const EMPTY_CANCEL: CancelSummary = { cancelledQty: 0, cancelledAmount: 0, orderedQty: 0 };
+
+type CancelSummaryRow = { cancelled_qty: number; cancelled_amount: number; ordered_qty: number };
+
+function toCancelSummary(rows: CancelSummaryRow[]): CancelSummary {
+  const r = rows[0];
+  if (!r) return EMPTY_CANCEL;
+  return {
+    cancelledQty: Number(r.cancelled_qty),
+    cancelledAmount: Number(r.cancelled_amount),
+    orderedQty: Number(r.ordered_qty),
+  };
+}
+
+/**
+ * Thống kê món bị hủy trong kỳ (REPORT-10). Gồm CẢ dine-in lẫn mang về — lịch sử POS chỉ có
+ * takeaway nên đây là chỗ duy nhất xem lại được đơn tại bàn bị hủy.
+ */
+export async function getCancellationData(
+  tenantId: string,
+  range: ReportRange,
+  opts: { offset?: number } = {}
+): Promise<CancellationData> {
+  const client = await createClient();
+  const args = baseArgs(tenantId, range);
+  const offset = Math.max(opts.offset ?? 0, 0);
+
+  const [summaryRows, actorRows, itemRows, listRows] = await Promise.all([
+    rpc<CancelSummaryRow>(client, "report_cancel_summary", args),
+    rpc<{ membership_id: string | null; display_name: string; role: string; cnt: number; qty: number; amount: number }>(
+      client,
+      "report_cancel_by_actor",
+      args
+    ),
+    rpc<{ name: string; qty: number; amount: number }>(client, "report_cancel_top_items", {
+      ...args,
+      p_limit: 10,
+    }),
+    // Lấy dư 1 dòng để biết còn trang sau mà không cần thêm truy vấn đếm.
+    rpc<{
+      cancelled_at: string;
+      place: string;
+      item_name: string;
+      qty: number;
+      amount: number;
+      reason: string;
+      actor_name: string;
+    }>(client, "report_cancel_list", { ...args, p_limit: CANCEL_PAGE + 1, p_offset: offset }),
+  ]);
+
+  const hasMore = listRows.length > CANCEL_PAGE;
+
+  return {
+    summary: toCancelSummary(summaryRows),
+    actors: actorRows.map((r) => ({
+      membershipId: r.membership_id,
+      name: r.display_name,
+      role: r.role,
+      cnt: Number(r.cnt),
+      qty: Number(r.qty),
+      amount: Number(r.amount),
+    })),
+    items: itemRows.map((r) => ({ name: r.name, qty: Number(r.qty), amount: Number(r.amount) })),
+    rows: (hasMore ? listRows.slice(0, CANCEL_PAGE) : listRows).map((r) => ({
+      cancelledAt: r.cancelled_at,
+      place: r.place,
+      itemName: r.item_name,
+      qty: Number(r.qty),
+      amount: Number(r.amount),
+      reason: r.reason,
+      actorName: r.actor_name,
+    })),
+    hasMore,
+  };
+}
+
 /**
  * Số liệu kỳ liền trước để tính biến động (REPORT-07). Chỉ lấy tổng quan + chuỗi doanh thu —
  * đủ cho delta KPI và cột mờ chồng sau biểu đồ.
@@ -185,16 +292,18 @@ export async function getComparison(tenantId: string, prevRange: ReportRange): P
   const client = await createClient();
   const args = baseArgs(tenantId, prevRange);
 
-  const [summaryRows, seriesRows] = await Promise.all([
+  const [summaryRows, seriesRows, cancelRows] = await Promise.all([
     rpc<{ total_revenue: number; bill_count: number; avg_per_bill: number }>(client, "report_summary", args),
     rpc<{ bucket_start: string; revenue: number; bill_count: number }>(client, "report_series", {
       ...args,
       p_grain: prevRange.grain,
     }),
+    rpc<CancelSummaryRow>(client, "report_cancel_summary", args),
   ]);
 
   return {
     summary: toSummary(summaryRows),
     series: fillSeries(prevRange, seriesRows).map((p) => p.revenue),
+    cancel: toCancelSummary(cancelRows),
   };
 }
