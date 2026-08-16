@@ -273,6 +273,22 @@ export function PosBoard({
   const selectedTable = initial.tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedSession = selectedTableId ? sessionByTable.get(selectedTableId) ?? null : null;
 
+  /**
+   * Bàn đang chọn có hóa đơn chia đều đang mở không? Quyết định việc ẩn nút "Hủy" và khóa đường
+   * thêm món — cả hai đều bị server chặn (BILL-06), nên để nhân viên bấm rồi mới ăn lỗi là tệ.
+   *
+   * Ưu tiên `bills` (danh sách hóa đơn do chính action chia/gỡ vừa trả về) hơn `initial` (ảnh chụp
+   * server): sau khi bấm chia đều hay gỡ chia, `router.refresh()` phải đi một vòng mạng nữa mới
+   * về, và trong khoảng đó `initial` vẫn là trạng thái CŨ — đúng cửa sổ nhân viên bấm tiếp. `bills`
+   * còn bắt được cả vỏ chia đều của HÓA ĐƠN GỘP (`table_session_id = null`) mà `initial.sessions`
+   * không bao giờ thấy. `bills` chỉ có sau khi mở khối hóa đơn và bị xóa khi đổi bàn, nên rỗng thì
+   * rơi về ảnh chụp server như cũ.
+   */
+  const splitEvenlyNow =
+    bills.length > 0
+      ? bills.some((b) => b.status === "open" && b.splitCount != null)
+      : selectedSession?.openBill?.splitCount != null;
+
   // Gộp dòng trùng: cùng món + cùng tùy chọn + cùng ghi chú → cộng dồn số lượng
   // thay vì tạo dòng mới (chủ dự án: "chọn option giống hệt nhau thì tự gộp").
   const lineKey = (l: Pick<CartLine, "itemId" | "optionIds" | "note">) =>
@@ -686,7 +702,7 @@ export function PosBoard({
           <MenuPanel
             slug={slug}
             menu={menu}
-            canAdd={takeawayMode || !!selectedTable}
+            canAdd={takeawayMode || (!!selectedTable && !splitEvenlyNow)}
             onAddLine={addLine}
           />
         </section>
@@ -737,6 +753,7 @@ export function PosBoard({
               onConfirmAdd={confirmAdd}
               adding={adding}
               addError={addError}
+              splitEvenly={splitEvenlyNow}
               cancelStaff={cancelStaff}
               canCancelWithoutPin={canCancelWithoutPin}
               onOpenBill={openBill}

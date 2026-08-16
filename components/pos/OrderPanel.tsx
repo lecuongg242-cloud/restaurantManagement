@@ -31,6 +31,7 @@ export function OrderPanel({
   onConfirmAdd,
   adding,
   addError,
+  splitEvenly,
   cancelStaff,
   canCancelWithoutPin,
   onOpenBill,
@@ -49,6 +50,11 @@ export function OrderPanel({
   onConfirmAdd: () => void;
   adding: boolean;
   addError: string | null;
+  /**
+   * Bàn đang có hóa đơn chia đều mở → server chặn cả hủy lẫn thêm món (BILL-06). Tính ở PosBoard,
+   * KHÔNG tự suy từ `session` nữa: ảnh chụp server đi sau thao tác chia/gỡ một vòng mạng.
+   */
+  splitEvenly: boolean;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
   onOpenBill: () => void;
@@ -79,7 +85,6 @@ export function OrderPanel({
   // 'served' = đã thu đủ (payBill đánh dấu). Bình thường phiên tự đóng khi thu hết; nút này chỉ
   // hữu ích khi bàn toàn món đã hủy (không doanh thu) — cho phép dọn bàn.
   const canClose = !!session && activeItems.every((i) => i.status === "served");
-  const splitEvenly = session?.openBill?.splitCount != null;
   const sessionTotal = activeItems.reduce((s, i) => s + i.unit_price * i.qty, 0);
   const cartTotal = cart.reduce((s, l) => {
     const it = itemMap.get(l.itemId);
@@ -138,11 +143,12 @@ export function OrderPanel({
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
-        {/* Bàn đã chia đều: hủy món bị server chặn (tiền của hóa đơn chia đều không giảm theo được
-            — BILL-06), nên ẩn nút Hủy và nói rõ phải làm gì thay vì để nhân viên bấm rồi ăn lỗi. */}
+        {/* Bàn đã chia đều: server chặn CẢ hủy lẫn thêm món (tiền của vỏ không đổi theo được, các
+            phần con đã chốt số — BILL-06), nên ẩn nút Hủy, khóa thực đơn + nút "Xác nhận thêm" và
+            nói rõ phải làm gì thay vì để nhân viên bấm rồi ăn lỗi. */}
         {splitEvenly && (
           <p role="status" className="mb-md rounded-md bg-surface px-md py-sm text-xs text-steel">
-            Hóa đơn đã chia đều — gỡ chia ở khối hóa đơn trước khi hủy món.
+            Hóa đơn đã chia đều — gỡ chia ở khối hóa đơn trước khi hủy hoặc thêm món.
           </p>
         )}
         {/* Món đã gọi — nhóm theo order, mỗi order in phiếu bếp riêng */}
@@ -280,10 +286,13 @@ export function OrderPanel({
                 );
               })}
             </ul>
+            {/* Giỏ gõ dở TRƯỚC khi chia đều vẫn còn đây — giữ nguyên để không mất công gõ lại sau
+                khi gỡ chia, chỉ khóa nút gửi. */}
             <button
               type="button"
               onClick={onConfirmAdd}
-              disabled={adding}
+              disabled={adding || splitEvenly}
+              title={splitEvenly ? "Hóa đơn đã chia đều — gỡ chia trước khi thêm món." : ""}
               className="mt-md flex h-11 w-full items-center justify-center gap-sm rounded-md bg-primary text-sm font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
             >
               {adding ? (
