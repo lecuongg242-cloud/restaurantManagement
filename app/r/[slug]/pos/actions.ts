@@ -146,9 +146,16 @@ export async function rejectOrder(
     .eq("status", "pending_confirm");
   if (error) return { ok: false, error: "Từ chối thất bại. Vui lòng thử lại." };
 
+  // `cancelled_by` = người bấm Từ chối: cả một lớp thao tác của nhân viên mà để trống thì báo cáo
+  // hủy gom hết vào một dòng "Không rõ" — trái mục đích quy trách nhiệm của REPORT-10.
   await supabase
     .from("order_items")
-    .update({ status: "cancelled", cancel_reason: trimmed.slice(0, 300), cancelled_at: now })
+    .update({
+      status: "cancelled",
+      cancel_reason: trimmed.slice(0, 300),
+      cancelled_at: now,
+      cancelled_by: auth.staffId,
+    })
     .eq("order_id", orderId)
     .eq("tenant_id", auth.tenantId)
     .neq("status", "cancelled");
@@ -456,7 +463,7 @@ export async function rejectOnlineOrderAction(
 ): Promise<ActionResult> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
-  const res = await rejectOnlineOrder(auth.tenantId, orderId, reason);
+  const res = await rejectOnlineOrder(auth.tenantId, orderId, reason, auth.staffId);
   if ("error" in res) return { ok: false, error: res.error };
   revalidatePath(`/r/${slug}/pos/online`);
   return { ok: true };

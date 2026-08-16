@@ -564,20 +564,29 @@ export async function acceptOnlineOrder(
   return { ok: true };
 }
 
-/** Từ chối đơn chờ: pending_confirm → cancelled (bắt buộc lý do). Broadcast cho khách. */
+/**
+ * Từ chối đơn chờ: pending_confirm → cancelled (bắt buộc lý do). Broadcast cho khách.
+ *
+ * Hủy luôn `order_items` như `rejectOrder` (đường QR) chứ không chỉ đổi trạng thái đơn: mọi RPC
+ * của REPORT-10 đếm trên `order_items.status = 'cancelled'`. Để món ở `queued` thì đơn mang về bị
+ * từ chối đóng góp 0 vào "Số món bị hủy" trong khi `qty` của nó vẫn phồng mẫu số `ordered_qty` —
+ * tỷ lệ hủy bị hạ thấp hai lần, và REPORT-10 hứa "gồm cả dine-in lẫn mang về".
+ */
 export async function rejectOnlineOrder(
   tenantId: string,
   orderId: string,
-  reason: string
+  reason: string,
+  actorMembershipId: string
 ): Promise<MutateResult> {
   if (!reason?.trim()) return { error: "Vui lòng nhập lý do từ chối." };
   const supabase = await createClient();
   const now = new Date().toISOString();
+  const trimmed = reason.trim().slice(0, 300);
   const { data, error } = await supabase
     .from("orders")
     .update({
       status: "cancelled",
-      cancel_reason: reason.trim().slice(0, 300),
+      cancel_reason: trimmed,
       cancelled_at: now,
       updated_at: now,
     })
@@ -589,6 +598,19 @@ export async function rejectOnlineOrder(
 
   if (error) return { error: "Không từ chối được. Vui lòng thử lại." };
   if (!data) return { error: "Đơn đã được xử lý hoặc không tồn tại." };
+
+  await supabase
+    .from("order_items")
+    .update({
+      status: "cancelled",
+      cancel_reason: trimmed,
+      cancelled_at: now,
+      cancelled_by: actorMembershipId,
+    })
+    .eq("tenant_id", tenantId)
+    .eq("order_id", orderId)
+    .neq("status", "cancelled");
+
   await broadcastOrderStatus(orderId);
   return { ok: true };
 }

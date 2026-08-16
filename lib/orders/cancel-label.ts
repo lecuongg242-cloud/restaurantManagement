@@ -46,3 +46,32 @@ export function formatCancelNote(input: {
   }
   return parts.join(" · ");
 }
+
+/**
+ * Ghi chú hủy của MỘT MÓN có phải là bản lặp lại của ghi chú cấp ĐƠN không (đã hiện một lần ở
+ * đầu thẻ)?
+ *
+ * Không thể lấy "đơn có lý do ⇒ đó là lý do chung" làm luật: roll-up trong `cancelOrderItem` tự
+ * ghi `orders.cancel_reason = "Tất cả món bị hủy"` khi món cuối cùng bị hủy. Đơn 1 món — ca phổ
+ * biến nhất — hủy phát là roll-up ngay, và luật kia sẽ giấu mất lý do THẬT nhân viên gõ cùng
+ * người duyệt, tức đúng hai thứ ORDER-17 sinh ra để hiện.
+ *
+ * Lý do món rỗng cũng coi là lặp: không có gì thêm để nói, dòng thừa chỉ tốn chỗ.
+ */
+export function isSharedOrderCancelReason(
+  itemReason: string | null,
+  orderReason: string | null
+): boolean {
+  const order = orderReason?.trim() ?? "";
+  if (!order) return false;
+  const item = itemReason?.trim() ?? "";
+  return item === "" || item === order;
+}
+
+/**
+ * Người duyệt của một lượt hủy CẢ ĐƠN. `orders` không có cột `cancelled_by`, nhưng `cancelOrder`
+ * ghi `cancelled_by` lên MỌI món nó hủy — lấy món đầu tiên có là ra đúng người đó.
+ */
+export function firstCancelActorId(items: { cancelledBy: string | null }[]): string | null {
+  return items.find((i) => i.cancelledBy)?.cancelledBy ?? null;
+}

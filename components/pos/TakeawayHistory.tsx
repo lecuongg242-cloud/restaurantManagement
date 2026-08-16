@@ -8,9 +8,14 @@ import type {
   TakeawayBillInfo,
   TakeawayHistorySummary,
 } from "@/lib/orders/online";
-import { groupTakeawayOrders } from "@/lib/orders/takeaway-group";
+import { groupTakeawayOrders, type TakeawayGroup } from "@/lib/orders/takeaway-group";
 import { formatVnd } from "@/lib/orders/cart";
-import { formatCancelNote, type CancelActor } from "@/lib/orders/cancel-label";
+import {
+  formatCancelNote,
+  firstCancelActorId,
+  isSharedOrderCancelReason,
+  type CancelActor,
+} from "@/lib/orders/cancel-label";
 import type { HistoryStatusFilter } from "@/lib/orders/history-filter";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import { listTakeawayHistoryAction } from "@/app/r/[slug]/pos/actions";
@@ -61,6 +66,15 @@ const STATUS_CHIPS: { key: HistoryStatusFilter; label: string }[] = [
   { key: "cancelled", label: "Đã hủy" },
 ];
 
+/** Người duyệt lượt hủy CẢ NHÓM — tra qua `cancelled_by` của món (xem firstCancelActorId). */
+function cancelActorOf(
+  g: TakeawayGroup,
+  actorById: Map<string, CancelActor>
+): CancelActor | null {
+  const id = firstCancelActorId([g.root, ...g.children].flatMap((o) => o.items));
+  return (id && actorById.get(id)) || null;
+}
+
 /** Danh sách món của một đơn trong lịch sử — món đã hủy gạch ngang, không biến mất. */
 function HistoryLines({
   order,
@@ -74,9 +88,10 @@ function HistoryLines({
       {order.items.map((it) => {
         const cancelled = it.status === "cancelled";
         // Hủy CẢ ĐƠN thì mọi món mang cùng một lý do — đã hiện một lần ở đầu thẻ, khỏi lặp
-        // lại ở từng dòng.
+        // lại ở từng dòng. Nhưng "có lý do cấp đơn" KHÔNG đồng nghĩa lý do chung: xem
+        // isSharedOrderCancelReason.
         const note =
-          cancelled && !order.cancelReason
+          cancelled && !isSharedOrderCancelReason(it.cancelReason, order.cancelReason)
             ? formatCancelNote({
                 reason: it.cancelReason,
                 at: it.cancelledAt,
@@ -432,7 +447,11 @@ export function TakeawayHistory({
                     {formatCancelNote({
                       reason: g.root.cancelReason,
                       at: g.root.cancelledAt,
-                      actor: null,
+                      // `orders` không có cột `cancelled_by`, nhưng lượt hủy cả đơn ghi người
+                      // duyệt lên MỌI món nó hủy — lấy từ đó ra (ORDER-18 hứa "tên (vai trò)").
+                      // Quét cả lượt gọi thêm: hủy nhóm ghi lên toàn nhóm, mà đơn gốc có thể
+                      // không còn món nào chưa hủy từ trước.
+                      actor: cancelActorOf(g, actorById),
                     })}
                   </p>
                 )}

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { formatCancelNote } from "@/lib/orders/cancel-label";
+import {
+  formatCancelNote,
+  firstCancelActorId,
+  isSharedOrderCancelReason,
+} from "@/lib/orders/cancel-label";
 
 // 20:15 giờ VN = 13:15 UTC
 const AT = "2026-08-16T13:15:00.000Z";
@@ -55,5 +59,42 @@ describe("formatCancelNote (ORDER-17)", () => {
     expect(
       formatCancelNote({ reason: "khách đổi ý", at: AT, actor: { name: "   ", role: "robot" } })
     ).toBe('Đã hủy 20:15 · "khách đổi ý"');
+  });
+});
+
+describe("isSharedOrderCancelReason (ORDER-18)", () => {
+  it("hủy cả đơn: lý do món trùng lý do đơn → là bản lặp, dòng món khỏi hiện", () => {
+    expect(isSharedOrderCancelReason("khách về", "khách về")).toBe(true);
+  });
+
+  it("roll-up 'Tất cả món bị hủy' KHÔNG phải lý do chung → dòng món phải hiện", () => {
+    expect(isSharedOrderCancelReason("hết hàng", "Tất cả món bị hủy")).toBe(false);
+  });
+
+  it("đơn chưa hủy (không có lý do cấp đơn) → dòng món luôn hiện", () => {
+    expect(isSharedOrderCancelReason("hết hàng", null)).toBe(false);
+    expect(isSharedOrderCancelReason("hết hàng", "   ")).toBe(false);
+  });
+
+  it("món không có lý do riêng → coi như lặp, không thêm dòng trống nghĩa", () => {
+    expect(isSharedOrderCancelReason(null, "khách về")).toBe(true);
+    expect(isSharedOrderCancelReason("  ", "khách về")).toBe(true);
+  });
+
+  it("khoảng trắng thừa hai đầu không làm hai lý do giống nhau thành khác nhau", () => {
+    expect(isSharedOrderCancelReason(" khách về ", "khách về")).toBe(true);
+  });
+});
+
+describe("firstCancelActorId (ORDER-18)", () => {
+  it("lấy người duyệt từ món đầu tiên có cancelled_by", () => {
+    expect(
+      firstCancelActorId([{ cancelledBy: null }, { cancelledBy: "m1" }, { cancelledBy: "m2" }])
+    ).toBe("m1");
+  });
+
+  it("không món nào có người duyệt (đơn khách tự hủy / dữ liệu cũ) → null", () => {
+    expect(firstCancelActorId([{ cancelledBy: null }])).toBe(null);
+    expect(firstCancelActorId([])).toBe(null);
   });
 });
