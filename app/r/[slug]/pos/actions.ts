@@ -34,6 +34,7 @@ import {
   splitBillByItems,
   splitBillByOrders,
   splitBillEvenly,
+  unsplitBill,
   mergeSessionsIntoBill,
   applyBillAdjustment,
   setBillCharges,
@@ -289,6 +290,34 @@ export async function splitEvenlyAction(
   const res = await splitBillEvenly(auth.tenantId, billId, n, auth.staffId);
   if ("error" in res) return { ok: false, error: res.error };
   const bills = await getSessionBills(auth.tenantId, sessionId);
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true, bills };
+}
+
+/**
+ * Gỡ chia đều (BILL-06): xóa các phần con CHƯA thu, vỏ trở lại hóa đơn thường. Lối thoát duy nhất
+ * cho bàn đã chia đều mà cần hủy món (hủy bị chặn vì tiền của vỏ không giảm theo được).
+ * Phiên bàn lấy từ chính hóa đơn — client chỉ cần biết billId.
+ */
+export async function unsplitBillAction(slug: string, billId: string): Promise<BillsActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await unsplitBill(auth.tenantId, billId, auth.staffId);
+  if ("error" in res) return { ok: false, error: res.error };
+
+  const supabase = await createClient();
+  const { data: bill } = await supabase
+    .from("bills")
+    .select("table_session_id")
+    .eq("id", billId)
+    .eq("tenant_id", auth.tenantId)
+    .maybeSingle();
+
+  // Hóa đơn gộp bàn không thuộc phiên nào → trả về đúng nó (panel vẫn hiện đủ tiền để thu).
+  const bills = bill?.table_session_id
+    ? await getSessionBills(auth.tenantId, bill.table_session_id as string)
+    : [await getBillView(auth.tenantId, billId)].filter((b): b is BillView => b != null);
+
   revalidatePath(`/r/${slug}/pos`);
   return { ok: true, bills };
 }

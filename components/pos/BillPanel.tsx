@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Loader2, Scissors, Merge, Percent, Wallet, Printer } from "lucide-react";
+import { X, Loader2, Scissors, Merge, Percent, Wallet, Printer, Undo2 } from "lucide-react";
 import type { BillView, PaymentMethod } from "@/lib/billing/types";
 import type { SplitPick } from "@/lib/billing/split";
 import { formatVnd } from "@/lib/orders/cart";
@@ -28,6 +28,7 @@ export function BillPanel({
   onSplitByItems,
   onSplitByOrders,
   onSplitEvenly,
+  onUnsplit,
   onMerge,
   onApplyDiscount,
   onSetCharges,
@@ -46,6 +47,7 @@ export function BillPanel({
   onSplitByItems: (billId: string, picks: SplitPick[]) => void;
   onSplitByOrders: (billId: string, orderIds: string[]) => void;
   onSplitEvenly: (billId: string, n: number) => void;
+  onUnsplit: (billId: string) => void;
   onMerge: (sessionIds: string[]) => void;
   onApplyDiscount: (billId: string, payload: AdjustPayload, creds: { membershipId?: string; pin?: string }) => void;
   onSetCharges: (billId: string, payload: { serviceChargePct: number; vatPct: number }) => void;
@@ -149,9 +151,20 @@ export function BillPanel({
           ) : (
             <>
               {isParent && (
-                <p className="mb-sm rounded-md bg-surface px-md py-sm text-xs text-steel">
-                  Hóa đơn này đã chia đều {selected.splitCount} phần — chọn các phần con ở thanh trên để thu.
-                </p>
+                <div className="mb-sm flex items-start justify-between gap-sm rounded-md bg-surface px-md py-sm">
+                  <p className="text-xs text-steel">
+                    Hóa đơn này đã chia đều {selected.splitCount} phần — chọn các phần con ở thanh trên để thu.
+                    {/* Gỡ chia là lối thoát khi bàn cần hủy món: đã chia thì hủy món bị chặn. */}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onUnsplit(selected.id)}
+                    className="inline-flex h-8 shrink-0 items-center gap-xxs rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
+                  >
+                    <Undo2 className="h-3.5 w-3.5" /> Gỡ chia
+                  </button>
+                </div>
               )}
               <ul className="flex flex-col divide-y divide-hairline-soft">
                 {selected.lines.map((l) => (

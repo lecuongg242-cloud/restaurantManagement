@@ -10,6 +10,7 @@ import { parseSettings } from "@/lib/tenant/settings";
 import { computeBillTotals } from "./compute";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
 import { planCancelledBillCleanup } from "./cancel-cleanup";
+import { planUnsplit } from "./unsplit";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
 import type { BillView, BillLineView, DiscountType } from "./types";
@@ -878,6 +879,82 @@ export async function splitBillEvenly(
     .eq("id", billId)
     .eq("tenant_id", tenantId);
 
+  return { billId };
+}
+
+/**
+ * Gỡ chia đều: xóa N hóa đơn con, trả "vỏ" về hóa đơn thường (`split_count = null`) rồi tính lại
+ * tổng từ `bill_items` — vỏ vẫn giữ nguyên dòng món nên tổng về đúng như trước khi chia.
+ *
+ * NGOẠI LỆ CÓ CHỦ ĐÍCH: mọi mutator khác của file này chặn `split_count != null ||
+ * split_parent_id != null` (applyBillAdjustment, setBillCharges, splitBillByItems,
+ * splitBillByOrders, splitBillEvenly, mergeSessionsIntoBill). Hàm này NGƯỢC LẠI — bắt buộc phải
+ * nhận đúng vỏ chia đều, vì việc của nó là gỡ chính trạng thái đó. Đừng "sửa" cho giống các hàm kia.
+ *
+ * Đây là lối thoát cho BILL-06: hủy món trên bàn đã chia đều bị chặn (tiền của vỏ không giảm theo
+ * được), nhân viên phải gỡ chia → hủy món → chia lại.
+ *
+ * Chốt chặn tiền nằm ở `planUnsplit` (thuần, có test): con đã thu thì KHÔNG gỡ.
+ */
+export async function unsplitBill(
+  tenantId: string,
+  billId: string,
+  // Nhận cho cùng khuôn với các mutator khác; bills không có cột "người sửa gần nhất" và `closed_by`
+  // là người ĐÓNG bill — ghi vào đó sẽ làm sai nghĩa cột ở báo cáo. Không bịa cột mới cho V1.
+  actorMembershipId: string | null
+): Promise<{ billId: string } | { error: string }> {
+  void actorMembershipId;
+  const client = await createClient();
+  const bill = await loadOpenBill(client, tenantId, billId);
+  if (!bill || bill.status !== "open" || bill.split_count == null)
+    return { error: "Hóa đơn này chưa chia đều." };
+
+  const { data: childRows } = await client
+    .from("bills")
+    .select("id, status")
+    .eq("tenant_id", tenantId)
+    .eq("split_parent_id", billId);
+  const children = (childRows ?? []).map((c) => ({ id: c.id as string, status: c.status as string }));
+
+  // Đếm payment ở JS: PostgREST đã tắt hàm tổng hợp (PGRST123), và một bàn chỉ chia vài phần nên
+  // đọc thẳng số dòng là rẻ.
+  const payCount = new Map<string, number>();
+  if (children.length > 0) {
+    const { data: pays } = await client
+      .from("payments")
+      .select("bill_id")
+      .eq("tenant_id", tenantId)
+      .in(
+        "bill_id",
+        children.map((c) => c.id)
+      );
+    for (const p of pays ?? []) {
+      const id = p.bill_id as string;
+      payCount.set(id, (payCount.get(id) ?? 0) + 1);
+    }
+  }
+
+  const plan = planUnsplit(
+    children.map((c) => ({ ...c, paymentCount: payCount.get(c.id) ?? 0 }))
+  );
+  if (!plan.ok) return { error: plan.error };
+
+  const { error: delErr } = await client
+    .from("bills")
+    .delete()
+    .in("id", plan.deleteChildIds)
+    .eq("tenant_id", tenantId);
+  if (delErr) return { error: "Không gỡ được các phần chia. Vui lòng thử lại." };
+
+  // Bỏ cờ vỏ TRƯỚC khi tính lại: nếu bước tính lại hỏng thì thứ còn lại vẫn là bill thường (thu
+  // được, sửa được) chứ không phải vỏ mồ côi đã mất hết con — không thu tiền bằng đường nào.
+  await client
+    .from("bills")
+    .update({ split_count: null, updated_at: new Date().toISOString() })
+    .eq("id", billId)
+    .eq("tenant_id", tenantId);
+
+  await recomputeBill(client, tenantId, billId);
   return { billId };
 }
 

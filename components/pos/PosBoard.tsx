@@ -16,6 +16,7 @@ import {
   splitByItemsAction,
   splitByOrdersAction,
   splitEvenlyAction,
+  unsplitBillAction,
   mergeTablesAction,
   applyDiscountAction,
   setChargePctAction,
@@ -367,6 +368,8 @@ export function PosBoard({
     if (!selectedSession) return;
     runBillAction(() => splitEvenlyAction(slug, selectedSession.id, billId, n));
   };
+  // Gỡ chia không cần sessionId: action tự tra phiên từ hóa đơn. runBillAction lo cả lỗi lẫn refresh.
+  const doUnsplit = (billId: string) => runBillAction(() => unsplitBillAction(slug, billId));
   const doMerge = (sessionIds: string[]) => {
     if (!selectedSession) return;
     runBillAction(() => mergeTablesAction(slug, selectedSession.id, sessionIds));
@@ -768,6 +771,7 @@ export function PosBoard({
           onSplitByItems={doSplitByItems}
           onSplitByOrders={doSplitByOrders}
           onSplitEvenly={doSplitEvenly}
+          onUnsplit={doUnsplit}
           onMerge={doMerge}
           onApplyDiscount={doApplyDiscount}
           onSetCharges={doSetCharges}
