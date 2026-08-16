@@ -397,11 +397,26 @@ export async function payBill(
   });
   if (pErr) return { error: "Ghi nhận thanh toán thất bại. Vui lòng thử lại." };
 
-  await client
+  // `.eq("status","open")` là chốt chống ĐUA với gỡ chia đều: nếu RPC `unsplit_bill_evenly` (0030)
+  // giành khóa trước và void con này, lệnh dưới KHÔNG được lật nó ngược về 'paid'. Con void hóa
+  // 'paid' sẽ vào thẳng doanh thu (report_summary lọc `status='paid' and split_count is null`)
+  // trong khi vỏ đã trở lại hóa đơn thường và sẽ được thu TOÀN BỘ lần nữa ⇒ thu trùng của khách,
+  // lại xóa luôn dấu vết void.
+  const { data: closed, error: closeErr } = await client
     .from("bills")
     .update({ status: "paid", paid_at: now, closed_by: actorMembershipId, updated_at: now })
     .eq("id", billId)
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId)
+    .eq("status", "open")
+    .select("id");
+  // 0 dòng = hóa đơn đã đổi trạng thái giữa chừng. `payments` đã ghi rồi nên KHÔNG im lặng đi tiếp:
+  // dừng lại để người thật đối soát khoản vừa nhận, thay vì tự động chốt sổ trên một hóa đơn khác
+  // với thứ thu ngân đang nhìn.
+  if (closeErr || (closed ?? []).length === 0)
+    return {
+      error:
+        "Hóa đơn vừa đổi trạng thái (có thể vừa bị gỡ chia). Khoản tiền đã được ghi nhận — vui lòng đối soát với quản lý trước khi thu lại.",
+    };
 
   // Con chia đều: mọi con paid → cha paid.
   // Bỏ con 'void' (tàn dư của một lượt chia ĐÃ GỠ, vẫn giữ `split_parent_id` — 0030) khỏi phép
