@@ -1,4 +1,4 @@
--- 0027_cancel_tracking.sql — Mốc thời gian HỦY (ORDER-17/18, REPORT-10).
+-- 0028_cancel_tracking.sql — Mốc thời gian HỦY (ORDER-17/18, REPORT-10).
 --
 -- LÝ DO: `order_items`/`orders` mới chỉ có `cancel_reason` + `cancelled_by`, KHÔNG có mốc
 -- thời gian hủy. Không có mốc này thì không xếp được một lượt hủy vào kỳ báo cáo, và vĩnh

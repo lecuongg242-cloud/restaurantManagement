@@ -1,7 +1,7 @@
--- 0031_unsplit_ignore_void_children.sql — Gỡ chia đều LẦN THỨ HAI phải chạy được.
+-- 0032_unsplit_ignore_void_children.sql — Gỡ chia đều LẦN THỨ HAI phải chạy được.
 --
--- LỖI CỦA 0030: chốt bảo vệ tiền đếm MỌI hóa đơn con có `split_parent_id = p_bill`, kể cả con đã
--- `void` của lượt gỡ TRƯỚC. Vì 0030 chọn void thay vì xóa, con void nằm lại vĩnh viễn và vẫn mang
+-- LỖI CỦA 0031: chốt bảo vệ tiền đếm MỌI hóa đơn con có `split_parent_id = p_bill`, kể cả con đã
+-- `void` của lượt gỡ TRƯỚC. Vì 0031 chọn void thay vì xóa, con void nằm lại vĩnh viễn và vẫn mang
 -- `split_parent_id`, nên điều kiện `c.status <> 'open'` đúng với chúng ⇒ `v_blocked > 0` ⇒ trả
 -- 'has_payment'. Chuỗi tái hiện: chia đều → gỡ → chia lại (splitBillEvenly chỉ xét cờ của chính vỏ
 -- nên cho phép) → gỡ lần hai → BỊ TỪ CHỐI dù chưa ai thu một đồng. Hậu quả: vỏ kẹt `split_count`,
@@ -12,9 +12,9 @@
 -- của một lượt chia ĐÃ GỠ XONG, không phải phần đang thu dở của lượt hiện tại. Con 'paid' và con
 -- 'open' có payments vẫn chặn y như cũ: đó mới là tiền thật.
 --
--- KHÔNG sửa 0030 (đã áp lên DB thật) — `create or replace` ở migration mới là đường duy nhất.
+-- KHÔNG sửa 0031 (đã áp lên DB thật) — `create or replace` ở migration mới là đường duy nhất.
 -- Mọi ghi chú thiết kế khác (void thay vì xóa, một transaction, khóa chống đua với payBill,
--- security invoker + lọc tenant tường minh) giữ nguyên như 0030.
+-- security invoker + lọc tenant tường minh) giữ nguyên như 0031.
 
 create or replace function public.unsplit_bill_evenly(
   p_tenant uuid,
@@ -109,7 +109,7 @@ begin
 end;
 $$;
 
--- 0030 hứa trong comment "Chỉ mở cho user đã đăng nhập" nhưng không thu quyền mặc định, nên ACL
+-- 0031 hứa trong comment "Chỉ mở cho user đã đăng nhập" nhưng không thu quyền mặc định, nên ACL
 -- thật vẫn còn PUBLIC + anon. Thu về cho khớp lời hứa: khách vãng lai (anon) không có việc gì gọi
 -- RPC gỡ chia. (RLS + lọc p_tenant vốn đã khiến anon chỉ nhận 'not_found' — đây là lớp thứ hai.)
 revoke execute on function public.unsplit_bill_evenly(uuid, uuid, uuid) from public;

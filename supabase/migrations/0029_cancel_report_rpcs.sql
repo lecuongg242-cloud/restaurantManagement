@@ -1,4 +1,4 @@
--- 0028_cancel_report_rpcs.sql — Tổng hợp món bị hủy (REPORT-10).
+-- 0029_cancel_report_rpcs.sql — Tổng hợp món bị hủy (REPORT-10).
 --
 -- Cùng khuôn 0023: SUM/GROUP BY nằm trong Postgres vì PostgREST cắt 1000 dòng/request, cộng
 -- trong JS sẽ báo thiếu ở tenant đông khách. `security invoker` ⇒ RLS tenant vẫn áp dụng.

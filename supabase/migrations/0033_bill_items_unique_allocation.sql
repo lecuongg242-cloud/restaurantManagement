@@ -1,4 +1,4 @@
--- 0032_bill_items_unique_allocation.sql — Một `order_item` chỉ được nằm MỘT LẦN trên cùng một bill.
+-- 0033_bill_items_unique_allocation.sql — Một `order_item` chỉ được nằm MỘT LẦN trên cùng một bill.
 --
 -- LƯỚI CUỐI CHỐNG TÍNH TIỀN HAI LẦN. `bill_items` là bảng phân bổ món vào hóa đơn; `recomputeBill`
 -- cộng thẳng `amount` của mọi dòng, nên hai dòng cùng `(bill_id, order_item_id)` = khách trả gấp đôi

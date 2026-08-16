@@ -1,4 +1,4 @@
--- 0030_bills_unsplit_rpc.sql — Gỡ chia đều trong MỘT thao tác nguyên tử (BILL-06, việc còn tồn).
+-- 0031_bills_unsplit_rpc.sql — Gỡ chia đều trong MỘT thao tác nguyên tử (BILL-06, việc còn tồn).
 --
 -- LÝ DO 1 — VOID THAY VÌ XÓA:
 -- Bản cũ gỡ chia bằng cách XÓA các hóa đơn con. `payments.bill_id` là `on delete cascade`
