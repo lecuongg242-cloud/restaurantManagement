@@ -72,28 +72,38 @@ async function authorizePos(
 }
 
 /**
- * Bàn đã chia đều hóa đơn thì KHÔNG cho hủy món (BILL-06). `dropCancelledItemsFromOpenBills` chừa
- * hóa đơn chia đều ra có chủ đích (dọn dòng của "vỏ" sẽ làm cha ≠ Σ con, và vỏ rỗng bị xóa kéo
- * theo cascade cả con lẫn `payments`), nên hủy lúc này = món 'cancelled' mà khách vẫn trả đủ tiền.
- * Lối thoát cho nhân viên: bấm "Gỡ chia" ở khối hóa đơn rồi hủy.
+ * Bàn đã chia đều hóa đơn thì KHÔNG cho SỬA món của bàn — cả hủy lẫn thêm (BILL-06).
+ *
+ * Hủy: `dropCancelledItemsFromOpenBills` chừa hóa đơn chia đều ra có chủ đích (dọn dòng của "vỏ"
+ * sẽ làm vỏ ≠ Σ con), nên hủy lúc này = món 'cancelled' mà khách vẫn trả đủ tiền.
+ * Thêm: món mới rơi vào VỎ (chỗ duy nhất giữ `bill_items`) làm tổng vỏ tăng trong khi các con giữ
+ * nguyên số cũ ⇒ Σ con < vỏ, mà vỏ thì không thu trực tiếp được ⇒ thu thiếu đúng phần vừa gọi.
+ *
+ * Lối thoát cho nhân viên trong cả hai ca: bấm "Gỡ chia" ở khối hóa đơn → sửa món → chia lại.
  *
  * KHÔNG export: file "use server" chỉ được export hàm async dùng làm action.
  */
 const SPLIT_EVENLY_CANCEL_ERROR = "Hóa đơn đã chia đều — gỡ chia trước khi hủy món.";
+const SPLIT_EVENLY_ADD_ERROR = "Hóa đơn đã chia đều — gỡ chia trước khi thêm món.";
 
-/** Không kiểm chứng được trạng thái hóa đơn thì KHÔNG cho hủy — chốt bảo vệ tiền phải fail-closed. */
+/** Không kiểm chứng được trạng thái hóa đơn thì KHÔNG cho sửa — chốt bảo vệ tiền phải fail-closed. */
 const SPLIT_CHECK_FAILED_ERROR = "Không kiểm được trạng thái hóa đơn. Vui lòng thử lại.";
 
 /**
- * Có hóa đơn chia đều đang mở chặn việc hủy các món này không? Hai đường vào, vì vỏ chia đều có
- * thể gắn phiên bàn HOẶC là hóa đơn gộp nhiều bàn (`table_session_id = null`):
- *  1. phiên bàn của đơn đang có bill 'open' mang `split_count`;
- *  2. chính món đang hủy nằm trên một bill 'open' mang `split_count` (bắt được hóa đơn gộp).
+ * Có hóa đơn chia đều đang mở chặn việc SỬA món của bàn/của các món này không? Hai đường vào, vì
+ * vỏ chia đều có thể gắn phiên bàn HOẶC là hóa đơn gộp nhiều bàn (`table_session_id = null`):
+ *  1. phiên bàn đang có bill 'open' mang `split_count`;
+ *  2. chính món đang đụng tới nằm trên một bill 'open' mang `split_count` (bắt được hóa đơn gộp).
+ *
+ * Đường thêm món chỉ có (1) — món chưa tồn tại thì chưa nằm trên hóa đơn nào, gọi với
+ * `orderItemIds = []`. Ca hiếm "bàn đã gộp rồi chia đều rồi gọi thêm" vì thế không bị chặn, nhưng
+ * cũng không sai tiền: vỏ gộp mang `table_session_id = null` nên `openBillForSession` không chọn
+ * nó, món mới đi vào một hóa đơn RIÊNG của bàn và vẫn thu đủ.
  *
  * Trả `{ error }` khi truy vấn hỏng thay vì `false`: coi "không đọc được" là "không có hóa đơn chia
  * đều" là fail-OPEN — đúng lúc DB trục trặc lại là lúc thao tác mất tiền chạy lọt.
  */
-async function evenSplitBlocksCancel(
+async function evenSplitBlocksEdit(
   supabase: SupabaseClient,
   tenantId: string,
   sessionId: string | null,
@@ -603,6 +613,24 @@ export async function createStaffOrderAction(
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
 
+  // Chốt chặn chia đều — TRƯỚC khi tạo đơn (xem SPLIT_EVENLY_ADD_ERROR). Bàn chưa có phiên mở thì
+  // chưa thể có hóa đơn nào, khỏi kiểm. Query hỏng (kể cả PGRST116 khi bàn lỡ có >1 phiên 'open' —
+  // trái D3) thì DỪNG: không đọc được trạng thái hóa đơn là không được phép thêm món.
+  const supabase = await createClient();
+  const { data: openSession, error: sessErr } = await supabase
+    .from("table_sessions")
+    .select("id")
+    .eq("tenant_id", auth.tenantId)
+    .eq("table_id", tableId)
+    .eq("status", "open")
+    .maybeSingle();
+  if (sessErr) return { ok: false, error: SPLIT_CHECK_FAILED_ERROR };
+  if (openSession) {
+    const guard = await evenSplitBlocksEdit(supabase, auth.tenantId, openSession.id as string, []);
+    if ("error" in guard) return { ok: false, error: guard.error };
+    if (guard.blocked) return { ok: false, error: SPLIT_EVENLY_ADD_ERROR };
+  }
+
   const result = await createStaffOrder({
     tenantId: auth.tenantId,
     tableId,
@@ -763,7 +791,7 @@ export async function cancelOrderItem(
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (ordErr) return { ok: false, error: SPLIT_CHECK_FAILED_ERROR };
-  const guard = await evenSplitBlocksCancel(
+  const guard = await evenSplitBlocksEdit(
     supabase,
     tenantId,
     (ord?.table_session_id as string) ?? null,
@@ -907,7 +935,7 @@ export async function cancelOrder(
 
   // Chốt chặn chia đều — vẫn TRƯỚC mọi lệnh ghi (xem SPLIT_EVENLY_CANCEL_ERROR). Nhóm gọi thêm chỉ
   // có ở đơn KHÔNG gắn bàn (isGroupRoot đòi channel ≠ dine_in) nên phiên bàn lấy từ đơn này là đủ.
-  const guard = await evenSplitBlocksCancel(
+  const guard = await evenSplitBlocksEdit(
     supabase,
     tenantId,
     (order.table_session_id as string) ?? null,
