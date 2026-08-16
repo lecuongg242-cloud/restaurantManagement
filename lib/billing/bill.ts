@@ -11,6 +11,7 @@ import { computeBillTotals } from "./compute";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
 import { planCancelledBillCleanup } from "./cancel-cleanup";
 import { planUnsplit } from "./unsplit";
+import { pickSessionOpenBill } from "./session-bill";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
 import type { BillView, BillLineView, DiscountType } from "./types";
@@ -110,18 +111,35 @@ export async function openBillForSession(
 
   const unallocated = sessionItems.filter((i) => !allocatedIds.has(i.id));
 
-  // Bill 'open' hiện có của phiên?
-  const { data: openBill } = await client
+  // Bill 'open' hiện có của phiên? Một phiên có thể có NHIỀU bill 'open' (vỏ + N con chia đều,
+  // hoặc bill nguồn + bill tách) nên KHÔNG dùng `.maybeSingle()`: gặp nhiều dòng nó trả lỗi
+  // PGRST116 chứ không trả bill, và nuốt lỗi đó thì hàm tưởng bàn chưa có hóa đơn → mỗi lần bấm
+  // "Xem hóa đơn" lại đẻ thêm một bill rỗng. Con bị loại ngay ở DB; chọn giữa phần còn lại bằng
+  // `pickSessionOpenBill` (thuần, có test) cho khớp cách panel POS chọn bill của bàn.
+  const { data: openBills, error: openErr } = await client
     .from("bills")
-    .select("id")
+    .select("id, split_count, split_parent_id, created_at")
     .eq("tenant_id", tenantId)
     .eq("table_session_id", sessionId)
     .eq("status", "open")
-    .maybeSingle();
+    .is("split_parent_id", null)
+    .order("created_at", { ascending: true });
+  // Fail-closed: đọc hỏng thì báo lỗi, TUYỆT ĐỐI không rơi xuống nhánh tạo bill mới (đó chính là
+  // đường sinh rác dữ liệu trước đây).
+  if (openErr) return { error: "Không đọc được hóa đơn của bàn. Vui lòng thử lại." };
+
+  const existingBillId = pickSessionOpenBill(
+    (openBills ?? []).map((b) => ({
+      id: b.id as string,
+      splitCount: b.split_count as number | null,
+      splitParentId: b.split_parent_id as string | null,
+      createdAt: b.created_at as string,
+    }))
+  );
 
   let billId: string;
-  if (openBill) {
-    billId = openBill.id as string;
+  if (existingBillId) {
+    billId = existingBillId;
   } else {
     const settings = await getSessionSettings(client, tenantId);
     const billNo = await nextBillNo(client, tenantId);
