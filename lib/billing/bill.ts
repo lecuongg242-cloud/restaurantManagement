@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { parseSettings } from "@/lib/tenant/settings";
 import { computeBillTotals } from "./compute";
+import { resolveReceivedAt } from "./received-at";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
 import { planCancelledBillCleanup } from "./cancel-cleanup";
 import { parseUnsplitResult } from "./unsplit";
@@ -440,8 +441,15 @@ async function closeSessionIfSettled(client: SupabaseClient, tenantId: string, s
 export async function payBill(
   tenantId: string,
   billId: string,
-  input: { method: "cash" | "transfer"; amountReceived: number; note?: string | null },
-  actorMembershipId: string | null
+  input: {
+    method: "cash" | "transfer";
+    amountReceived: number;
+    note?: string | null;
+    /** Mốc tiền THỰC SỰ về, khi khác thời điểm bấm nút (thu bù). Bỏ trống = bây giờ. */
+    receivedAt?: string | null;
+  },
+  actorMembershipId: string | null,
+  opts: { canBackdate?: boolean } = {}
 ): Promise<{ ok: true; change: number } | { error: string }> {
   const client = await createClient();
   const { data: bill } = await client
@@ -457,11 +465,18 @@ export async function payBill(
   if (total <= 0) return { error: "Hóa đơn chưa có tiền để thu." };
 
   const now = new Date().toISOString();
+  // `paidAt` = lúc TIỀN VỀ (nguồn sự thật của báo cáo); `now` = lúc BẤM NÚT, giữ ở `updated_at`
+  // để vẫn truy được ai thu bù lúc nào.
+  const received = resolveReceivedAt(input.receivedAt, opts.canBackdate === true);
+  if ("error" in received) return { error: received.error };
+  const paidAt = received.at;
+
   const { error: pErr } = await client.from("payments").insert({
     tenant_id: tenantId,
     bill_id: billId,
     method: input.method,
     amount: total,
+    received_at: paidAt,
     received_by: actorMembershipId,
     note: input.note?.trim() ? input.note.trim().slice(0, 200) : null,
   });
@@ -474,7 +489,7 @@ export async function payBill(
   // lại xóa luôn dấu vết void.
   const { data: closed, error: closeErr } = await client
     .from("bills")
-    .update({ status: "paid", paid_at: now, closed_by: actorMembershipId, updated_at: now })
+    .update({ status: "paid", paid_at: paidAt, closed_by: actorMembershipId, updated_at: now })
     .eq("id", billId)
     .eq("tenant_id", tenantId)
     .eq("status", "open")
@@ -503,8 +518,10 @@ export async function payBill(
       .neq("status", "void");
     // Đọc hỏng thì KHÔNG chốt vỏ: để vỏ 'open' chỉ làm chậm việc đóng phiên (thu lại lần nữa là
     // xong), còn chốt nhầm là mất dấu phần chưa thu.
+    // `paid_at` của vỏ lấy `paidAt` (mốc TIỀN VỀ của con cuối cùng), không lấy `now` (mốc bấm nút)
+    // — cùng một gốc thời gian với con, để vỏ và con không kể hai câu chuyện khác nhau khi thu bù.
     if (!sibErr && (sib?.length ?? 0) > 0 && (sib ?? []).every((s) => s.status === "paid"))
-      await client.from("bills").update({ status: "paid", paid_at: now, updated_at: now }).eq("id", parentId).eq("tenant_id", tenantId);
+      await client.from("bills").update({ status: "paid", paid_at: paidAt, updated_at: now }).eq("id", parentId).eq("tenant_id", tenantId);
   }
 
   // Đánh dấu món ĐÃ THU ĐỦ = 'served' (rời KDS — "vé tự xóa khi thanh toán") + gom phiên để đóng.

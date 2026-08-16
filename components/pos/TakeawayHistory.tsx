@@ -362,20 +362,24 @@ export function TakeawayHistory({
             <span className="text-sm text-steel">
               <span className="font-medium text-ink">{summary.paidCount} đơn đã thu</span>
               {" · "}
-              <span className="font-semibold tabular-nums text-ink">
-                {summary.paidTotalCapped ? "≥ " : ""}
-                {formatVnd(summary.paidTotal)}
-              </span>
+              <span className="font-semibold tabular-nums text-ink">{formatVnd(summary.paidTotal)}</span>
+              {summary.paidBills !== summary.paidCount && (
+                <span className="text-xs">{` (${summary.paidBills} HĐ)`}</span>
+              )}
               {summary.cancelledCount > 0 && (
                 <span className="text-status-late"> · {summary.cancelledCount} đơn hủy</span>
               )}
             </span>
           )}
         </div>
-        {summary?.paidTotalCapped && !loading && (
-          <p className="text-xs text-status-late">
-            Khoảng này quá nhiều hóa đơn nên tổng tiền chỉ là mức tối thiểu — xem Báo cáo để có số
-            chính xác.
+        {/* Hai con số khác gốc: tiền theo ngày THU (khớp trang Báo cáo), đơn theo ngày TẠO. Chỉ nói
+            khi chúng thực sự lệch — quán chốt tiền gọn trong ngày thì dòng này không hiện.
+            So với `paidCount` (đơn ĐÃ THU) chứ không phải tổng đơn: đơn hủy không sinh hóa đơn
+            nào nên gộp chúng vào phép so sẽ báo "chốt bù" mỗi khi trong kỳ có đơn hủy. */}
+        {!loading && !error && summary && summary.paidBills !== summary.paidCount && (
+          <p className="text-xs text-steel">
+            Tiền tính theo ngày thu (khớp trang Báo cáo), số đơn tính theo ngày tạo đơn — chênh nhau
+            là do đơn của ngày trước được chốt bù trong kỳ này.
           </p>
         )}
       </div>

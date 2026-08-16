@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Loader2, ShoppingBag, Plus, CornerDownRight } from "lucide-react";
 import type { CustomerMenuItem } from "@/lib/orders/customer-menu";
@@ -13,7 +13,7 @@ import { getPrintAdapter } from "@/lib/print/adapter";
 import { QtyStepper } from "@/components/customer/QtyStepper";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { Input } from "@/components/ui/input";
-import { PaymentDialog } from "./PaymentDialog";
+import { PaymentDialog, PAY_OFFLINE_MSG } from "./PaymentDialog";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 import { TicketPrintButtons } from "./TicketPrintButtons";
 import { TakeawayHistory } from "./TakeawayHistory";
@@ -25,6 +25,10 @@ import {
 
 const hhmm = (iso: string) =>
   new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+
+/** Ngày VIỆT NAM của một mốc ISO, dạng `YYYY-MM-DD` — so ngày phải theo giờ VN, không theo UTC. */
+const vnDayOf = (iso: string) =>
+  new Date(new Date(iso).getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 
 /** Nút tab trong header panel. */
 const tabBtn = (active: boolean) =>
@@ -96,6 +100,7 @@ export function TakeawayPanel({
   onClose,
   cancelStaff,
   canCancelWithoutPin,
+  canBackdatePayment = false,
   counter = false,
   filterOrderId = null,
   onClearFilter,
@@ -116,6 +121,8 @@ export function TakeawayPanel({
   onClose: () => void;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
+  /** Chủ/quản lý mới được ghi lùi thời điểm nhận tiền khi thu bù đơn tồn. */
+  canBackdatePayment?: boolean;
   /**
    * Quán chế độ QUẦY (service_mode='counter'): nhân viên gõ đơn cho khách tại quầy, khách ngồi ăn
    * tại quán nhưng không gắn bàn → chữ nói theo "gọi món cho khách", KHÔNG phải "mang về". Chế độ
@@ -143,6 +150,8 @@ export function TakeawayPanel({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payBill, setPayBill] = useState<BillView | null>(null);
+  /** Giờ tạo đơn đang thu — để hộp thoại biết đây có phải đơn tồn từ ngày trước không. */
+  const [payOrderAt, setPayOrderAt] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   const [editing, setEditing] = useState<{
@@ -157,6 +166,15 @@ export function TakeawayPanel({
   // Đơn MỚI NHẤT lên đầu: quán đông, đơn vừa gõ mà nằm cuối danh sách thì nhân viên phải cuộn
   // tìm mỗi lần khách quay lại hỏi/gọi thêm.
   const groups = useMemo(() => groupTakeawayOrders(orders, { newestFirst: true }), [orders]);
+
+  // Ngày VN lấy SAU khi mount: tính ngay lúc render thì server và trình duyệt có thể rơi vào hai
+  // ngày khác nhau (đúng lúc qua nửa đêm) và React báo lệch hydrate.
+  const [vnToday, setVnToday] = useState<string | null>(null);
+  useEffect(() => setVnToday(vnDayOf(new Date().toISOString())), []);
+  const staleGroups = useMemo(
+    () => (vnToday ? groups.filter((g) => vnDayOf(g.root.createdAt) < vnToday) : []),
+    [groups, vnToday]
+  );
   const addingTo = groups.find((g) => g.root.id === addToOrderId) ?? null;
   // Nhóm biến mất (đã thu tiền/hủy ở thiết bị khác) → tự thoát chế độ gọi thêm thay vì gửi lên
   // server một parent không còn hợp lệ.
@@ -222,7 +240,11 @@ export function TakeawayPanel({
     const res = await openOnlineBillAction(slug, orderId);
     setOpeningId(null);
     if (!res.ok) setError(res.error);
-    else setPayBill(res.bill);
+    else {
+      // Giữ lại giờ tạo đơn: hộp thoại cần nó để hỏi "tiền về hôm nào" khi đây là đơn tồn.
+      setPayOrderAt(groups.find((g) => g.root.id === orderId)?.root.createdAt ?? null);
+      setPayBill(res.bill);
+    }
   };
 
   return (
@@ -274,6 +296,23 @@ export function TakeawayPanel({
         <p role="alert" className="mx-lg mt-md rounded-md bg-cream-soft px-md py-sm text-sm text-status-late">
           {error}
         </p>
+      )}
+
+      {/* Đơn của NGÀY TRƯỚC còn nằm trong hàng đợi = tiền chưa thu, hoặc đã cầm tiền mà quên bấm.
+          Hàng đợi xếp mới-nhất-lên-đầu nên đơn cũ trôi xuống đáy và không ai thấy: ngày 13/08/2026
+          quán bỏ sót 37 đơn theo đúng kiểu đó, sáng hôm sau mới chốt bù. Băng này để mở ca là thấy. */}
+      {staleGroups.length > 0 && (
+        <div
+          role="alert"
+          className="mx-lg mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
+        >
+          <span className="font-semibold">
+            {staleGroups.length} đơn từ ngày trước chưa thu tiền
+          </span>
+          {": "}
+          {staleGroups.map((g) => orderLabel(g.root) || "(chưa có số)").join(", ")}
+          {" — kiểm tra rồi thu tiền hoặc hủy."}
+        </div>
       )}
 
       {/* HAI CỘT: gõ đơn mới bên trái, hàng đợi bên phải — mỗi cột cuộn riêng. Xếp chồng chung
@@ -569,13 +608,22 @@ export function TakeawayPanel({
         <PaymentDialog
           bill={payBill}
           busy={paying}
-          onPay={async (method: PaymentMethod, amountReceived: number) => {
+          orderCreatedAt={payOrderAt}
+          canBackdate={canBackdatePayment}
+          onPay={async (method: PaymentMethod, amountReceived: number, receivedAt?: string) => {
             setPaying(true);
-            const res = await payOnlineBillAction(slug, payBill.id, { method, amountReceived });
-            setPaying(false);
-            if (!res.ok) return { ok: false, error: res.error };
-            router.refresh();
-            return { ok: true, change: res.change };
+            // finally bắt buộc: mạng rớt thì server action ném, `setPaying(false)` bị bỏ qua và
+            // nút thu tiền kẹt ở trạng thái quay vòng.
+            try {
+              const res = await payOnlineBillAction(slug, payBill.id, { method, amountReceived, receivedAt });
+              if (!res.ok) return { ok: false, error: res.error };
+              router.refresh();
+              return { ok: true, change: res.change };
+            } catch {
+              return { ok: false, error: PAY_OFFLINE_MSG };
+            } finally {
+              setPaying(false);
+            }
           }}
           onPrint={() => getPrintAdapter().printReceipt({ slug, billId: payBill.id })}
           onClose={() => setPayBill(null)}

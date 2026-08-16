@@ -7,6 +7,27 @@ import { formatVnd } from "@/lib/orders/cart";
 import { MoneyInput } from "@/components/ui/money-input";
 
 /**
+ * Thông báo khi lời gọi thu tiền KHÔNG tới được server (mất mạng, server ngủ). Phải nói rõ là
+ * CHƯA ghi nhận: nhân viên đang cầm tiền của khách, tưởng xong là đơn treo tới hôm sau.
+ * Dùng chung ở mọi nơi gọi thu tiền để câu chữ không mỗi chỗ một kiểu.
+ */
+export const PAY_OFFLINE_MSG =
+  "Mất kết nối — CHƯA ghi nhận khoản thu này. Kiểm tra mạng rồi bấm Thử lại.";
+
+const VN_OFFSET_MS = 7 * 3600 * 1000;
+/** Mốc ISO → ngày VN `YYYY-MM-DD`. So ngày phải theo giờ VN, không theo UTC. */
+const vnDayOf = (iso: string) =>
+  new Date(new Date(iso).getTime() + VN_OFFSET_MS).toISOString().slice(0, 10);
+/** `2026-08-13T23:09Z` → `13/08`. */
+const vnDayLabel = (iso: string) => {
+  const d = vnDayOf(iso);
+  return `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+};
+/** `…T23:09Z` → `06:09` (giờ VN). */
+const vnTimeLabel = (iso: string) =>
+  new Date(new Date(iso).getTime() + VN_OFFSET_MS).toISOString().slice(11, 16);
+
+/**
  * PaymentDialog (04-04, BILL-04) — thu tiền + đóng bill. Tiền mặt: nhập khách đưa + nút mệnh giá
  * nhanh → tiền thối. Chuyển khoản: xác nhận đã nhận đủ (QD D-P4-1, không QR). Sau đóng → in hóa
  * đơn + Xong. Center modal, bám QD-006.
@@ -20,16 +41,36 @@ export function PaymentDialog({
   onPay,
   onPrint,
   onClose,
+  orderCreatedAt = null,
+  canBackdate = false,
 }: {
   bill: BillView;
   busy: boolean;
-  onPay: (method: PaymentMethod, amountReceived: number) => Promise<{ ok: boolean; change?: number; error?: string }>;
+  onPay: (
+    method: PaymentMethod,
+    amountReceived: number,
+    receivedAt?: string
+  ) => Promise<{ ok: boolean; change?: number; error?: string }>;
   onPrint: () => void;
   onClose: () => void;
+  /** Lúc tạo đơn — có thì hộp thoại mới hỏi được "tiền về hôm nào". Bill tại bàn để null. */
+  orderCreatedAt?: string | null;
+  /** Chủ/quản lý mới được ghi lùi (khớp rào ở server). */
+  canBackdate?: boolean;
 }) {
   const total = bill.totals.total;
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [received, setReceived] = useState<number>(total);
+  /**
+   * Đơn của ngày trước ⇒ hỏi tiền về hôm nào. Mặc định vẫn là "bây giờ": phải là lựa chọn có ý
+   * thức, không phải cái bẫy bấm nhầm. Mốc lùi lấy đúng GIỜ TẠO ĐƠN — quán bán mang về thì khách
+   * trả ngay lúc lấy đồ, nên đó là con số thật nhất ta có, và biểu đồ giờ cao điểm cũng không lệch.
+   */
+  const [backdate, setBackdate] = useState(false);
+
+  const isStaleOrder = orderCreatedAt != null && vnDayOf(orderCreatedAt) < vnDayOf(new Date().toISOString());
+  const staleDayLabel = orderCreatedAt ? vnDayLabel(orderCreatedAt) : "";
+  const staleTimeLabel = orderCreatedAt ? vnTimeLabel(orderCreatedAt) : "";
   const [done, setDone] = useState<{ change: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +79,19 @@ export function PaymentDialog({
 
   const confirm = async () => {
     setError(null);
-    const res = await onPay(method, method === "cash" ? received : total);
+    // Lưới an toàn cuối: dù nơi gọi có quên bắt lỗi mạng thì hộp thoại vẫn phải đứng yên với
+    // thông báo rõ ràng, KHÔNG được tự đóng — nhân viên đang cầm tiền của khách.
+    let res: { ok: boolean; change?: number; error?: string };
+    try {
+      res = await onPay(
+        method,
+        method === "cash" ? received : total,
+        backdate && orderCreatedAt ? orderCreatedAt : undefined
+      );
+    } catch {
+      setError(PAY_OFFLINE_MSG);
+      return;
+    }
     if (!res.ok) {
       setError(res.error ?? "Thu tiền thất bại.");
       return;
@@ -82,6 +135,34 @@ export function PaymentDialog({
                   {error}
                 </p>
               )}
+
+              {/* Đơn tồn từ ngày trước: hỏi thẳng tiền về hôm nào. Ghi "bây giờ" cho khoản tiền
+                  đã nhận hôm trước là sai cả doanh thu lẫn két, nên đừng đoán hộ người dùng. */}
+              {isStaleOrder && (
+                <div className="mb-md rounded-md border border-hairline-strong bg-surface px-md py-sm">
+                  <p className="text-sm font-medium text-ink">Đơn này từ {staleDayLabel}. Tiền về lúc nào?</p>
+                  <div className="mt-sm flex flex-col gap-xs">
+                    <DateChoice
+                      active={!backdate}
+                      onClick={() => setBackdate(false)}
+                      label="Bây giờ"
+                      hint="Khách vừa trả tiền"
+                    />
+                    <DateChoice
+                      active={backdate}
+                      onClick={() => setBackdate(true)}
+                      disabled={!canBackdate}
+                      label={`${staleDayLabel}, lúc ${staleTimeLabel}`}
+                      hint={
+                        canBackdate
+                          ? "Đã nhận tiền hôm đó, chỉ quên bấm"
+                          : "Chỉ chủ quán hoặc quản lý chọn được"
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-sm">
                 <MethodBtn active={method === "cash"} onClick={() => setMethod("cash")} icon={<Banknote className="h-4 w-4" />} label="Tiền mặt" />
                 <MethodBtn active={method === "transfer"} onClick={() => setMethod("transfer")} icon={<Landmark className="h-4 w-4" />} label="Chuyển khoản" />
@@ -159,13 +240,52 @@ export function PaymentDialog({
                 onClick={confirm}
                 className="flex h-12 flex-[2] items-center justify-center rounded-md bg-primary text-base font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-hairline disabled:text-muted"
               >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Xác nhận thu · đóng bill"}
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : error ? (
+                  "Thử lại"
+                ) : (
+                  "Xác nhận thu · đóng bill"
+                )}
               </button>
             </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** Một lựa chọn "tiền về lúc nào" — cùng ngôn ngữ hình khối với MethodBtn nhưng xếp dọc, có chú thích. */
+function DateChoice({
+  active,
+  onClick,
+  label,
+  hint,
+  disabled = false,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  hint: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={
+        "flex min-h-12 flex-col items-start justify-center rounded-md border px-md py-sm text-left " +
+        (active
+          ? "border-primary bg-cream text-ink"
+          : "border-hairline text-steel hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent")
+      }
+    >
+      <span className="text-sm font-medium">{label}</span>
+      <span className="text-xs text-steel">{hint}</span>
+    </button>
   );
 }
 
