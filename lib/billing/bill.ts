@@ -924,6 +924,42 @@ export async function splitBillByOrders(
 }
 
 /**
+ * Cuộn lại một lượt chia đều DỞ DANG: xóa các hóa đơn con vừa tạo trong chính lời gọi
+ * `splitBillEvenly` đang chạy, trả bàn về đúng trạng thái trước khi bấm "Chia đều".
+ *
+ * VÌ SAO CUỘN LẠI CHỨ KHÔNG ĐỂ NGUYÊN: nửa vời ở đây là trạng thái nguy hiểm nhất — con đã mang
+ * tiền mà vỏ chưa có cờ `split_count`, nên KHÔNG lớp nào nhận ra bàn đang chia: món gọi thêm vẫn
+ * lặng lẽ chèn vào bill cha (chốt ở `openBillForSession` chỉ chặn khi thấy cờ vỏ), trong khi N con
+ * giữ nguyên số tiền cũ ⇒ Σ con ≠ vỏ mà không ai thấy. "Chưa chia" là trạng thái hợp lệ duy nhất
+ * còn lại — thu ngân bấm chia lại là xong.
+ *
+ * XÓA CON Ở ĐÂY AN TOÀN, khác hẳn ca `billIdsWithChildren` canh (cấm xóa VỎ còn con lịch sử): con
+ * vừa sinh trong chính lời gọi này, chưa từng hiện lên panel nên không thể có `payments` để
+ * cascade mất. `.eq("split_parent_id", billId)` chốt thêm để lệnh xóa không chạm bill ngoài lượt
+ * chia này. Xóa hỏng nốt thì phải báo KHÁC đi: thứ còn lại là dữ liệu dở dang cần người thật xử lý.
+ */
+async function rollbackEvenSplitChildren(
+  client: SupabaseClient,
+  tenantId: string,
+  billId: string,
+  childIds: string[]
+): Promise<{ error: string }> {
+  const retry = { error: "Không chia đều được hóa đơn. Vui lòng thử lại." };
+  if (childIds.length === 0) return retry;
+  const { error } = await client
+    .from("bills")
+    .delete()
+    .eq("tenant_id", tenantId)
+    .eq("split_parent_id", billId)
+    .in("id", childIds);
+  if (error)
+    return {
+      error: "Chia đều lỗi giữa chừng và không tự dọn được — báo quản lý kiểm hóa đơn của bàn trước khi thu tiền.",
+    };
+  return retry;
+}
+
+/**
  * Chia đều N người: bill nguồn trở thành "vỏ" (split_count=N, không thu trực tiếp), sinh N hóa đơn
  * con mỗi cái mang total/N (dư dồn con cuối). Con KHÔNG gắn món (mang số tiền phần chia).
  */
@@ -948,27 +984,39 @@ export async function splitBillEvenly(
 
   const shares = planSplitEvenly(full.total as number, n);
   const parentNo = full.bill_no as number | null;
+  // Cả hai bước dưới đây đều PHẢI kiểm error: đây là chỗ sinh ra bất biến Σ con = vỏ, hỏng nửa
+  // chừng mà đi tiếp thì không lớp bảo vệ nào phía sau nhận ra (xem `rollbackEvenSplitChildren`).
+  const createdChildIds: string[] = [];
   for (let i = 0; i < shares.length; i++) {
     const childNo = await nextBillNo(client, tenantId);
-    await client.from("bills").insert({
-      tenant_id: tenantId,
-      bill_no: childNo,
-      table_session_id: bill.table_session_id,
-      status: "open",
-      split_parent_id: billId,
-      subtotal: shares[i],
-      total: shares[i],
-      note: `Chia đều ${i + 1}/${shares.length}${parentNo != null ? ` · HĐ #${parentNo}` : ""}`,
-      created_by: actorMembershipId,
-    });
+    const { data: child, error: childErr } = await client
+      .from("bills")
+      .insert({
+        tenant_id: tenantId,
+        bill_no: childNo,
+        table_session_id: bill.table_session_id,
+        status: "open",
+        split_parent_id: billId,
+        subtotal: shares[i],
+        total: shares[i],
+        note: `Chia đều ${i + 1}/${shares.length}${parentNo != null ? ` · HĐ #${parentNo}` : ""}`,
+        created_by: actorMembershipId,
+      })
+      .select("id")
+      .single();
+    // Thiếu con ⇒ Σ con < vỏ. Cuộn lại hết, đừng để bàn chia dở.
+    if (childErr || !child) return rollbackEvenSplitChildren(client, tenantId, billId, createdChildIds);
+    createdChildIds.push(child.id as string);
   }
 
   // Bill nguồn thành vỏ chứa (giữ bill_items để order_items vẫn "đã phân bổ" — không tính doanh thu).
-  await client
+  const { error: flagErr } = await client
     .from("bills")
     .update({ split_count: shares.length, updated_at: new Date().toISOString() })
     .eq("id", billId)
     .eq("tenant_id", tenantId);
+  // Con đã có mà cờ vỏ chưa bật là trạng thái tệ nhất: bàn "đang chia" mà không ai biết. Cuộn lại.
+  if (flagErr) return rollbackEvenSplitChildren(client, tenantId, billId, createdChildIds);
 
   return { billId };
 }
