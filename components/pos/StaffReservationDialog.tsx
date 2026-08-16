@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, type SelectGroup } from "@/components/ui/select";
 import { QtyStepper } from "@/components/customer/QtyStepper";
 import { createReservationAction } from "@/app/r/[slug]/pos/actions";
+import { ACTION_OFFLINE_MSG } from "@/components/pos/offline-msg";
 
 /** Gom bàn theo khu vực thành nhóm cho Select (bàn không có khu vực → "Khác"). */
 export function buildTableGroups(
@@ -67,6 +68,8 @@ export function StaffReservationDialog({
   const submit = () => {
     setError(null);
     startTransition(async () => {
+      // Ở đây `isPending` của useTransition tự tắt nên nút không kẹt — cái hỏng là IM LẶNG: mất
+      // mạng thì `setError` không chạy, hộp thoại trở lại như chưa bấm gì và khách coi như chưa đặt.
       const res = await createReservationAction(slug, {
         customerName: name,
         customerPhone: phone,
@@ -74,8 +77,9 @@ export function StaffReservationDialog({
         reservedAt: toVnIso(reservedAt),
         note,
         tableId: tableId || null,
-      });
-      if (!res.ok) setError(res.error);
+      }).catch(() => null);
+      if (!res) setError(ACTION_OFFLINE_MSG);
+      else if (!res.ok) setError(res.error);
       else setDone(true);
     });
   };

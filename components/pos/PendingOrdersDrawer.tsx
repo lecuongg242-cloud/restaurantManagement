@@ -8,6 +8,7 @@ import type { PosPending } from "@/lib/orders/pos";
 import { formatVnd } from "@/lib/orders/cart";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import { approveOrder, rejectOrder } from "@/app/r/[slug]/pos/actions";
+import { ACTION_OFFLINE_MSG } from "@/components/pos/offline-msg";
 
 /**
  * PendingOrdersDrawer (§4.2) — danh sách order QR chờ duyệt (realtime qua refresh của PosBoard).
@@ -42,9 +43,10 @@ export function PendingOrdersDrawer({
   const doApprove = async (id: string) => {
     setBusyId(id);
     setError(null);
-    const res = await approveOrder(slug, id);
+    // Mạng rớt ⇒ nút Duyệt kẹt spinner, đơn vẫn nằm chờ mà không ai biết. Bắt để bấm lại được.
+    const res = await approveOrder(slug, id).catch(() => null);
     setBusyId(null);
-    if (!res.ok) setError(res.error);
+    if (!res || !res.ok) setError(res ? res.error : ACTION_OFFLINE_MSG);
     else {
       // Duyệt xong tự mở phiếu bếp để in (qua PrintAdapter — PRINT-01).
       getPrintAdapter().printKitchenTicket({ slug, orderId: id });
@@ -59,10 +61,10 @@ export function PendingOrdersDrawer({
     }
     setBusyId(id);
     setError(null);
-    const res = await rejectOrder(slug, id, reason);
+    const res = await rejectOrder(slug, id, reason).catch(() => null);
     setBusyId(null);
-    if (!res.ok) {
-      setError(res.error);
+    if (!res || !res.ok) {
+      setError(res ? res.error : ACTION_OFFLINE_MSG);
     } else {
       setRejectingId(null);
       setReason("");

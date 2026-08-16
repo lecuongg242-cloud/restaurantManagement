@@ -15,6 +15,7 @@ import {
   rejectReservationAction,
   assignReservationTableAction,
 } from "@/app/r/[slug]/pos/actions";
+import { ACTION_OFFLINE_MSG } from "@/components/pos/offline-msg";
 
 type TableOpt = { id: string; name: string; area_id: string | null };
 type AreaOpt = { id: string; name: string };
@@ -104,9 +105,11 @@ export function ReservationList({
     setError(null);
     setBusyId(id);
     startTransition(async () => {
-      const res = await confirmReservationAction(slug, id);
+      // Trong startTransition, promise reject không ai bắt ⇒ busyId kẹt, nút đứng im không lời nào.
+      const res = await confirmReservationAction(slug, id).catch(() => null);
       setBusyId(null);
-      if ("error" in res) setError(res.error);
+      if (!res) setError(ACTION_OFFLINE_MSG);
+      else if ("error" in res) setError(res.error);
       else router.refresh();
     });
   }
@@ -115,9 +118,10 @@ export function ReservationList({
     setError(null);
     setBusyId(id);
     startTransition(async () => {
-      const res = await rejectReservationAction(slug, id, reason);
+      const res = await rejectReservationAction(slug, id, reason).catch(() => null);
       setBusyId(null);
-      if ("error" in res) setError(res.error);
+      if (!res) setError(ACTION_OFFLINE_MSG);
+      else if ("error" in res) setError(res.error);
       else {
         setRejectingId(null);
         setReason("");
@@ -130,9 +134,11 @@ export function ReservationList({
     setError(null);
     setBusyId(id);
     startTransition(async () => {
-      const res = await assignReservationTableAction(slug, id, tableId || null);
+      // Kẹt ở đây là ô chọn bàn đứng `disabled` — không xếp được bàn cho khách đang tới.
+      const res = await assignReservationTableAction(slug, id, tableId || null).catch(() => null);
       setBusyId(null);
-      if ("error" in res) setError(res.error);
+      if (!res) setError(ACTION_OFFLINE_MSG);
+      else if ("error" in res) setError(res.error);
       else router.refresh();
     });
   }

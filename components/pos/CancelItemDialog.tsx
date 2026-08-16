@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { PinPad } from "@/components/staff/PinPad";
 import { cancelOrderItem, cancelOrder } from "@/app/r/[slug]/pos/actions";
+import { ACTION_OFFLINE_MSG } from "@/components/pos/offline-msg";
 import { cn } from "@/lib/utils";
 
 export type CancelStaff = { id: string; name: string; role: "manager" | "cashier" };
@@ -67,13 +68,15 @@ export function CancelItemDialog({
       pin: needsPin ? pin : undefined,
       reason,
     };
+    // Mất mạng ⇒ hộp thoại phải ĐỨNG YÊN với lời báo, không tự đóng: món/đơn chưa hủy thì bếp vẫn
+    // đang làm. Xóa PIN như mọi đường lỗi khác để lần bấm sau nhập lại cho sạch.
     const res =
       variant === "order"
-        ? await cancelOrder(slug, { orderId: item.id, ...creds })
-        : await cancelOrderItem(slug, { itemId: item.id, ...creds });
+        ? await cancelOrder(slug, { orderId: item.id, ...creds }).catch(() => null)
+        : await cancelOrderItem(slug, { itemId: item.id, ...creds }).catch(() => null);
     setSubmitting(false);
-    if (!res.ok) {
-      setError(res.error);
+    if (!res || !res.ok) {
+      setError(res ? res.error : ACTION_OFFLINE_MSG);
       setPin("");
       return;
     }

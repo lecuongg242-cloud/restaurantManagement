@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ShoppingBag } from "lucide-react";
 import { createStaffOrderAction } from "@/app/r/[slug]/pos/actions";
+import { ORDER_OFFLINE_MSG } from "@/components/pos/offline-msg";
 import { stationSignOut } from "@/app/r/[slug]/station-actions";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { PosSnapshot } from "@/lib/orders/pos";
@@ -134,15 +135,17 @@ export function StaffMobileOrder({
     if (!selectedTableId || cart.length === 0) return;
     setSubmitting(true);
     setErrorMsg(null);
+    // Điện thoại của nhân viên đứng cạnh bàn là nơi sóng yếu nhất quán: mất mạng mà nút cứ quay,
+    // giỏ hàng vẫn nguyên, thì đơn CHƯA sang bếp mà không ai biết — khách ngồi chờ món không tới.
     const res = await createStaffOrderAction(
       slug,
       selectedTableId,
       cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds })),
       orderNote
-    );
+    ).catch(() => null);
     setSubmitting(false);
-    if (!res.ok) {
-      setErrorMsg(res.error);
+    if (!res || !res.ok) {
+      setErrorMsg(res ? res.error : ORDER_OFFLINE_MSG);
       return;
     }
     setSent({ tableName: selectedTable?.name ?? "—", count: cartCount });

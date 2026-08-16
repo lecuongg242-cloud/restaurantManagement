@@ -8,6 +8,7 @@ import type { PosTable, PosSession } from "@/lib/orders/pos";
 import type { CartLine, OrderItemStatus } from "@/lib/orders/types";
 import { formatVnd, unitPrice } from "@/lib/orders/cart";
 import { closeSession } from "@/app/r/[slug]/pos/actions";
+import { ACTION_OFFLINE_MSG } from "@/components/pos/offline-msg";
 import { QtyStepper } from "@/components/customer/QtyStepper";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
@@ -102,9 +103,11 @@ export function OrderPanel({
     if (!session) return;
     setBusy("close");
     setError(null);
-    const res = await closeSession(slug, session.id);
+    // Mạng rớt ⇒ phiên bàn CHƯA đóng. Kẹt nút mà không báo thì nhân viên tưởng bàn đã trống, dọn
+    // bàn cho khách mới trong khi hóa đơn cũ vẫn mở.
+    const res = await closeSession(slug, session.id).catch(() => null);
     setBusy(null);
-    if (!res.ok) setError(res.error);
+    if (!res || !res.ok) setError(res ? res.error : ACTION_OFFLINE_MSG);
     else {
       onClose();
       router.refresh();
