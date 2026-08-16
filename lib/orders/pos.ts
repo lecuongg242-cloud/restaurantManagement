@@ -168,7 +168,10 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
         .from("bills")
         .select("id, bill_no, total, table_session_id, split_count")
         .eq("tenant_id", tenantId)
-        .eq("status", "open"),
+        .eq("status", "open")
+        // Phiên có thể có nhiều bill 'open' (tách bill, hoặc vỏ + con chia đều) mà panel chỉ hiện
+        // được một → sắp cố định để lần mở nào cũng ra cùng hóa đơn, không tùy Postgres trả về.
+        .order("created_at", { ascending: true }),
       supabase
         .from("reservations")
         .select("id, table_id, reserved_at, customer_name, party_size")

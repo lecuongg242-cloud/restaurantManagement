@@ -81,20 +81,26 @@ async function authorizePos(
  */
 const SPLIT_EVENLY_CANCEL_ERROR = "Hóa đơn đã chia đều — gỡ chia trước khi hủy món.";
 
+/** Không kiểm chứng được trạng thái hóa đơn thì KHÔNG cho hủy — chốt bảo vệ tiền phải fail-closed. */
+const SPLIT_CHECK_FAILED_ERROR = "Không kiểm được trạng thái hóa đơn. Vui lòng thử lại.";
+
 /**
  * Có hóa đơn chia đều đang mở chặn việc hủy các món này không? Hai đường vào, vì vỏ chia đều có
  * thể gắn phiên bàn HOẶC là hóa đơn gộp nhiều bàn (`table_session_id = null`):
  *  1. phiên bàn của đơn đang có bill 'open' mang `split_count`;
  *  2. chính món đang hủy nằm trên một bill 'open' mang `split_count` (bắt được hóa đơn gộp).
+ *
+ * Trả `{ error }` khi truy vấn hỏng thay vì `false`: coi "không đọc được" là "không có hóa đơn chia
+ * đều" là fail-OPEN — đúng lúc DB trục trặc lại là lúc thao tác mất tiền chạy lọt.
  */
 async function evenSplitBlocksCancel(
   supabase: SupabaseClient,
   tenantId: string,
   sessionId: string | null,
   orderItemIds: string[]
-): Promise<boolean> {
+): Promise<{ blocked: boolean } | { error: string }> {
   if (sessionId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("bills")
       .select("id")
       .eq("tenant_id", tenantId)
@@ -102,21 +108,24 @@ async function evenSplitBlocksCancel(
       .eq("status", "open")
       .not("split_count", "is", null)
       .limit(1);
-    if ((data ?? []).length > 0) return true;
+    if (error) return { error: SPLIT_CHECK_FAILED_ERROR };
+    if ((data ?? []).length > 0) return { blocked: true };
   }
 
-  if (orderItemIds.length === 0) return false;
-  const { data: lines } = await supabase
+  if (orderItemIds.length === 0) return { blocked: false };
+  const { data: lines, error: lineErr } = await supabase
     .from("bill_items")
     .select("bill_id, bills!inner(status, split_count)")
     .eq("tenant_id", tenantId)
     .eq("bills.status", "open")
     .in("order_item_id", orderItemIds);
+  if (lineErr) return { error: SPLIT_CHECK_FAILED_ERROR };
   // Lọc `split_count` ở JS: cùng khuôn truy vấn với dropCancelledItemsFromOpenBills, khỏi phụ thuộc
   // cú pháp lọc trên bảng nhúng; số dòng ở đây là món của một đơn.
-  return (lines ?? []).some(
+  const blocked = (lines ?? []).some(
     (r) => (r.bills as { split_count?: number | null } | null)?.split_count != null
   );
+  return { blocked };
 }
 
 /** Đánh dấu đã xử lý 1 lời "Gọi nhân viên" (CALL-01). */
@@ -733,7 +742,7 @@ export async function cancelOrderItem(
   const supabase = await createClient();
   const { data: item } = await supabase
     .from("order_items")
-    .select("id, order_id, status, orders(table_session_id)")
+    .select("id, order_id, status")
     .eq("id", input.itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -742,10 +751,23 @@ export async function cancelOrderItem(
     return { ok: false, error: "Món đã phục vụ hoặc đã hủy, không thể hủy." };
 
   // Chốt chặn chia đều — ngay trước lệnh ghi đầu tiên (xem SPLIT_EVENLY_CANCEL_ERROR).
-  // Chỉ đơn CÓ phiên bàn mới dính: mang về/giao không chia đều.
-  const sessionId = (item.orders as { table_session_id?: string | null } | null)?.table_session_id ?? null;
-  if (await evenSplitBlocksCancel(supabase, tenantId, sessionId, [input.itemId]))
-    return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
+  // Chỉ đơn CÓ phiên bàn mới dính: mang về/giao không chia đều. Đọc phiên bằng một truy vấn riêng
+  // (không nhúng `orders(...)` vào select trên): hình dạng dữ liệu nhúng phải cast tay nên `tsc`
+  // không bắt được, mà đoán sai một nhịp là `sessionId` thành null và chốt tắt lặng lẽ.
+  const { data: ord } = await supabase
+    .from("orders")
+    .select("table_session_id")
+    .eq("id", item.order_id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  const guard = await evenSplitBlocksCancel(
+    supabase,
+    tenantId,
+    (ord?.table_session_id as string) ?? null,
+    [input.itemId]
+  );
+  if ("error" in guard) return { ok: false, error: guard.error };
+  if (guard.blocked) return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
 
   const now = new Date().toISOString();
 
@@ -882,15 +904,14 @@ export async function cancelOrder(
 
   // Chốt chặn chia đều — vẫn TRƯỚC mọi lệnh ghi (xem SPLIT_EVENLY_CANCEL_ERROR). Nhóm gọi thêm chỉ
   // có ở đơn KHÔNG gắn bàn (isGroupRoot đòi channel ≠ dine_in) nên phiên bàn lấy từ đơn này là đủ.
-  if (
-    await evenSplitBlocksCancel(
-      supabase,
-      tenantId,
-      (order.table_session_id as string) ?? null,
-      rows.map((r) => r.id as string)
-    )
-  )
-    return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
+  const guard = await evenSplitBlocksCancel(
+    supabase,
+    tenantId,
+    (order.table_session_id as string) ?? null,
+    rows.map((r) => r.id as string)
+  );
+  if ("error" in guard) return { ok: false, error: guard.error };
+  if (guard.blocked) return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
 
   const reasonSlice = reason.slice(0, 300);
   const now = new Date().toISOString();

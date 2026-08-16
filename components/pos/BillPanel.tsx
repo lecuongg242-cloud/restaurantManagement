@@ -159,7 +159,11 @@ export function BillPanel({
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => onUnsplit(selected.id)}
+                    onClick={() => {
+                      // Hỏi lại: bấm nhầm là xóa sạch các phần chia, thu ngân đang thu dở phải chia lại.
+                      if (confirm(`Gỡ chia đều ${selected.splitCount} phần? Các phần chia sẽ bị xóa, hóa đơn trở về một bill.`))
+                        onUnsplit(selected.id);
+                    }}
                     className="inline-flex h-8 shrink-0 items-center gap-xxs rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
                   >
                     <Undo2 className="h-3.5 w-3.5" /> Gỡ chia

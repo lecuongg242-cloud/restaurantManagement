@@ -141,7 +141,7 @@ export function OrderPanel({
         {/* Bàn đã chia đều: hủy món bị server chặn (tiền của hóa đơn chia đều không giảm theo được
             — BILL-06), nên ẩn nút Hủy và nói rõ phải làm gì thay vì để nhân viên bấm rồi ăn lỗi. */}
         {splitEvenly && (
-          <p className="mb-md rounded-md bg-surface px-md py-sm text-xs text-steel">
+          <p role="status" className="mb-md rounded-md bg-surface px-md py-sm text-xs text-steel">
             Hóa đơn đã chia đều — gỡ chia ở khối hóa đơn trước khi hủy món.
           </p>
         )}
