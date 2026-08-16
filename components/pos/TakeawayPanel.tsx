@@ -14,6 +14,7 @@ import { QtyStepper } from "@/components/customer/QtyStepper";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { Input } from "@/components/ui/input";
 import { PaymentDialog, PAY_OFFLINE_MSG } from "./PaymentDialog";
+import { ACTION_OFFLINE_MSG, ORDER_OFFLINE_MSG } from "./offline-msg";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 import { TicketPrintButtons } from "./TicketPrintButtons";
 import { TakeawayHistory } from "./TakeawayHistory";
@@ -211,6 +212,8 @@ export function TakeawayPanel({
     if (cart.length === 0) return;
     setCreating(true);
     setError(null);
+    // Mất mạng ⇒ đơn CHƯA sang bếp. Không bắt thì nút "Tạo đơn" quay mãi và giỏ hàng vẫn nguyên
+    // đó, nhân viên không biết nên bấm lại hay thôi.
     const res = await createTakeawayOrderAction(
       slug,
       cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds })),
@@ -220,10 +223,10 @@ export function TakeawayPanel({
         : { name: name.trim() || undefined, phone: phone.trim() || undefined },
       undefined,
       addToId ?? undefined
-    );
+    ).catch(() => null);
     setCreating(false);
-    if (!res.ok) {
-      setError(res.error);
+    if (!res || !res.ok) {
+      setError(res ? res.error : ORDER_OFFLINE_MSG);
       return;
     }
     // Đơn vào danh sách chờ; dọn builder cho khách kế.
@@ -237,9 +240,9 @@ export function TakeawayPanel({
   const openPayment = async (orderId: string) => {
     setOpeningId(orderId);
     setError(null);
-    const res = await openOnlineBillAction(slug, orderId);
+    const res = await openOnlineBillAction(slug, orderId).catch(() => null);
     setOpeningId(null);
-    if (!res.ok) setError(res.error);
+    if (!res || !res.ok) setError(res ? res.error : ACTION_OFFLINE_MSG);
     else {
       // Giữ lại giờ tạo đơn: hộp thoại cần nó để hỏi "tiền về hôm nào" khi đây là đơn tồn.
       setPayOrderAt(groups.find((g) => g.root.id === orderId)?.root.createdAt ?? null);

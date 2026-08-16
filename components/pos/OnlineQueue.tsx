@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { formatVnd } from "@/lib/orders/cart";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import { PaymentDialog, PAY_OFFLINE_MSG } from "@/components/pos/PaymentDialog";
+import { ACTION_OFFLINE_MSG } from "@/components/pos/offline-msg";
 import type { BillView, PaymentMethod } from "@/lib/billing/types";
 import type { OnlineOrderView } from "@/lib/orders/online";
 import {
@@ -87,9 +88,12 @@ export function OnlineQueue({
     setError(null);
     setBusyId(id);
     startTransition(async () => {
-      const res = await fn();
+      // Trong `startTransition` mà promise reject thì không ai bắt: `busyId` kẹt lại, nút đứng im
+      // mờ đi và React nuốt lỗi. Cho lời gọi hỏng đi đúng cùng đường với lỗi nghiệp vụ.
+      const res = await fn().catch(() => null);
       setBusyId(null);
-      if ("error" in res) setError(res.error);
+      if (!res) setError(ACTION_OFFLINE_MSG);
+      else if ("error" in res) setError(res.error);
       else {
         after?.();
         router.refresh();
@@ -101,9 +105,9 @@ export function OnlineQueue({
     setError(null);
     setBusyId(id);
     startTransition(async () => {
-      const res = await openOnlineBillAction(slug, id);
+      const res = await openOnlineBillAction(slug, id).catch(() => null);
       setBusyId(null);
-      if (!res.ok) setError(res.error);
+      if (!res || !res.ok) setError(res ? res.error : ACTION_OFFLINE_MSG);
       else {
         setPayOrderAt(orders.find((o) => o.id === id)?.createdAt ?? null);
         setPayBill(res.bill);

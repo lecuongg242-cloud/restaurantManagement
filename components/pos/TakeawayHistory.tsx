@@ -235,8 +235,11 @@ export function TakeawayHistory({
       query: debouncedQuery,
       status,
     }).catch(() => null);
-    if (run !== runId.current) return; // bộ lọc đã đổi giữa chừng → bỏ trang này
+    // Dọn cờ TRƯỚC cửa `runId`: `loadingMore` là cờ của cái nút, không phải dữ liệu của lượt nào.
+    // Để sau cửa thì đổi bộ lọc đúng lúc trang sau đang bay là nút "Tải thêm" kẹt "Đang tải…" và
+    // `disabled` vĩnh viễn (lượt cũ bị bỏ, không ai dọn hộ) — phải F5 mới xem tiếp được.
     setLoadingMore(false);
+    if (run !== runId.current) return; // bộ lọc đã đổi giữa chừng → bỏ trang này
     // Trang sau hỏng thì KHÔNG đụng vào các trang đã tải: người dùng vẫn đọc được phần đang có,
     // chỉ báo là chưa lấy thêm được. Xóa sạch ở đây là cướp mất dữ liệu họ vừa xem.
     if (!res || !res.ok) {
