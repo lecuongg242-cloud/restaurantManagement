@@ -385,7 +385,8 @@ export async function splitEvenlyAction(
 }
 
 /**
- * Gỡ chia đều (BILL-06): xóa các phần con CHƯA thu, vỏ trở lại hóa đơn thường. Lối thoát duy nhất
+ * Gỡ chia đều (BILL-06): đánh dấu các phần con CHƯA thu là `void` (0030 — KHÔNG xóa, để `payments`
+ * không cascade mất và `bill_no` đã cấp không bị dùng lại), vỏ trở lại hóa đơn thường. Lối thoát duy nhất
  * cho bàn đã chia đều mà cần hủy món (hủy bị chặn vì tiền của vỏ không giảm theo được).
  * Phiên bàn lấy từ chính hóa đơn — client chỉ cần biết billId.
  */
