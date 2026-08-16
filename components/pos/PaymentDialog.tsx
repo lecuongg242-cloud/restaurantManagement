@@ -10,12 +10,15 @@ import { useActionKey } from "@/components/use-action-key";
 import { actionSignature } from "@/lib/idempotency";
 
 /**
- * Thông báo khi lời gọi thu tiền KHÔNG tới được server (mất mạng, server ngủ). Phải nói rõ là
- * CHƯA ghi nhận: nhân viên đang cầm tiền của khách, tưởng xong là đơn treo tới hôm sau.
- * Dùng chung ở mọi nơi gọi thu tiền để câu chữ không mỗi chỗ một kiểu.
+ * Thông báo khi lời gọi thu tiền KHÔNG tới được server (mất mạng, server ngủ).
+ *
+ * KHÔNG được khẳng định "CHƯA ghi nhận" như bản cũ: mất phản hồi thì máy POS thật sự KHÔNG BIẾT
+ * server đã ghi hay chưa — server có thể đã commit xong rồi mới đứt mạng. Nói chắc một điều mình
+ * không biết là dạy nhân viên tin vào thứ sai. Nay khóa idempotent (0034) làm lượt bấm lại an toàn,
+ * nên câu đúng là: chưa rõ, nhưng cứ bấm lại. Dùng chung ở mọi nơi gọi thu tiền.
  */
 export const PAY_OFFLINE_MSG =
-  "Mất kết nối — CHƯA ghi nhận khoản thu này. Kiểm tra mạng rồi bấm Thử lại.";
+  "Mất kết nối — chưa rõ khoản thu đã ghi nhận chưa. Kiểm tra mạng rồi bấm Thử lại: thử lại không ghi trùng khoản.";
 
 const VN_OFFSET_MS = 7 * 3600 * 1000;
 /** Mốc ISO → ngày VN `YYYY-MM-DD`. So ngày phải theo giờ VN, không theo UTC. */

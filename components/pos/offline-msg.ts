@@ -9,14 +9,27 @@
  * cái đó ở lại chỗ cũ vì câu chữ riêng: một cái có tiền của khách đang treo, một cái chỉ là lỗi đọc.
  */
 
-/** Mặc định cho mọi thao tác đổi dữ liệu: nói rõ là CHƯA chạy, và việc cần làm là thử lại. */
+/**
+ * Mặc định cho mọi thao tác đổi dữ liệu CHƯA có khóa idempotent (duyệt đơn, hủy món, chia/gộp hóa
+ * đơn, đặt bàn…). Câu chữ giữ nguyên "chưa chạy" dù đó cũng là một khẳng định không chắc: đổi nó
+ * thành "chưa rõ" mà không kèm lớp chống trùng thì chỉ là mời người dùng bấm lại một thao tác chưa
+ * an toàn. Chỗ nào được cấp khóa thì mới đổi câu (xem `ORDER_OFFLINE_MSG`).
+ */
 export const ACTION_OFFLINE_MSG = "Mất kết nối — thao tác chưa chạy. Kiểm tra mạng rồi thử lại.";
 
 /**
- * Riêng cho việc GỬI ĐƠN. Phải viết hoa "CHƯA" như `PAY_OFFLINE_MSG`: nhân viên đứng cạnh bàn,
- * tưởng đơn đã sang bếp mà thật ra chưa, thì khách ngồi chờ món không bao giờ tới.
+ * Riêng cho việc GỬI ĐƠN.
+ *
+ * Bản cũ viết "đơn CHƯA được gửi" — một lời KHẲNG ĐỊNH mà hệ thống không có cơ sở để nói. Mất phản
+ * hồi thì máy POS không biết server đã nhận hay chưa: đơn có thể đã commit xong rồi mạng mới đứt.
+ * Câu đó vừa sai vừa nguy hiểm theo cả hai chiều — tin nó thì bấm lại và đẻ đơn trùng; không tin nó
+ * thì không dám bấm và khách ngồi chờ món không bao giờ tới.
+ *
+ * Nay khóa idempotent (0034) làm lượt bấm lại AN TOÀN, nên câu đúng là nói thật cái mình không biết
+ * rồi chỉ đúng việc cần làm: cứ bấm gửi lại.
  */
-export const ORDER_OFFLINE_MSG = "Mất kết nối — đơn CHƯA được gửi. Kiểm tra mạng rồi bấm gửi lại.";
+export const ORDER_OFFLINE_MSG =
+  "Mất kết nối — chưa rõ đơn đã gửi được chưa. Kiểm tra mạng rồi bấm gửi lại: gửi lại không tạo đơn trùng.";
 
 /**
  * Khi một nút gom NHIỀU thao tác vào cùng một đường (xem `runBillAction` ở PosBoard), thông báo
