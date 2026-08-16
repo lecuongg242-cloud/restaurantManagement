@@ -10,7 +10,7 @@ import { parseSettings } from "@/lib/tenant/settings";
 import { computeBillTotals } from "./compute";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
 import { planCancelledBillCleanup } from "./cancel-cleanup";
-import { planUnsplit } from "./unsplit";
+import { parseUnsplitResult } from "./unsplit";
 import { pickSessionOpenBill } from "./session-bill";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
@@ -901,111 +901,44 @@ export async function splitBillEvenly(
 }
 
 /**
- * Gỡ chia đều: xóa N hóa đơn con, trả "vỏ" về hóa đơn thường (`split_count = null`) rồi tính lại
- * tổng từ `bill_items` — vỏ vẫn giữ nguyên dòng món nên tổng về đúng như trước khi chia.
+ * Gỡ chia đều: đánh dấu N hóa đơn con là `void`, trả "vỏ" về hóa đơn thường (`split_count = null`)
+ * rồi tính lại tổng từ `bill_items` — vỏ vẫn giữ nguyên dòng món nên tổng về đúng như trước khi chia.
  *
  * NGOẠI LỆ CÓ CHỦ ĐÍCH: mọi mutator khác của file này chặn `split_count != null ||
  * split_parent_id != null` (applyBillAdjustment, setBillCharges, splitBillByItems,
  * splitBillByOrders, splitBillEvenly, mergeSessionsIntoBill). Hàm này NGƯỢC LẠI — bắt buộc phải
  * nhận đúng vỏ chia đều, vì việc của nó là gỡ chính trạng thái đó. Đừng "sửa" cho giống các hàm kia.
  *
- * Đây là lối thoát cho BILL-06: hủy món trên bàn đã chia đều bị chặn (tiền của vỏ không giảm theo
- * được), nhân viên phải gỡ chia → hủy món → chia lại.
+ * Đây là lối thoát cho BILL-06: hủy/thêm món trên bàn đã chia đều bị chặn (tiền của vỏ không đổi
+ * theo được), nhân viên phải gỡ chia → sửa món → chia lại.
  *
- * Chốt chặn tiền nằm ở `planUnsplit` (thuần, có test): con đã thu thì KHÔNG gỡ. Lệnh xóa còn buộc
- * `status='open'` để bịt khe đua với `payBill` (xem tại chỗ). Cửa sổ CHƯA đóng hẳn: `payBill` ghi
- * `payments` trước rồi mới đặt `status='paid'`, nên vẫn còn khe nhỏ giữa hai lệnh đó — đóng hẳn
- * cần gói cả lượt vào một Postgres function (việc còn tồn, xem báo cáo BILL-06).
+ * TOÀN BỘ nghiệp vụ nằm ở RPC `unsplit_bill_evenly` (0030): kiểm điều kiện, chặn khi có con đã thu,
+ * void con và bỏ cờ vỏ — trong MỘT transaction có khóa hàng. Hàm này chỉ gọi và dịch kết quả.
+ * Đừng thêm lại một lớp kiểm ở đây: chốt tiền ở tầng app chốt ở thời điểm ĐỌC, cách lệnh ghi vài
+ * lượt gọi mạng, nên nó vừa thừa vừa lệch được với luật thật.
  */
 export async function unsplitBill(
   tenantId: string,
   billId: string,
-  // Nhận cho cùng khuôn với các mutator khác; bills không có cột "người sửa gần nhất" và `closed_by`
-  // là người ĐÓNG bill — ghi vào đó sẽ làm sai nghĩa cột ở báo cáo. Không bịa cột mới cho V1.
+  /** Người bấm "Gỡ chia" — RPC ghi vào `closed_by` của các hóa đơn con bị void (dấu vết ai làm). */
   actorMembershipId: string | null
 ): Promise<{ billId: string } | { error: string }> {
-  void actorMembershipId;
   const client = await createClient();
-  const bill = await loadOpenBill(client, tenantId, billId);
-  if (!bill || bill.status !== "open" || bill.split_count == null)
-    return { error: "Hóa đơn này chưa chia đều." };
 
-  // Query hỏng cũng phải DỪNG: `data` null sẽ trông y hệt "vỏ 0 con" và đường dọn bên dưới sẽ bỏ
-  // cờ vỏ trong khi N con vẫn còn — cha lẫn con cùng thu được, khách trả tiền hai lần.
-  const { data: childRows, error: childErr } = await client
-    .from("bills")
-    .select("id, status")
-    .eq("tenant_id", tenantId)
-    .eq("split_parent_id", billId);
-  if (childErr) return { error: "Không đọc được các phần chia. Vui lòng thử lại." };
-  const children = (childRows ?? []).map((c) => ({ id: c.id as string, status: c.status as string }));
+  const { data, error } = await client.rpc("unsplit_bill_evenly", {
+    p_tenant: tenantId,
+    p_bill: billId,
+    p_actor: actorMembershipId,
+  });
+  // Fail-closed: RPC hỏng thì DỪNG hẳn. Transaction đã tự rollback nên vỏ vẫn nguyên trạng chia
+  // đều — thu ngân thử lại được, không có nửa vời nào để dọn.
+  if (error) return { error: "Không gỡ được chia đều. Vui lòng thử lại." };
 
-  // Vỏ MỒ CÔI (cờ chia đều còn, 0 con — di chứng của một lượt gỡ hỏng giữa chừng): không có gì để
-  // xóa, chỉ cần bỏ cờ. Nếu để `planUnsplit` xử thì nó trả "Hóa đơn chưa chia." và bàn kẹt cứng —
-  // mọi mutator khác của file đều từ chối vỏ, nghĩa là bill KHÔNG thu được bằng đường nào.
-  // Dọn ở tầng IO, không đụng hàm thuần: đây là sự thật về DB, không phải luật nghiệp vụ.
-  if (children.length === 0) return clearSplitFlag(client, tenantId, billId);
+  const outcome = parseUnsplitResult(data);
+  if (!outcome.ok) return { error: outcome.error };
 
-  // Đếm payment ở JS: PostgREST đã tắt hàm tổng hợp (PGRST123), và một bàn chỉ chia vài phần nên
-  // đọc thẳng số dòng là rẻ. Query hỏng thì DỪNG: coi như "chưa ai thu" sẽ biến đúng ca mà
-  // `paymentCount` sinh ra để bắt (con còn 'open' nhưng đã có tiền vào) thành ca lọt lưới.
-  const { data: pays, error: payErr } = await client
-    .from("payments")
-    .select("bill_id")
-    .eq("tenant_id", tenantId)
-    .in(
-      "bill_id",
-      children.map((c) => c.id)
-    );
-  if (payErr) return { error: "Không kiểm được phần đã thu. Vui lòng thử lại." };
-  const payCount = new Map<string, number>();
-  for (const p of pays ?? []) {
-    const id = p.bill_id as string;
-    payCount.set(id, (payCount.get(id) ?? 0) + 1);
-  }
-
-  const plan = planUnsplit(
-    children.map((c) => ({ ...c, paymentCount: payCount.get(c.id) ?? 0 }))
-  );
-  if (!plan.ok) return { error: plan.error };
-
-  // `status = 'open'` NGAY TRONG lệnh xóa: kế hoạch chốt ở thời điểm ĐỌC, cách lệnh này 2-3 lượt
-  // gọi mạng. Thu ngân máy thứ hai bấm thu một phần trong khe đó thì con đã 'paid' — xóa nó là
-  // `payments` cascade theo, tiền biến mất không dấu vết (0012_bills_core.sql: "2 thu ngân cùng
-  // bàn" là ca đã lường trước). Xóa hụt con nào thì bỏ dở CẢ LƯỢT, không đụng cờ vỏ.
-  const { data: deleted, error: delErr } = await client
-    .from("bills")
-    .delete()
-    .in("id", plan.deleteChildIds)
-    .eq("tenant_id", tenantId)
-    .eq("status", "open")
-    .select("id");
-  if (delErr) return { error: "Không gỡ được các phần chia. Vui lòng thử lại." };
-  if ((deleted ?? []).length < plan.deleteChildIds.length)
-    return { error: "Có phần chia vừa được thu — tải lại và thử lại." };
-
-  return clearSplitFlag(client, tenantId, billId);
-}
-
-/**
- * Bỏ cờ vỏ chia đều rồi tính lại tổng từ `bill_items` (vỏ giữ nguyên dòng món nên tổng về đúng con
- * số trước khi chia). Tách riêng vì cả đường gỡ thường lẫn đường dọn vỏ mồ côi đều cần.
- *
- * Bỏ cờ TRƯỚC khi tính lại: hỏng ở bước tính lại thì thứ còn lại vẫn là bill thường (thu/sửa được),
- * còn hỏng ở bước bỏ cờ mà không biết thì để lại vỏ 0 con — bill không thu được bằng đường nào.
- */
-async function clearSplitFlag(
-  client: SupabaseClient,
-  tenantId: string,
-  billId: string
-): Promise<{ billId: string } | { error: string }> {
-  const { error } = await client
-    .from("bills")
-    .update({ split_count: null, updated_at: new Date().toISOString() })
-    .eq("id", billId)
-    .eq("tenant_id", tenantId);
-  if (error) return { error: "Không gỡ được trạng thái chia đều. Vui lòng thử lại." };
-
+  // Tính lại tổng SAU khi RPC đã chốt: vỏ lúc này là bill thường, hỏng bước này thì thứ còn lại
+  // vẫn thu/sửa được (chỉ lệch con số tới lần mở bill kế tiếp), nên để ngoài transaction là chấp nhận.
   await recomputeBill(client, tenantId, billId);
   return { billId };
 }
@@ -1023,10 +956,15 @@ export async function mergeSessionsIntoBill(
   if (sessionIds.length < 2) return { error: "Chọn ít nhất 2 bàn để gộp." };
 
   // Không gộp nếu bàn nào đã có hóa đơn chốt/chia đều.
+  // Bỏ 'void' ngay ở DB: hóa đơn con của một lượt chia đều ĐÃ GỠ nằm lại vĩnh viễn với
+  // `split_parent_id` còn nguyên (0030 — void thay vì xóa để payments không cascade mất). Không
+  // loại ra thì vòng kiểm bên dưới thấy `split_parent_id != null` và bàn đó KHÔNG BAO GIỜ gộp
+  // được nữa, dù lượt chia đó đã gỡ xong từ lâu.
   const { data: existing } = await client
     .from("bills")
     .select("id, status, split_count, split_parent_id")
     .eq("tenant_id", tenantId)
+    .neq("status", "void")
     .in("table_session_id", sessionIds);
   for (const b of existing ?? []) {
     if (b.status === "paid" || b.split_count != null || b.split_parent_id != null)

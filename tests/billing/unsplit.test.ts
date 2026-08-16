@@ -1,47 +1,54 @@
 import { describe, it, expect } from "vitest";
-import { planUnsplit, type SplitChild } from "@/lib/billing/unsplit";
+import { parseUnsplitResult } from "@/lib/billing/unsplit";
 
-/** Con chia đều CHƯA thu đồng nào — ca mặc định của các test bên dưới. */
-const child = (id: string, over: Partial<SplitChild> = {}): SplitChild => ({
-  id,
-  status: "open",
-  paymentCount: 0,
-  ...over,
-});
+const FALLBACK = "Không gỡ được chia đều. Vui lòng thử lại.";
 
-describe("planUnsplit (BILL-06)", () => {
-  it("không có con nào → không phải hóa đơn đã chia", () => {
-    const plan = planUnsplit([]);
-    expect(plan).toEqual({ ok: false, error: "Hóa đơn chưa chia." });
+describe("parseUnsplitResult (BILL-06)", () => {
+  it("gỡ xong 3 phần → ok kèm số phần đã hủy", () => {
+    expect(parseUnsplitResult({ ok: true, voided: 3 })).toEqual({ ok: true, voided: 3 });
   });
 
-  it("mọi con chưa thu → gỡ được, xóa hết con", () => {
-    const plan = planUnsplit([child("c1"), child("c2"), child("c3")]);
-    expect(plan).toEqual({ ok: true, deleteChildIds: ["c1", "c2", "c3"] });
+  it("vỏ mồ côi (0 con) → vẫn là ok, chỉ bỏ cờ chia đều", () => {
+    expect(parseUnsplitResult({ ok: true, voided: 0 })).toEqual({ ok: true, voided: 0 });
   });
 
-  it("một con đã 'paid' → chặn (xóa con là cascade xóa payments)", () => {
-    const plan = planUnsplit([child("c1"), child("c2", { status: "paid", paymentCount: 1 })]);
-    expect(plan.ok).toBe(false);
-    if (!plan.ok)
-      expect(plan.error).toBe("Đã thu một phần — không gỡ chia được. Hoàn tiền phần đã thu trước.");
+  it("con đã thu → câu lỗi bảo hoàn tiền trước", () => {
+    expect(parseUnsplitResult({ ok: false, code: "has_payment" })).toEqual({
+      ok: false,
+      error: "Đã thu một phần — không gỡ chia được. Hoàn tiền phần đã thu trước.",
+    });
   });
 
-  it("con còn 'open' nhưng đã có payment (thu chưa đủ) → vẫn chặn", () => {
-    const plan = planUnsplit([child("c1"), child("c2", { paymentCount: 1 })]);
-    expect(plan.ok).toBe(false);
-    if (!plan.ok)
-      expect(plan.error).toBe("Đã thu một phần — không gỡ chia được. Hoàn tiền phần đã thu trước.");
+  it("không phải hóa đơn đã chia → nói đúng lý do", () => {
+    expect(parseUnsplitResult({ ok: false, code: "not_split" })).toEqual({
+      ok: false,
+      error: "Hóa đơn này chưa chia đều.",
+    });
   });
 
-  it("nhiều con hỗn hợp: chỉ cần 1 con dính tiền là chặn cả lượt", () => {
-    const plan = planUnsplit([
-      child("c1"),
-      child("c2"),
-      child("c3", { status: "paid", paymentCount: 1 }),
-      child("c4"),
-    ]);
-    expect(plan.ok).toBe(false);
-    expect(plan).not.toHaveProperty("deleteChildIds");
+  it("không tìm thấy hóa đơn → nói đúng lý do", () => {
+    expect(parseUnsplitResult({ ok: false, code: "not_found" })).toEqual({
+      ok: false,
+      error: "Không tìm thấy hóa đơn.",
+    });
+  });
+
+  it("mã lỗi lạ (RPC đổi mà app chưa theo) → vẫn là thất bại", () => {
+    expect(parseUnsplitResult({ ok: false, code: "chua_biet" })).toEqual({ ok: false, error: FALLBACK });
+  });
+
+  // Fail-closed: mọi hình dạng không hiểu được đều là THẤT BẠI, không bao giờ suy ra "chắc xong rồi".
+  it.each([
+    ["null", null],
+    ["undefined", undefined],
+    ["chuỗi", "ok"],
+    ["mảng", [{ ok: true, voided: 1 }]],
+    ["thiếu cờ ok", { voided: 2 }],
+    ["ok không phải true", { ok: "true", voided: 2 }],
+    ["voided không phải số", { ok: true, voided: "2" }],
+    ["voided âm", { ok: true, voided: -1 }],
+    ["voided lẻ", { ok: true, voided: 1.5 }],
+  ])("hình dạng lạ (%s) → thất bại", (_label, raw) => {
+    expect(parseUnsplitResult(raw)).toEqual({ ok: false, error: FALLBACK });
   });
 });

@@ -1,35 +1,41 @@
 /**
- * Quyết định có được GỠ CHIA ĐỀU hay không (BILL-06). Thuần, không IO — `bill.ts` lo phần đọc/ghi,
- * giống cặp `planSplitByItems` ↔ `splitBillByItems`, `planCancelledBillCleanup` ↔
- * `dropCancelledItemsFromOpenBills`.
+ * Đọc kết quả của RPC `unsplit_bill_evenly` (0030) thành thứ tầng UI dùng được. Thuần, không IO —
+ * `bill.ts` lo phần gọi RPC, giống cặp `planSplitByItems` ↔ `splitBillByItems`.
  *
- * Gỡ chia = XÓA các hóa đơn con. Đây là thao tác đụng tiền: `payments.bill_id` là
- * `on delete cascade` (0012_bills_core.sql), nên xóa một con ĐÃ THU là xóa luôn dòng tiền khách đã
- * trả — sổ sách hụt mà không để lại dấu vết. Vì vậy tầng này chặn cứng: chỉ cần MỘT con đã 'paid'
- * hoặc đã có payment (thu một phần, chưa đủ nên bill vẫn 'open') là từ chối cả lượt gỡ.
- * Muốn gỡ thì phải hoàn tiền phần đã thu trước — việc của người thật, không tự động hóa.
+ * VÌ SAO CHỈ CÒN PHẦN ĐỌC KẾT QUẢ: luật "con đã thu thì không gỡ" trước đây nằm ở hàm thuần
+ * `planUnsplit`, nhưng nó chốt ở thời điểm ĐỌC rồi mới ghi ở 2-3 lượt gọi mạng sau — lượt thu tiền
+ * chen vào giữa vẫn lọt. 0030 dời luật đó xuống một Postgres function chạy trong MỘT transaction
+ * có khóa hàng, tức là chốt và lệnh ghi không còn tách rời được nữa. Giữ lại bản TS song song là
+ * dựng hai nguồn sự thật cho cùng một luật tiền — lệch nhau một nhịp là chặn nhầm hoặc lọt lưới.
+ * Nên bên TS chỉ còn đúng việc nó làm tốt hơn SQL: dịch mã lỗi ra câu tiếng Việt cho thu ngân.
+ *
+ * FAIL-CLOSED: hình dạng lạ (RPC đổi, mạng trả rác, `null`) → coi là THẤT BẠI, không bao giờ suy
+ * ra "chắc là xong rồi". Gỡ chia mà tưởng xong trong khi chưa xong là bàn kẹt cứng không thu được.
  */
 
-export type SplitChild = {
-  id: string;
-  status: string;
-  /** Số dòng `payments` của con này. > 0 = đã có tiền vào, kể cả khi bill còn 'open'. */
-  paymentCount: number;
+export type UnsplitOutcome = { ok: true; voided: number } | { ok: false; error: string };
+
+/** Câu lỗi theo từng mã RPC. Mã lạ rơi về câu chung (vẫn là thất bại). */
+const MESSAGE_BY_CODE: Record<string, string> = {
+  not_found: "Không tìm thấy hóa đơn.",
+  not_split: "Hóa đơn này chưa chia đều.",
+  has_payment: "Đã thu một phần — không gỡ chia được. Hoàn tiền phần đã thu trước.",
 };
 
-export type UnsplitPlan =
-  | { ok: true; deleteChildIds: string[] }
-  | { ok: false; error: string };
+const FALLBACK_ERROR = "Không gỡ được chia đều. Vui lòng thử lại.";
 
-export function planUnsplit(children: SplitChild[]): UnsplitPlan {
-  if (children.length === 0) return { ok: false, error: "Hóa đơn chưa chia." };
+export function parseUnsplitResult(raw: unknown): UnsplitOutcome {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, error: FALLBACK_ERROR };
 
-  const paid = children.some((c) => c.status === "paid" || c.paymentCount > 0);
-  if (paid)
-    return {
-      ok: false,
-      error: "Đã thu một phần — không gỡ chia được. Hoàn tiền phần đã thu trước.",
-    };
+  const row = raw as { ok?: unknown; code?: unknown; voided?: unknown };
+  if (row.ok !== true) {
+    const code = typeof row.code === "string" ? row.code : "";
+    return { ok: false, error: MESSAGE_BY_CODE[code] ?? FALLBACK_ERROR };
+  }
 
-  return { ok: true, deleteChildIds: children.map((c) => c.id) };
+  // `voided = 0` là ca HỢP LỆ: vỏ mồ côi (còn cờ chia đều nhưng 0 con) — RPC bỏ cờ và không void
+  // dòng nào. Số âm/không phải số nguyên = kết quả không hiểu được → thất bại.
+  const voided = typeof row.voided === "number" ? row.voided : NaN;
+  if (!Number.isInteger(voided) || voided < 0) return { ok: false, error: FALLBACK_ERROR };
+  return { ok: true, voided };
 }
