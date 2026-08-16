@@ -27,6 +27,7 @@ export async function POST(
     note?: unknown;
     customerName?: unknown;
     customerPhone?: unknown;
+    idempotencyKey?: unknown;
   };
   const qrToken = typeof b.qrToken === "string" ? b.qrToken : "";
   const note = typeof b.note === "string" ? b.note : undefined;
@@ -46,7 +47,19 @@ export async function POST(
       })
     : [];
 
-  const result = await createQrOrder({ slug, qrToken, lines, note, customerName, customerPhone });
+  // Khóa idempotent do máy khách sinh (0034): khách bấm "Gửi đơn" trên 3G chập chờn, mất phản hồi
+  // rồi bấm lại thì bếp không nhận hai lần. `createQrOrder` tự lọc giá trị không phải uuid.
+  const idempotencyKey = typeof b.idempotencyKey === "string" ? b.idempotencyKey : undefined;
+
+  const result = await createQrOrder({
+    slug,
+    qrToken,
+    lines,
+    note,
+    customerName,
+    customerPhone,
+    idempotencyKey,
+  });
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }

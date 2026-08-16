@@ -31,6 +31,8 @@ export type CreateOnlineOrderInput = {
   customerPhone?: string;
   address?: string;
   note?: string;
+  /** Khóa idempotent của lần bấm "Đặt món" ở máy khách (0034) — gửi lại cùng khóa không đẻ đơn hai. */
+  idempotencyKey?: string;
 };
 
 /**
@@ -84,6 +86,7 @@ export async function createOnlineOrder(
     note,
     customerContact,
     built: validated.built,
+    idempotencyKey: input.idempotencyKey,
   });
 }
 

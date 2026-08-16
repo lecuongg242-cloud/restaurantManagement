@@ -28,6 +28,7 @@ export async function POST(
     customerName?: unknown;
     customerPhone?: unknown;
     address?: unknown;
+    idempotencyKey?: unknown;
   };
 
   const channel: OnlineChannel = b.channel === "delivery" ? "delivery" : "takeaway";
@@ -53,6 +54,9 @@ export async function POST(
     customerName: typeof b.customerName === "string" ? b.customerName : undefined,
     customerPhone: typeof b.customerPhone === "string" ? b.customerPhone : undefined,
     address: typeof b.address === "string" ? b.address : undefined,
+    // Khóa idempotent do máy khách sinh (0034): mất phản hồi rồi bấm lại thì không đẻ đơn thứ hai.
+    // `createOnlineOrder` tự lọc giá trị không phải uuid.
+    idempotencyKey: typeof b.idempotencyKey === "string" ? b.idempotencyKey : undefined,
   });
 
   if ("error" in result) {

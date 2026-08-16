@@ -20,6 +20,7 @@ import {
 } from "./session-bill";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
+import { isDuplicateKeyError, normalizeIdempotencyKey } from "@/lib/idempotency";
 import type { BillView, BillLineView, DiscountType } from "./types";
 
 /**
@@ -433,10 +434,44 @@ async function closeSessionIfSettled(client: SupabaseClient, tenantId: string, s
   await client.from("tables").update({ status: "available" }).eq("id", sess.table_id).eq("tenant_id", tenantId);
 }
 
+/** Hóa đơn hiện đã 'paid' chưa — đọc lại từ DB, không suy từ biến trong bộ nhớ. */
+async function billIsPaid(client: SupabaseClient, tenantId: string, billId: string): Promise<boolean> {
+  const { data } = await client
+    .from("bills")
+    .select("status")
+    .eq("id", billId)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  return data?.status === "paid";
+}
+
+/**
+ * Khoản thu đã ghi từ trước với đúng khóa idempotent này? Trả `true` nếu có — tức lượt GỬI LẠI của
+ * một lần bấm "Thu tiền" đã vào DB. Lọc `tenant_id` tường minh, cùng phạm vi unique index của 0034.
+ */
+async function paymentExistsForKey(
+  client: SupabaseClient,
+  tenantId: string,
+  key: string
+): Promise<boolean> {
+  const { data } = await client
+    .from("payments")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("idempotency_key", key)
+    .maybeSingle();
+  return data != null;
+}
+
 /**
  * Thu tiền + đóng bill (04-04, BILL-04). Thu đủ `total` (tiền mặt/chuyển khoản — chỉ ghi nhận, QD
  * D-P4-1). Con chia đều thu riêng; khi mọi con paid → cha paid. Sau paid: tự đóng phiên bàn đã
  * thanh toán hết (TABLE-02). Trả tiền thối (mặt).
+ *
+ * GỬI LẠI AN TOÀN (0034): `input.idempotencyKey` do client sinh, một lần bấm = một khóa. Gửi lại
+ * cùng khóa ⇒ KHÔNG ghi thêm dòng `payments`, và trả về đúng kết quả cũ như một lần THÀNH CÔNG.
+ * Hàm này vốn KHÔNG nguyên tử (ghi `payments` rồi mới đóng `bills`) nên đường gửi lại phải chạy nốt
+ * phần đóng bill thay vì trả `ok` ngay: lượt trước có thể đã chết đúng giữa hai bước đó.
  */
 export async function payBill(
   tenantId: string,
@@ -447,11 +482,14 @@ export async function payBill(
     note?: string | null;
     /** Mốc tiền THỰC SỰ về, khi khác thời điểm bấm nút (thu bù). Bỏ trống = bây giờ. */
     receivedAt?: string | null;
+    /** Khóa idempotent của lần bấm "Thu tiền" ở máy POS (0034). */
+    idempotencyKey?: string | null;
   },
   actorMembershipId: string | null,
   opts: { canBackdate?: boolean } = {}
 ): Promise<{ ok: true; change: number } | { error: string }> {
   const client = await createClient();
+  const idemKey = normalizeIdempotencyKey(input.idempotencyKey);
   const { data: bill } = await client
     .from("bills")
     .select("id, status, total, table_session_id, online_order_id, split_count, split_parent_id")
@@ -459,6 +497,15 @@ export async function payBill(
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (!bill) return { error: "Không tìm thấy hóa đơn." };
+
+  // Tra khóa TRƯỚC chốt "Hóa đơn đã đóng": lượt gửi lại của một lần thu THÀNH CÔNG luôn gặp hóa đơn
+  // đã 'paid' — do chính lượt trước đóng. Để chốt kia bắt trước thì nhân viên nhận về một lỗi cho
+  // một việc đã xong, đúng thứ khóa này sinh ra để dẹp.
+  let isReplay = idemKey != null && (await paymentExistsForKey(client, tenantId, idemKey));
+  // Lượt trước đã ghi thu VÀ đã đóng bill xong ⇒ không còn việc gì để làm, trả lại kết quả cũ.
+  if (isReplay && bill.status === "paid")
+    return { ok: true, change: Math.max(0, Math.round(input.amountReceived) - (bill.total as number)) };
+
   if (bill.status !== "open") return { error: "Hóa đơn đã đóng." };
   if (bill.split_count != null) return { error: "Hóa đơn đã chia — thu ở từng phần con." };
   const total = bill.total as number;
@@ -471,16 +518,25 @@ export async function payBill(
   if ("error" in received) return { error: received.error };
   const paidAt = received.at;
 
-  const { error: pErr } = await client.from("payments").insert({
-    tenant_id: tenantId,
-    bill_id: billId,
-    method: input.method,
-    amount: total,
-    received_at: paidAt,
-    received_by: actorMembershipId,
-    note: input.note?.trim() ? input.note.trim().slice(0, 200) : null,
-  });
-  if (pErr) return { error: "Ghi nhận thanh toán thất bại. Vui lòng thử lại." };
+  // `isReplay` ở đây = lượt trước ghi được `payments` rồi CHẾT trước khi đóng bill. Khoản thu đã nằm
+  // trong DB, ghi lần nữa là thu trùng — bỏ qua bước ghi, đi thẳng xuống phần đóng bill còn dở.
+  if (!isReplay) {
+    const { error: pErr } = await client.from("payments").insert({
+      tenant_id: tenantId,
+      bill_id: billId,
+      method: input.method,
+      amount: total,
+      received_at: paidAt,
+      received_by: actorMembershipId,
+      note: input.note?.trim() ? input.note.trim().slice(0, 200) : null,
+      idempotency_key: idemKey,
+    });
+    // Hai request CÙNG khóa tới gần như đồng thời: cả hai qua được phép tra ở trên (chưa ai ghi),
+    // rồi Postgres phân xử ở unique index — một lệnh thắng, lệnh kia nhận 23505. Kẻ thua KHÔNG được
+    // báo lỗi (nó là lượt gửi lại của chính lần bấm đó) mà đi tiếp như đường gửi lại.
+    if (pErr && idemKey && isDuplicateKeyError(pErr)) isReplay = true;
+    else if (pErr) return { error: "Ghi nhận thanh toán thất bại. Vui lòng thử lại." };
+  }
 
   // `.eq("status","open")` là chốt chống ĐUA với gỡ chia đều: nếu RPC `unsplit_bill_evenly` (0031)
   // giành khóa trước và void con này, lệnh dưới KHÔNG được lật nó ngược về 'paid'. Con void hóa
@@ -497,11 +553,18 @@ export async function payBill(
   // 0 dòng = hóa đơn đã đổi trạng thái giữa chừng. `payments` đã ghi rồi nên KHÔNG im lặng đi tiếp:
   // dừng lại để người thật đối soát khoản vừa nhận, thay vì tự động chốt sổ trên một hóa đơn khác
   // với thứ thu ngân đang nhìn.
-  if (closeErr || (closed ?? []).length === 0)
-    return {
-      error:
-        "Hóa đơn vừa đổi trạng thái (có thể vừa bị gỡ chia). Khoản tiền đã được ghi nhận — vui lòng đối soát với quản lý trước khi thu lại.",
-    };
+  //
+  // TRỪ một ca: đường GỬI LẠI mà hóa đơn nay đã 'paid'. Đó chính là request song sinh cùng khóa vừa
+  // đóng nó xong — không có gì bất thường để đối soát, và câu "báo quản lý" ở đây chỉ dọa nhân viên
+  // vì một việc đã hoàn tất đúng. Đọc lại trạng thái để KHẲNG ĐỊNH, không suy đoán.
+  if (closeErr || (closed ?? []).length === 0) {
+    const settled = isReplay && (await billIsPaid(client, tenantId, billId));
+    if (!settled)
+      return {
+        error:
+          "Hóa đơn vừa đổi trạng thái (có thể vừa bị gỡ chia). Khoản tiền đã được ghi nhận — vui lòng đối soát với quản lý trước khi thu lại.",
+      };
+  }
 
   // Con chia đều: mọi con paid → cha paid.
   // Bỏ con 'void' (tàn dư của một lượt chia ĐÃ GỠ, vẫn giữ `split_parent_id` — 0031) khỏi phép

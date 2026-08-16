@@ -10,6 +10,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseSettings } from "@/lib/tenant/settings";
+import { isDuplicateKeyError, normalizeIdempotencyKey } from "@/lib/idempotency";
 import type { OrderLineInput } from "./types";
 
 export type CreateOrderResult = { orderId: string } | { error: string };
@@ -155,6 +156,24 @@ export async function nextKitchenNo(client: SupabaseClient, tenantId: string): P
   return max + 1;
 }
 
+/**
+ * Đơn đã tạo từ trước với đúng khóa này? Trả `orderId` nếu có — tức lượt gửi lại của MỘT lần bấm đã
+ * thành công. Lọc `tenant_id` tường minh, cùng phạm vi với unique index của 0034.
+ */
+async function findOrderByKey(
+  admin: SupabaseClient,
+  tenantId: string,
+  key: string
+): Promise<string | null> {
+  const { data } = await admin
+    .from("orders")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("idempotency_key", key)
+    .maybeSingle();
+  return (data?.id as string) ?? null;
+}
+
 /** Insert orders + order_items + order_item_modifiers (snapshot). Rollback thủ công nếu lỗi. */
 export async function insertOrderGraph(
   admin: SupabaseClient,
@@ -172,8 +191,15 @@ export async function insertOrderGraph(
     built: BuiltLine[];
     /** Đơn gốc của nhóm "gọi thêm" (QD-011). Chỉ dùng cho đơn không gắn bàn. */
     parentOrderId?: string | null;
+    /**
+     * Khóa idempotent do CLIENT sinh (0034). Gửi lại cùng khóa ⇒ trả về đúng đơn cũ như một lần
+     * THÀNH CÔNG, không đẻ đơn thứ hai. Bỏ trống = giữ nguyên hành vi cũ (luôn tạo đơn mới).
+     */
+    idempotencyKey?: string | null;
   }
 ): Promise<CreateOrderResult> {
+  const idemKey = normalizeIdempotencyKey(args.idempotencyKey);
+
   // Order vào thẳng confirmed (staff / qr auto_send) → gán số bếp ngay.
   const kitchenNo = args.status === "confirmed" ? await nextKitchenNo(admin, args.tenantId) : null;
   const { data: order, error: oErr } = await admin
@@ -191,9 +217,19 @@ export async function insertOrderGraph(
       customer_contact: args.customerContact,
       note: args.note,
       parent_order_id: args.parentOrderId ?? null,
+      idempotency_key: idemKey,
     })
     .select("id")
     .single();
+  // GHI TRƯỚC RỒI BẮT LỖI, không kiểm trước rồi mới ghi: hai request cùng khóa tới gần như đồng thời
+  // sẽ cùng kiểm, cùng không thấy gì, rồi cùng tạo đơn. Để Postgres phân xử thì đúng một lệnh thắng,
+  // lệnh kia nhận 23505 và đi tra lại đơn vừa thắng — không còn cửa sổ đua nào.
+  // Tra lại vẫn có thể KHÔNG ra đơn (23505 của một ràng buộc khác, hoặc đơn kia vừa bị cuộn lại) —
+  // lúc đó rơi về báo lỗi bình thường, tuyệt đối không bịa ra một "thành công".
+  if (oErr && idemKey && isDuplicateKeyError(oErr)) {
+    const existingId = await findOrderByKey(admin, args.tenantId, idemKey);
+    if (existingId) return { orderId: existingId };
+  }
   if (oErr || !order) return { error: "Không tạo được đơn. Vui lòng thử lại." };
   const orderId = order.id as string;
 
@@ -253,6 +289,8 @@ export type CreateOrderInput = {
   note?: string;
   customerName?: string;
   customerPhone?: string;
+  /** Khóa idempotent của lần bấm "Gửi đơn" ở máy khách (0034) — gửi lại cùng khóa không đẻ đơn hai. */
+  idempotencyKey?: string;
 };
 
 /**
@@ -334,6 +372,7 @@ export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrde
     note,
     customerContact,
     built: validated.built,
+    idempotencyKey: input.idempotencyKey,
   });
 }
 
@@ -344,6 +383,8 @@ export type CreateStaffOrderInput = {
   lines: OrderLineInput[];
   note?: string;
   actingStaffId: string;
+  /** Khóa idempotent của lần bấm "Gửi đơn" ở máy POS (0034). */
+  idempotencyKey?: string;
 };
 
 /**
@@ -383,6 +424,7 @@ export async function createStaffOrder(input: CreateStaffOrderInput): Promise<Cr
     note,
     customerContact: null,
     built: validated.built,
+    idempotencyKey: input.idempotencyKey,
   });
 }
 
@@ -399,6 +441,8 @@ export type CreateStaffTakeawayInput = {
    * `resolveGroupRoot` trước — hàm này không tự leo lên cây.
    */
   parentOrderId?: string | null;
+  /** Khóa idempotent của lần bấm "Tạo đơn" ở máy POS (0034). */
+  idempotencyKey?: string;
 };
 
 /**
@@ -437,5 +481,6 @@ export async function createStaffTakeawayOrder(
     customerContact,
     built: validated.built,
     parentOrderId: input.parentOrderId ?? null,
+    idempotencyKey: input.idempotencyKey,
   });
 }

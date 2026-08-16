@@ -481,12 +481,21 @@ export async function applyDiscountAction(
 /**
  * Thu tiền + đóng bill (04-04, BILL-04). Thu đủ total; tự đóng phiên bàn đã thanh toán hết
  * (TABLE-02). Trả tiền thối + danh sách bill mới của phiên.
+ *
+ * `input.idempotencyKey` = khóa của lần bấm "Xác nhận thu" ở hộp thoại (0034): bấm lại sau khi mất
+ * phản hồi KHÔNG sinh dòng `payments` thứ hai.
  */
 export async function payBillAction(
   slug: string,
   sessionId: string,
   billId: string,
-  input: { method: PaymentMethod; amountReceived: number; note?: string; receivedAt?: string }
+  input: {
+    method: PaymentMethod;
+    amountReceived: number;
+    note?: string;
+    receivedAt?: string;
+    idempotencyKey?: string;
+  }
 ): Promise<PayActionResult> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -631,7 +640,13 @@ export async function openOnlineBillAction(
 export async function payOnlineBillAction(
   slug: string,
   billId: string,
-  input: { method: PaymentMethod; amountReceived: number; receivedAt?: string }
+  input: {
+    method: PaymentMethod;
+    amountReceived: number;
+    receivedAt?: string;
+    /** Khóa của lần bấm "Xác nhận thu" ở hộp thoại (0034). */
+    idempotencyKey?: string;
+  }
 ): Promise<{ ok: true; change: number } | { ok: false; error: string }> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -641,12 +656,18 @@ export async function payOnlineBillAction(
   return { ok: true, change: res.change };
 }
 
-/** Thêm món thay khách: source=staff, vào thẳng confirmed (ORDER-03). */
+/**
+ * Thêm món thay khách: source=staff, vào thẳng confirmed (ORDER-03).
+ *
+ * `idempotencyKey` = khóa của lần bấm "Gửi đơn" ở máy POS (0034). Gửi lại cùng khóa trả về đơn cũ
+ * thay vì tạo đơn thứ hai — chốt chặn chia đều bên dưới vẫn chạy y nguyên cho mọi lượt.
+ */
 export async function createStaffOrderAction(
   slug: string,
   tableId: string,
   lines: OrderLineInput[],
-  note?: string
+  note?: string,
+  idempotencyKey?: string
 ): Promise<ActionResult> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -675,6 +696,7 @@ export async function createStaffOrderAction(
     lines,
     note,
     actingStaffId: auth.staffId,
+    idempotencyKey,
   });
   if ("error" in result) return { ok: false, error: result.error };
 
@@ -752,7 +774,9 @@ export async function createTakeawayOrderAction(
   lines: OrderLineInput[],
   contact?: { name?: string; phone?: string },
   note?: string,
-  addToOrderId?: string
+  addToOrderId?: string,
+  /** Khóa của lần bấm "Tạo đơn" ở máy POS (0034) — gửi lại cùng khóa trả về đơn cũ. */
+  idempotencyKey?: string
 ): Promise<ActionResult> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -777,6 +801,7 @@ export async function createTakeawayOrderAction(
     note,
     actingStaffId: auth.staffId,
     parentOrderId,
+    idempotencyKey,
   });
   if ("error" in result) return { ok: false, error: result.error };
 
