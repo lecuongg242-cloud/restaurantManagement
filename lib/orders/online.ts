@@ -322,12 +322,15 @@ export async function listTakeawayHistory(
     // Số đơn khớp CHÍNH XÁC: gõ "8" mà ra cả #18, #80, #89 thì danh sách vô dụng.
     if (/^\d+$/.test(q)) ors.unshift(`kitchen_no.eq.${q}`);
 
+    // Tìm trên CẢ hai trạng thái, KHÔNG theo chip: dòng tổng kết bên dưới lấy chính danh sách này
+    // làm phạm vi, mà nó phải ĐỨNG YÊN khi đổi chip (đổi chip mà con số nhảy theo thì mất tác
+    // dụng đối chiếu). Trang đơn gốc vẫn lọc theo chip riêng ở bước 2.
     const { data: hits } = await supabase
       .from("orders")
       .select("id, parent_order_id")
       .eq("tenant_id", tenantId)
       .eq("channel", "takeaway")
-      .in("status", statuses)
+      .in("status", historyStatuses("all"))
       .gte("created_at", fromUtc)
       .lt("created_at", toUtc)
       .or(ors.join(","))
@@ -432,10 +435,11 @@ export async function listTakeawayHistory(
     methods: methodsByBill.get(b.id as string) ?? [],
   }));
 
-  const { data: actorRows } = await supabase
-    .from("memberships")
-    .select("id, display_name, role")
-    .eq("tenant_id", tenantId);
+  // Chỉ tra ở TRANG ĐẦU: màn hình giữ nguyên danh sách của trang đầu qua các lượt "Tải thêm"
+  // (cùng tenant, cùng danh sách nhân sự) nên tra lại là một truy vấn thừa mỗi lần bấm.
+  const { data: actorRows } = opts.cursor
+    ? { data: null }
+    : await supabase.from("memberships").select("id, display_name, role").eq("tenant_id", tenantId);
   const actors: CancelActorRow[] = (actorRows ?? []).map((m) => ({
     id: m.id as string,
     name: (m.display_name as string) ?? "",

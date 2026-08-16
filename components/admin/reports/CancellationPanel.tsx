@@ -1,17 +1,9 @@
-import type { CancellationData, CancelSummary, CancelActorSlice } from "@/lib/billing/reports";
+import type { CancellationData, CancelSummary } from "@/lib/billing/reports";
 import { cancelRateLabel, cancelRateDeltaPoints } from "@/lib/billing/cancel-format";
+import { cancelActorLabel, hasActorName, ROLE_LABEL } from "@/lib/billing/cancel-actor";
 import { deltaPct } from "@/lib/billing/report-range";
 import { formatVnd } from "@/lib/orders/cart";
 import { KpiCard } from "./KpiCard";
-
-const ROLE_LABEL: Record<string, string> = {
-  owner: "Chủ quán",
-  manager: "Quản lý",
-  cashier: "Thu ngân",
-  waiter: "Phục vụ",
-  kitchen: "Bếp",
-  station: "Máy trạm",
-};
 
 const VN_OFFSET = 7 * 3600 * 1000;
 
@@ -19,17 +11,6 @@ const VN_OFFSET = 7 * 3600 * 1000;
 function vnStamp(iso: string): string {
   const d = new Date(new Date(iso).getTime() + VN_OFFSET).toISOString();
   return `${d.slice(11, 16)} ${d.slice(8, 10)}/${d.slice(5, 7)}`;
-}
-
-/**
- * Tên hiển thị chính cho một người duyệt hủy trong bảng "Theo người duyệt". RPC
- * `report_cancel_by_actor` (Task 5) coalesce tên rỗng thành "—" — in thẳng ký tự đó ra một dòng
- * chữ liền mạch thì mâu thuẫn với quyết định đã chốt ở lịch sử POS (Task 3, `lib/orders/cancel-label.ts`):
- * không tra được tên thì RƠI VỀ VAI TRÒ, không in ký tự rác.
- */
-function actorLabel(a: CancelActorSlice): string {
-  if (a.name && a.name !== "—") return a.name;
-  return ROLE_LABEL[a.role] || "Không rõ";
 }
 
 /**
@@ -86,19 +67,27 @@ export function CancellationPanel({ data, prev }: { data: CancellationData; prev
         mất — khách hủy món này thường gọi món khác thay thế.
       </p>
 
+      {/* 0027 backfill `cancelled_at = created_at` cho dòng cũ (bảng order_items không có
+          updated_at, không có mốc nào tốt hơn). Kỳ vắt qua ngày này trộn mốc xấp xỉ với mốc thật,
+          kể cả delta "so kỳ trước" của tỷ lệ hủy — người đọc phải biết trước khi đi kết luận. */}
+      <p className="text-xs text-steel">
+        Số liệu hủy <strong className="font-medium text-ink">trước 16/08/2026</strong> là ước lượng: giờ
+        hủy khi đó lấy theo giờ gọi món.
+      </p>
+
       <div className="grid grid-cols-1 gap-lg lg:grid-cols-2">
         <div>
           <h3 className="mb-sm text-sm font-medium text-ink">Theo người duyệt hủy</h3>
           <ul className="flex flex-col divide-y divide-hairline-soft">
             {actors.map((a) => {
-              const hasName = !!a.name && a.name !== "—";
+              const hasName = hasActorName(a.name);
               return (
                 <li
                   key={a.membershipId ?? "unknown"}
                   className="flex items-baseline justify-between gap-md py-xs"
                 >
                   <span className="min-w-0 truncate text-sm text-ink">
-                    {actorLabel(a)}
+                    {cancelActorLabel(a)}
                     {hasName && ROLE_LABEL[a.role] && (
                       <span className="ml-xs text-xs text-steel">({ROLE_LABEL[a.role]})</span>
                     )}
@@ -154,7 +143,11 @@ export function CancellationPanel({ data, prev }: { data: CancellationData; prev
                   <td className="py-sm pr-md text-right tabular-nums text-ink">{r.qty}</td>
                   <td className="py-sm pr-md text-right tabular-nums text-ink">{formatVnd(r.amount)}</td>
                   <td className="py-sm pr-md text-steel">{r.reason}</td>
-                  <td className="py-sm whitespace-nowrap text-steel">{r.actorName}</td>
+                  {/* Cùng một lượt hủy phải đọc ra CÙNG một chữ với danh sách "Theo người duyệt"
+                      ở trên — `report_cancel_list` không trả `role` nên chỉ rơi được về "Không rõ". */}
+                  <td className="py-sm whitespace-nowrap text-steel">
+                    {cancelActorLabel({ name: r.actorName })}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
-import { getReportData, getComparison, getCancellationData, type ReportData, type ComparisonData, type CancellationData } from "@/lib/billing/reports";
+import { getReportData, getComparison, getCancellationBlock, type ReportData, type ComparisonData, type CancellationBlock } from "@/lib/billing/reports";
 import { resolveRange, previousRange, deltaPct, vnToday } from "@/lib/billing/report-range";
 import { formatVnd } from "@/lib/orders/cart";
 import { RangePicker } from "@/components/admin/reports/RangePicker";
@@ -43,12 +43,14 @@ export default async function ReportsPage({
 
   let data: ReportData;
   let prev: ComparisonData;
-  let cancellations: CancellationData;
+  // Khối "Món bị hủy" tự nuốt lỗi của riêng nó (xem getCancellationBlock) — REPORT-10 hỏng thì
+  // REPORT-01..09 vẫn phải hiện. Nhờ vậy cũng không còn ràng buộc thứ tự triển khai code ↔ 0028.
+  let cancellations: CancellationBlock;
   try {
     [data, prev, cancellations] = await Promise.all([
       getReportData(session.tenant.id, range),
       getComparison(session.tenant.id, prevRange),
-      getCancellationData(session.tenant.id, range),
+      getCancellationBlock(session.tenant.id, range, prevRange),
     ]);
   } catch (err) {
     return (
@@ -57,8 +59,7 @@ export default async function ReportsPage({
           <p className="text-sm font-medium text-status-late">Không tải được báo cáo.</p>
           <p className="mt-xs text-sm text-steel">
             {err instanceof Error ? err.message : "Lỗi không xác định."} Thử tải lại trang; nếu vẫn lỗi, kiểm tra
-            migration <code className="font-mono text-xs">0023_report_rpcs.sql</code> và{" "}
-            <code className="font-mono text-xs">0028_cancel_report_rpcs.sql</code> đã chạy chưa.
+            migration <code className="font-mono text-xs">0023_report_rpcs.sql</code> đã chạy chưa.
           </p>
         </div>
       </ReportShell>
@@ -137,7 +138,18 @@ export default async function ReportsPage({
       )}
 
       <Panel title="Món bị hủy" className="mt-lg">
-        <CancellationPanel data={cancellations} prev={prev.cancel} />
+        {cancellations.ok ? (
+          <CancellationPanel data={cancellations.data} prev={cancellations.prev} />
+        ) : (
+          <div className="rounded-lg border border-status-late bg-canvas p-md">
+            <p className="text-sm font-medium text-status-late">Không tải được thống kê món bị hủy.</p>
+            <p className="mt-xs text-sm text-steel">
+              {cancellations.message} Kiểm tra migration{" "}
+              <code className="font-mono text-xs">0028_cancel_report_rpcs.sql</code> đã chạy chưa. Các
+              khối còn lại của báo cáo không bị ảnh hưởng.
+            </p>
+          </div>
+        )}
       </Panel>
     </ReportShell>
   );

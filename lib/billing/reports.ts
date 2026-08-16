@@ -77,7 +77,18 @@ export type ReportData = {
   serviceMode: ServiceMode;
 };
 
-export type ComparisonData = { summary: RevenueSummary; series: number[]; cancel: CancelSummary };
+export type ComparisonData = { summary: RevenueSummary; series: number[] };
+
+/**
+ * Khối "Món bị hủy" của dashboard, GỘP kỳ này + kỳ trước và TỰ NUỐT lỗi của riêng nó.
+ *
+ * REPORT-01..09 đã phát hành trước REPORT-10. Để chung một try/catch với `getReportData` thì một
+ * RPC hủy chưa áp lên production (hoặc sau này bị đổi tên) sẽ tắt ngóm cả dashboard sau một hộp
+ * báo lỗi. Khối mới hỏng thì chỉ khối mới hiện lỗi.
+ */
+export type CancellationBlock =
+  | { ok: true; data: CancellationData; prev: CancelSummary }
+  | { ok: false; message: string };
 
 type Client = Awaited<ReturnType<typeof createClient>>;
 
@@ -284,26 +295,52 @@ export async function getCancellationData(
   };
 }
 
+/** Tổng quan hủy của MỘT kỳ — dùng cho kỳ trước (delta tỷ lệ hủy). */
+async function getCancelSummary(tenantId: string, range: ReportRange): Promise<CancelSummary> {
+  const client = await createClient();
+  const rows = await rpc<CancelSummaryRow>(client, "report_cancel_summary", baseArgs(tenantId, range));
+  return toCancelSummary(rows);
+}
+
+/**
+ * Cả khối "Món bị hủy" trong MỘT lời gọi không bao giờ ném. Xem `CancellationBlock`: RPC của
+ * REPORT-10 phải không kéo đổ được REPORT-01..09.
+ */
+export async function getCancellationBlock(
+  tenantId: string,
+  range: ReportRange,
+  prevRange: ReportRange
+): Promise<CancellationBlock> {
+  try {
+    const [data, prev] = await Promise.all([
+      getCancellationData(tenantId, range),
+      getCancelSummary(tenantId, prevRange),
+    ]);
+    return { ok: true, data, prev };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Lỗi không xác định." };
+  }
+}
+
 /**
  * Số liệu kỳ liền trước để tính biến động (REPORT-07). Chỉ lấy tổng quan + chuỗi doanh thu —
- * đủ cho delta KPI và cột mờ chồng sau biểu đồ.
+ * đủ cho delta KPI và cột mờ chồng sau biểu đồ. Phần hủy của kỳ trước nằm ở
+ * `getCancellationBlock` để không kéo dashboard đổ theo.
  */
 export async function getComparison(tenantId: string, prevRange: ReportRange): Promise<ComparisonData> {
   const client = await createClient();
   const args = baseArgs(tenantId, prevRange);
 
-  const [summaryRows, seriesRows, cancelRows] = await Promise.all([
+  const [summaryRows, seriesRows] = await Promise.all([
     rpc<{ total_revenue: number; bill_count: number; avg_per_bill: number }>(client, "report_summary", args),
     rpc<{ bucket_start: string; revenue: number; bill_count: number }>(client, "report_series", {
       ...args,
       p_grain: prevRange.grain,
     }),
-    rpc<CancelSummaryRow>(client, "report_cancel_summary", args),
   ]);
 
   return {
     summary: toSummary(summaryRows),
     series: fillSeries(prevRange, seriesRows).map((p) => p.revenue),
-    cancel: toCancelSummary(cancelRows),
   };
 }
