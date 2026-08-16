@@ -2,7 +2,8 @@
  * Tạo order — dùng chung cho KHÁCH QR (anon, D15) và STAFF (POS thêm món thay khách, 03-02).
  * Toàn bộ chạy SERVER, service role, scope theo tenantId. Validate available + min/max/required
  * Ở SERVER (không tin giá/tên client); snapshot tên/giá vào DB; mở/ghép table_session (D3).
- *  - Khách QR: resolve qrToken → bàn → tenant; áp qr_order_auto_send (D8).
+ *  - Khách QR: resolve qrToken → bàn → tenant; áp qr_order_auto_send (D8) — trừ khi bàn đang có
+ *    hóa đơn chia đều, lúc đó đơn phải qua duyệt để chốt chặn của POS bắt được.
  *  - Staff:    tenantId + tableId đã biết (từ phiên POS đã guard); luôn vào thẳng confirmed.
  */
 import "server-only";
@@ -254,6 +255,30 @@ export type CreateOrderInput = {
   customerPhone?: string;
 };
 
+/**
+ * Phiên bàn đang có hóa đơn 'open' mang `split_count` (vỏ chia đều) không? Dùng để quyết định có
+ * được phép bỏ bước duyệt hay không.
+ *
+ * FAIL-CLOSED: đọc hỏng → trả `true` (coi như đang chia đều) ⇒ đơn vào hàng đợi duyệt. Chờ nhân
+ * viên bấm một nút là phiền; thu thiếu tiền của nhà hàng thì không sửa được.
+ */
+async function sessionHasEvenSplitBill(
+  admin: SupabaseClient,
+  tenantId: string,
+  sessionId: string
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("bills")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("table_session_id", sessionId)
+    .eq("status", "open")
+    .not("split_count", "is", null)
+    .limit(1);
+  if (error) return true;
+  return (data ?? []).length > 0;
+}
+
 export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
   const { slug, qrToken, lines } = input;
   const note = input.note?.trim() ? input.note.trim().slice(0, 500) : null;
@@ -289,7 +314,14 @@ export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrde
   const sessionId = await openOrJoinSession(admin, tenantId, table.id, null);
   if (!sessionId) return { error: "Không mở được phiên bàn. Vui lòng thử lại." };
 
-  const autoSend = parseSettings(tenant.settings).qr_order_auto_send;
+  // `qr_order_auto_send` đưa đơn thẳng vào 'confirmed', tức đi VÒNG QUA bước duyệt — mà chốt chặn
+  // "bàn đã chia đều" (approveOrder) lại dựng đúng ở bước đó. Đơn lọt qua sẽ thành món mới trên bàn
+  // đang có vỏ chia đều: con giữ nguyên số cũ ⇒ Σ con < vỏ ⇒ thu thiếu đúng phần khách vừa gọi.
+  // Không từ chối khách (khách không hiểu "gỡ chia" giữa bữa ăn): chỉ ép đơn về 'pending_confirm',
+  // tức đẩy vào đúng hàng đợi mà chốt kia đang canh — nhân viên gỡ chia rồi duyệt.
+  const autoSend =
+    parseSettings(tenant.settings).qr_order_auto_send &&
+    !(await sessionHasEvenSplitBill(admin, tenantId, sessionId));
   return insertOrderGraph(admin, {
     tenantId,
     sessionId,
