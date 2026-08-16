@@ -15,6 +15,8 @@ import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierS
 import { Input } from "@/components/ui/input";
 import { PaymentDialog, PAY_OFFLINE_MSG } from "./PaymentDialog";
 import { ACTION_OFFLINE_MSG, ORDER_OFFLINE_MSG } from "./offline-msg";
+import { useActionKey } from "@/components/use-action-key";
+import { actionSignature } from "@/lib/idempotency";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 import { TicketPrintButtons } from "./TicketPrintButtons";
 import { TakeawayHistory } from "./TakeawayHistory";
@@ -150,6 +152,8 @@ export function TakeawayPanel({
   const [phone, setPhone] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Khóa idempotent của lần bấm "Tạo đơn" đang dở — xem `create`. */
+  const orderKey = useActionKey();
   const [payBill, setPayBill] = useState<BillView | null>(null);
   /** Giờ tạo đơn đang thu — để hộp thoại biết đây có phải đơn tồn từ ngày trước không. */
   const [payOrderAt, setPayOrderAt] = useState<string | null>(null);
@@ -212,23 +216,29 @@ export function TakeawayPanel({
     if (cart.length === 0) return;
     setCreating(true);
     setError(null);
-    // Mất mạng ⇒ đơn CHƯA sang bếp. Không bắt thì nút "Tạo đơn" quay mãi và giỏ hàng vẫn nguyên
-    // đó, nhân viên không biết nên bấm lại hay thôi.
+    const lines = cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds }));
+    // Lượt gọi thêm không hỏi lại tên/SĐT — đã có ở đơn gốc.
+    const contact = addToId
+      ? undefined
+      : { name: name.trim() || undefined, phone: phone.trim() || undefined };
+    // Mất mạng thì máy POS KHÔNG biết đơn đã sang bếp hay chưa; khóa idempotent (0034) làm lượt bấm
+    // lại an toàn. Chữ ký gồm cả `addToId`: cùng giỏ nhưng nối vào đơn gốc khác là hành động khác.
+    const key = orderKey.keyFor(actionSignature([lines, contact ?? null, addToId ?? null]));
     const res = await createTakeawayOrderAction(
       slug,
-      cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds })),
-      // Lượt gọi thêm không hỏi lại tên/SĐT — đã có ở đơn gốc.
-      addToId
-        ? undefined
-        : { name: name.trim() || undefined, phone: phone.trim() || undefined },
+      lines,
+      contact,
       undefined,
-      addToId ?? undefined
+      addToId ?? undefined,
+      key
     ).catch(() => null);
     setCreating(false);
     if (!res || !res.ok) {
       setError(res ? res.error : ORDER_OFFLINE_MSG);
       return;
     }
+    // Xong một hành động — khách kế gọi y hệt món này vẫn phải ra đơn riêng.
+    orderKey.done();
     // Đơn vào danh sách chờ; dọn builder cho khách kế.
     onClearCart();
     setName("");
@@ -613,12 +623,22 @@ export function TakeawayPanel({
           busy={paying}
           orderCreatedAt={payOrderAt}
           canBackdate={canBackdatePayment}
-          onPay={async (method: PaymentMethod, amountReceived: number, receivedAt?: string) => {
+          onPay={async (
+            method: PaymentMethod,
+            amountReceived: number,
+            receivedAt: string | undefined,
+            idempotencyKey: string
+          ) => {
             setPaying(true);
             // finally bắt buộc: mạng rớt thì server action ném, `setPaying(false)` bị bỏ qua và
-            // nút thu tiền kẹt ở trạng thái quay vòng.
+            // nút thu tiền kẹt ở trạng thái quay vòng. Khóa đi kèm để bấm Thử lại không ghi trùng.
             try {
-              const res = await payOnlineBillAction(slug, payBill.id, { method, amountReceived, receivedAt });
+              const res = await payOnlineBillAction(slug, payBill.id, {
+                method,
+                amountReceived,
+                receivedAt,
+                idempotencyKey,
+              });
               if (!res.ok) return { ok: false, error: res.error };
               router.refresh();
               return { ok: true, change: res.change };

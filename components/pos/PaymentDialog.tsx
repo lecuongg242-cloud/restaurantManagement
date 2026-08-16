@@ -6,6 +6,8 @@ import type { BillView, PaymentMethod } from "@/lib/billing/types";
 import { formatVnd } from "@/lib/orders/cart";
 import { MoneyInput } from "@/components/ui/money-input";
 import { isWithinBackdateWindow, BACKDATE_MAX_DAYS } from "@/lib/billing/received-at";
+import { useActionKey } from "@/components/use-action-key";
+import { actionSignature } from "@/lib/idempotency";
 
 /**
  * Thông báo khi lời gọi thu tiền KHÔNG tới được server (mất mạng, server ngủ). Phải nói rõ là
@@ -50,7 +52,9 @@ export function PaymentDialog({
   onPay: (
     method: PaymentMethod,
     amountReceived: number,
-    receivedAt?: string
+    receivedAt: string | undefined,
+    /** Khóa idempotent của lần bấm này (0034) — nơi gọi phải chuyển thẳng xuống action thu tiền. */
+    idempotencyKey: string
   ) => Promise<{ ok: boolean; change?: number; error?: string }>;
   onPrint: () => void;
   onClose: () => void;
@@ -81,6 +85,11 @@ export function PaymentDialog({
   const staleTimeLabel = orderCreatedAt ? vnTimeLabel(orderCreatedAt) : "";
   const [done, setDone] = useState<{ change: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Khóa idempotent của lần thu này. Hộp thoại được MOUNT cho đúng một lượt thu (nơi gọi dựng nó
+   * khi bấm "Thu tiền", gỡ khi đóng) nên vòng đời component chính là ranh giới "một hành động".
+   */
+  const payKey = useActionKey();
 
   const change = Math.max(0, received - total);
   const quicks = Array.from(new Set([total, Math.ceil(total / 50000) * 50000, 100000, 200000, 500000])).sort((a, b) => a - b);
@@ -90,13 +99,14 @@ export function PaymentDialog({
     // Lưới an toàn cuối: dù nơi gọi có quên bắt lỗi mạng thì hộp thoại vẫn phải đứng yên với
     // thông báo rõ ràng, KHÔNG được tự đóng — nhân viên đang cầm tiền của khách.
     let res: { ok: boolean; change?: number; error?: string };
+    // Chốt lại lần cuối: hộp thoại mở qua nửa đêm có thể trôi ra khỏi hạn sau khi đã chọn.
+    const receivedAt = backdate && canPickBackdate && orderCreatedAt ? orderCreatedAt : undefined;
+    // Chữ ký KHÔNG gồm "khách đưa": số đó chỉ để tính tiền thối ở màn hình, dòng `payments` luôn ghi
+    // đúng `total`. Đưa nó vào chữ ký thì thu ngân sửa lại số tiền khách đưa rồi bấm Thử lại sẽ ra
+    // khóa mới — tức mất đúng lớp chống trùng, cho một thay đổi không hề đổi thứ được ghi.
+    const key = payKey.keyFor(actionSignature([bill.id, method, receivedAt ?? null]));
     try {
-      res = await onPay(
-        method,
-        method === "cash" ? received : total,
-        // Chốt lại lần cuối: hộp thoại mở qua nửa đêm có thể trôi ra khỏi hạn sau khi đã chọn.
-        backdate && canPickBackdate && orderCreatedAt ? orderCreatedAt : undefined
-      );
+      res = await onPay(method, method === "cash" ? received : total, receivedAt, key);
     } catch {
       setError(PAY_OFFLINE_MSG);
       return;

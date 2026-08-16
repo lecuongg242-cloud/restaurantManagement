@@ -37,6 +37,8 @@ import { TakeawayPanel } from "./TakeawayPanel";
 import { BillPanel } from "./BillPanel";
 import { PAY_OFFLINE_MSG } from "./PaymentDialog";
 import { ACTION_OFFLINE_MSG, ORDER_OFFLINE_MSG, offlineMsg } from "./offline-msg";
+import { useActionKey } from "@/components/use-action-key";
+import { actionSignature } from "@/lib/idempotency";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
 
@@ -90,6 +92,8 @@ export function PosBoard({
   const [cart, setCart] = useState<CartLine[]>([]);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  /** Khóa idempotent của lần bấm "Xác nhận thêm" đang dở — xem `confirmAdd`. */
+  const orderKey = useActionKey();
   const [bills, setBills] = useState<BillView[]>([]);
   const [billOpen, setBillOpen] = useState(false);
   const [openingBill, setOpeningBill] = useState(false);
@@ -460,14 +464,23 @@ export function PosBoard({
       setChargePctAction(slug, selectedSession.id, billId, payload)
     );
   };
-  const doPay = async (billId: string, method: PaymentMethod, amountReceived: number) => {
+  const doPay = async (
+    billId: string,
+    method: PaymentMethod,
+    amountReceived: number,
+    idempotencyKey: string
+  ) => {
     if (!selectedSession) return { ok: false, error: "Chưa chọn bàn." };
     setBillBusy(true);
     setBillError(null);
     // Mạng rớt giữa chừng ⇒ server action NÉM. Không có finally thì `setBillBusy(false)` không bao
     // giờ chạy: nút kẹt quay mãi, không một chữ báo lỗi, nhân viên tưởng đã thu xong.
     try {
-      const res = await payBillAction(slug, selectedSession.id, billId, { method, amountReceived });
+      const res = await payBillAction(slug, selectedSession.id, billId, {
+        method,
+        amountReceived,
+        idempotencyKey,
+      });
       if (!res.ok) return { ok: false, error: res.error };
       setBills(res.bills);
       router.refresh();
@@ -484,15 +497,18 @@ export function PosBoard({
     if (!selectedTableId || cart.length === 0) return;
     setAdding(true);
     setAddError(null);
-    // Mất mạng ⇒ đơn CHƯA sang bếp. Nút kẹt mà không báo gì thì nhân viên tưởng đã gửi, khách ngồi chờ.
-    const res = await createStaffOrderAction(
-      slug,
-      selectedTableId,
-      cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds }))
-    ).catch(() => null);
+    const lines = cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds }));
+    // Mất mạng thì máy POS KHÔNG biết đơn đã sang bếp hay chưa. Khóa idempotent (0034) khiến lượt
+    // bấm lại an toàn: cùng bàn + cùng giỏ ⇒ cùng khóa ⇒ server trả lại đơn cũ thay vì tạo đơn hai.
+    const key = orderKey.keyFor(actionSignature([selectedTableId, lines]));
+    const res = await createStaffOrderAction(slug, selectedTableId, lines, undefined, key).catch(
+      () => null
+    );
     setAdding(false);
     if (!res || !res.ok) setAddError(res ? res.error : ORDER_OFFLINE_MSG);
     else {
+      // Xong một hành động — bàn kế tiếp gọi y hệt món này vẫn phải ra đơn riêng.
+      orderKey.done();
       setCart([]);
       router.refresh();
     }

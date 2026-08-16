@@ -17,6 +17,8 @@ import {
   readContact,
   writeContact,
 } from "@/lib/orders/guest-contact";
+import { useActionKey } from "@/components/use-action-key";
+import { actionSignature } from "@/lib/idempotency";
 import { GuestInfoModal } from "./GuestInfoModal";
 import { ModifierSheet, type PendingLine } from "./ModifierSheet";
 import { CartSheet } from "./CartSheet";
@@ -56,6 +58,8 @@ export function MenuBrowser({
   const [address, setAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  /** Khóa idempotent của lần bấm "Gửi đơn" đang dở — xem `submit`. */
+  const orderKey = useActionKey();
   const [activeCat, setActiveCat] = useState(menu.categories[0]?.id ?? "");
   const [badgePulse, setBadgePulse] = useState(0);
   // Gọi nhân viên (CALL-01): chỉ khi ăn tại bàn (có qrToken). Mở sheet để nhập yêu cầu kèm.
@@ -211,17 +215,23 @@ export function MenuBrowser({
       note: l.note,
       optionIds: l.optionIds,
     }));
+    // Khóa idempotent (0034): khách ngồi trong quán sóng yếu, gửi xong mất phản hồi rồi bấm lại —
+    // cùng giỏ + cùng thông tin ⇒ cùng khóa ⇒ server trả lại đơn cũ, bếp không làm hai lần. Sửa giỏ
+    // rồi mới gửi lại thì chữ ký khác ⇒ khóa mới ⇒ đơn mới, đúng thứ khách vừa chọn.
+    const idempotencyKey = orderKey.keyFor(
+      actionSignature([online, channel, qrToken, orderNote, customerName, customerPhone, address, lines])
+    );
     try {
       const res = online
         ? await fetch(`/r/${slug}/api/online-order`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ channel, note: orderNote, customerName, customerPhone, address, lines }),
+            body: JSON.stringify({ channel, note: orderNote, customerName, customerPhone, address, lines, idempotencyKey }),
           })
         : await fetch(`/r/${slug}/api/order`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ qrToken, note: orderNote, customerName, customerPhone, lines }),
+            body: JSON.stringify({ qrToken, note: orderNote, customerName, customerPhone, lines, idempotencyKey }),
           });
       const data = await res.json();
       if (!res.ok) {
@@ -229,6 +239,7 @@ export function MenuBrowser({
         setSubmitting(false);
         return;
       }
+      orderKey.done();
       // Xóa giỏ + ghi vào sổ đơn của máy (panel "Đơn của bạn") + chuyển trang theo dõi.
       if (storageKey) sessionStorage.removeItem(storageKey);
       rememberOrder(slug, online ? null : qrToken, data.orderId, new Date().toISOString());

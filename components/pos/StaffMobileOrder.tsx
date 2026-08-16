@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ShoppingBag } from "lucide-react";
 import { createStaffOrderAction } from "@/app/r/[slug]/pos/actions";
 import { ORDER_OFFLINE_MSG } from "@/components/pos/offline-msg";
+import { useActionKey } from "@/components/use-action-key";
+import { actionSignature } from "@/lib/idempotency";
 import { stationSignOut } from "@/app/r/[slug]/station-actions";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
 import type { PosSnapshot } from "@/lib/orders/pos";
@@ -56,6 +58,8 @@ export function StaffMobileOrder({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   /** Xác nhận sau khi gửi — nhân viên cần một câu khẳng định trước khi rời bàn. */
   const [sent, setSent] = useState<{ tableName: string; count: number } | null>(null);
+  /** Khóa idempotent của lần bấm "Gửi đơn" đang dở — xem `submit`. */
+  const orderKey = useActionKey();
 
   const itemMap = useMemo(() => {
     const m = new Map<string, CustomerMenuItem>();
@@ -135,19 +139,20 @@ export function StaffMobileOrder({
     if (!selectedTableId || cart.length === 0) return;
     setSubmitting(true);
     setErrorMsg(null);
+    const lines = cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds }));
     // Điện thoại của nhân viên đứng cạnh bàn là nơi sóng yếu nhất quán: mất mạng mà nút cứ quay,
-    // giỏ hàng vẫn nguyên, thì đơn CHƯA sang bếp mà không ai biết — khách ngồi chờ món không tới.
-    const res = await createStaffOrderAction(
-      slug,
-      selectedTableId,
-      cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds })),
-      orderNote
-    ).catch(() => null);
+    // giỏ hàng vẫn nguyên, thì không ai biết đơn đã sang bếp hay chưa. Khóa idempotent (0034) làm
+    // lượt bấm lại AN TOÀN: cùng bàn + cùng giỏ + cùng ghi chú ⇒ cùng khóa ⇒ server trả lại đúng
+    // đơn cũ. Sửa giỏ rồi mới bấm lại thì chữ ký khác ⇒ khóa mới ⇒ đơn mới (đúng ý người dùng).
+    const key = orderKey.keyFor(actionSignature([selectedTableId, orderNote, lines]));
+    const res = await createStaffOrderAction(slug, selectedTableId, lines, orderNote, key).catch(() => null);
     setSubmitting(false);
     if (!res || !res.ok) {
       setErrorMsg(res ? res.error : ORDER_OFFLINE_MSG);
       return;
     }
+    // Gửi xong ⇒ lần bấm sau là hành động KHÁC, kể cả khi bàn kế tiếp gọi y hệt món này.
+    orderKey.done();
     setSent({ tableName: selectedTable?.name ?? "—", count: cartCount });
     setCart([]);
     setOrderNote("");

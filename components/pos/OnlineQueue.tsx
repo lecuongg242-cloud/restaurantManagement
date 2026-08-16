@@ -271,11 +271,21 @@ export function OnlineQueue({
           busy={isPending}
           orderCreatedAt={payOrderAt}
           canBackdate={canBackdatePayment}
-          onPay={async (method: PaymentMethod, amountReceived: number, receivedAt?: string) => {
+          onPay={async (
+            method: PaymentMethod,
+            amountReceived: number,
+            receivedAt: string | undefined,
+            idempotencyKey: string
+          ) => {
             // Mạng rớt ⇒ server action ném; bắt tại đây để hộp thoại hiện đúng lý do thay vì
-            // đứng im (xem PAY_OFFLINE_MSG).
+            // đứng im (xem PAY_OFFLINE_MSG). Khóa đi kèm để lượt bấm Thử lại không ghi trùng khoản.
             try {
-              const res = await payOnlineBillAction(slug, payBill.id, { method, amountReceived, receivedAt });
+              const res = await payOnlineBillAction(slug, payBill.id, {
+                method,
+                amountReceived,
+                receivedAt,
+                idempotencyKey,
+              });
               if (!res.ok) return { ok: false, error: res.error };
               return { ok: true, change: res.change };
             } catch {

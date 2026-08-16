@@ -51,7 +51,8 @@ export function BillPanel({
   onMerge: (sessionIds: string[]) => void;
   onApplyDiscount: (billId: string, payload: AdjustPayload, creds: { membershipId?: string; pin?: string }) => void;
   onSetCharges: (billId: string, payload: { serviceChargePct: number; vatPct: number }) => void;
-  onPay: (billId: string, method: PaymentMethod, amountReceived: number) => Promise<{ ok: boolean; change?: number; error?: string }>;
+  /** `idempotencyKey` do PaymentDialog sinh (0034) — chuyển nguyên xuống action, đừng tự chế cái khác. */
+  onPay: (billId: string, method: PaymentMethod, amountReceived: number, idempotencyKey: string) => Promise<{ ok: boolean; change?: number; error?: string }>;
   onPrintReceipt: (billId: string) => void;
   onClose: () => void;
 }) {
@@ -307,7 +308,9 @@ export function BillPanel({
         <PaymentDialog
           bill={payFor}
           busy={busy}
-          onPay={(method, amountReceived) => onPay(payFor.id, method, amountReceived)}
+          onPay={(method, amountReceived, _receivedAt, idempotencyKey) =>
+            onPay(payFor.id, method, amountReceived, idempotencyKey)
+          }
           onPrint={() => onPrintReceipt(payFor.id)}
           onClose={() => setPayFor(null)}
         />
