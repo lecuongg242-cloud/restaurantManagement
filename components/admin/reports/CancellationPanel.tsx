@@ -67,9 +67,16 @@ export function CancellationPanel({ data, prev }: { data: CancellationData; prev
           label="Tỷ lệ hủy"
           value={cancelRateLabel(summary.cancelledQty, summary.orderedQty)}
           hint={
-            ratePoints === null
-              ? "Kỳ trước chưa đủ dữ liệu để so sánh"
-              : `${ratePoints > 0 ? "+" : ""}${String(ratePoints).replace(".", ",")} điểm so kỳ trước · trên ${summary.orderedQty} món đã gọi`
+            // ratePoints === null gộp HAI nguyên nhân khác nhau: mẫu số kỳ NÀY rỗng hay mẫu số kỳ
+            // TRƯỚC rỗng. Phải tách vì tử số (cancelledQty) lọc theo cancelled_at còn mẫu số
+            // (orderedQty) lọc theo created_at — hai cửa sổ độc lập, nên kỳ này thừa sức có
+            // orderedQty = 0 mà vẫn có món bị hủy (huỷ nốt đơn tồn từ hôm trước). Kiểm kỳ này
+            // TRƯỚC vì nó bằng 0 thì ratePoints cũng luôn là null, nếu không sẽ nuốt mất ca này.
+            summary.orderedQty <= 0
+              ? "Chưa có món nào được gọi trong kỳ này"
+              : ratePoints === null
+                ? "Kỳ trước chưa đủ dữ liệu để so sánh"
+                : `${ratePoints > 0 ? "+" : ""}${String(ratePoints).replace(".", ",")} điểm so kỳ trước · trên ${summary.orderedQty} món đã gọi`
           }
         />
       </div>
