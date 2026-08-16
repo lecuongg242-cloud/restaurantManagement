@@ -99,6 +99,33 @@ export function OrderPanel({
     return names;
   };
 
+  /**
+   * Đổi bàn ⇒ xóa thông báo của bàn cũ. `OrderPanel` KHÔNG remount khi đổi bàn (chỉ đổi prop
+   * `table`) nên `error` không tự mất: câu lỗi của bàn trước nằm nguyên trên bàn sau. PosBoard đã
+   * quét đúng như vậy cho `addError`/`billError` khi đổi bàn — `error` là cái duy nhất bị bỏ sót.
+   */
+  useEffect(() => {
+    setError(null);
+  }, [table.id]);
+
+  /**
+   * Bắt đầu một lượt thao tác KHÁC ⇒ câu lỗi của lần "Đóng phiên" trước hết ngữ cảnh, phải xóa.
+   *
+   * Ô thông báo cho `error` quyền ưu tiên trên `addError` (`error ?? addError`). Không xóa thì
+   * chuỗi này đi được: đóng phiên lúc rớt mạng ⇒ "Mất kết nối…" nằm lại; mạng về, bấm "Tính tiền"
+   * ⇒ lỗi nghiệp vụ thật vào `addError` nhưng bị câu cũ che ⇒ nhân viên đi kiểm wifi trong khi lỗi
+   * thật là bàn chưa có món đã phục vụ. Đúng cái kiểu "thông báo dẫn người dùng đi sai hướng" mà
+   * cả đợt vá này sinh ra để chống.
+   */
+  const startOpenBill = () => {
+    setError(null);
+    onOpenBill();
+  };
+  const startConfirmAdd = () => {
+    setError(null);
+    onConfirmAdd();
+  };
+
   const doClose = async () => {
     if (!session) return;
     setBusy("close");
@@ -210,7 +237,12 @@ export function OrderPanel({
                         {it.status !== "served" && it.status !== "cancelled" && !splitEvenly && (
                           <button
                             type="button"
-                            onClick={() => setCancelItem({ id: it.id, name: it.name })}
+                            onClick={() => {
+                              // Cũng là một lượt thao tác khác — đừng để câu lỗi cũ nằm lại phía
+                              // sau hộp thoại hủy rồi làm người dùng tưởng lần hủy này hỏng.
+                              setError(null);
+                              setCancelItem({ id: it.id, name: it.name });
+                            }}
                             className="inline-flex h-8 items-center rounded-md px-sm text-xs font-medium text-status-late hover:bg-cream-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-late focus-visible:ring-offset-2"
                           >
                             Hủy
@@ -293,7 +325,7 @@ export function OrderPanel({
                 khi gỡ chia, chỉ khóa nút gửi. */}
             <button
               type="button"
-              onClick={onConfirmAdd}
+              onClick={startConfirmAdd}
               disabled={adding || splitEvenly}
               title={splitEvenly ? "Hóa đơn đã chia đều — gỡ chia trước khi thêm món." : ""}
               className="mt-md flex h-11 w-full items-center justify-center gap-sm rounded-md bg-primary text-sm font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
@@ -320,7 +352,7 @@ export function OrderPanel({
           <button
             type="button"
             disabled={openingBill}
-            onClick={onOpenBill}
+            onClick={startOpenBill}
             className="mb-sm inline-flex h-11 w-full items-center justify-center gap-sm rounded-md bg-primary px-md text-sm font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
           >
             {openingBill ? (
