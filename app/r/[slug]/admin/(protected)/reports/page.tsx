@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
-import { getReportData, getComparison, type ReportData, type ComparisonData } from "@/lib/billing/reports";
+import { getReportData, getComparison, getCancellationData, type ReportData, type ComparisonData, type CancellationData } from "@/lib/billing/reports";
 import { resolveRange, previousRange, deltaPct, vnToday } from "@/lib/billing/report-range";
 import { formatVnd } from "@/lib/orders/cart";
 import { RangePicker } from "@/components/admin/reports/RangePicker";
@@ -13,6 +13,7 @@ import { CategoryBreakdown } from "@/components/admin/reports/CategoryBreakdown"
 import { PlaceBreakdown } from "@/components/admin/reports/PlaceBreakdown";
 import { AreaBreakdown } from "@/components/admin/reports/AreaBreakdown";
 import { HourHeatmap } from "@/components/admin/reports/HourHeatmap";
+import { CancellationPanel } from "@/components/admin/reports/CancellationPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,12 @@ export default async function ReportsPage({
 
   let data: ReportData;
   let prev: ComparisonData;
+  let cancellations: CancellationData;
   try {
-    [data, prev] = await Promise.all([
+    [data, prev, cancellations] = await Promise.all([
       getReportData(session.tenant.id, range),
       getComparison(session.tenant.id, prevRange),
+      getCancellationData(session.tenant.id, range),
     ]);
   } catch (err) {
     return (
@@ -54,7 +57,8 @@ export default async function ReportsPage({
           <p className="text-sm font-medium text-status-late">Không tải được báo cáo.</p>
           <p className="mt-xs text-sm text-steel">
             {err instanceof Error ? err.message : "Lỗi không xác định."} Thử tải lại trang; nếu vẫn lỗi, kiểm tra
-            migration <code className="font-mono text-xs">0023_report_rpcs.sql</code> đã chạy chưa.
+            migration <code className="font-mono text-xs">0023_report_rpcs.sql</code> và{" "}
+            <code className="font-mono text-xs">0028_cancel_report_rpcs.sql</code> đã chạy chưa.
           </p>
         </div>
       </ReportShell>
@@ -131,6 +135,10 @@ export default async function ReportsPage({
           </div>
         </>
       )}
+
+      <Panel title="Món bị hủy" className="mt-lg">
+        <CancellationPanel data={cancellations} prev={prev.cancel} />
+      </Panel>
     </ReportShell>
   );
 }
