@@ -72,6 +72,30 @@ async function recomputeBill(client: SupabaseClient, tenantId: string, billId: s
 }
 
 /**
+ * Trong `billIds`, những bill nào ĐANG CÓ hóa đơn con (kể cả con `void`)? Trả `null` khi không đọc
+ * được — người gọi bắt buộc fail-closed.
+ *
+ * VÌ SAO PHẢI HỎI TRƯỚC KHI XÓA BILL: `bills.split_parent_id` là `on delete cascade` (0013) và
+ * `payments.bill_id` cũng vậy (0012). Xóa một VỎ đã gỡ chia sẽ kéo theo toàn bộ con `void` của nó
+ * — dấu vết lượt chia biến mất và `bill_no` đã cấp bị dùng lại. Đổi gỡ chia từ XÓA sang VOID (0030)
+ * mới bịt được đường xóa CON; đường xóa VỎ vẫn hở nếu không kiểm ở đây.
+ */
+async function billIdsWithChildren(
+  client: SupabaseClient,
+  tenantId: string,
+  billIds: string[]
+): Promise<Set<string> | null> {
+  if (billIds.length === 0) return new Set();
+  const { data, error } = await client
+    .from("bills")
+    .select("split_parent_id")
+    .eq("tenant_id", tenantId)
+    .in("split_parent_id", billIds);
+  if (error) return null;
+  return new Set((data ?? []).map((r) => r.split_parent_id as string));
+}
+
+/**
  * Mở/đồng bộ bill của 1 phiên bàn — IDEMPOTENT. Gom mọi order_item (≠cancelled) của các order
  * thuộc phiên CHƯA được phân bổ vào bill nào (open|paid) → thêm vào bill 'open' hiện có (hoặc tạo
  * mới). Gọi lại sau khi bàn gọi thêm món → chỉ thêm phần mới. Trả billId (null nếu không có món).
@@ -994,7 +1018,26 @@ export async function mergeSessionsIntoBill(
   }
   // Giải phóng hóa đơn lẻ đang mở của các bàn (bill_items cascade) để gom lại.
   const openIds = (existing ?? []).filter((b) => b.status === "open").map((b) => b.id as string);
-  if (openIds.length > 0) await client.from("bills").delete().in("id", openIds).eq("tenant_id", tenantId);
+  if (openIds.length > 0) {
+    const withChildren = await billIdsWithChildren(client, tenantId, openIds);
+    // Fail-closed: không kiểm chứng được thì không xóa gì cả, gộp bàn làm lại được.
+    if (withChildren === null) return { error: "Không kiểm được hóa đơn của bàn. Vui lòng thử lại." };
+    const deletable = openIds.filter((id) => !withChildren.has(id));
+    const voidable = openIds.filter((id) => withChildren.has(id));
+    if (deletable.length > 0)
+      await client.from("bills").delete().in("id", deletable).eq("tenant_id", tenantId);
+    // Bill từng chia đều rồi gỡ vẫn còn con `void` treo dưới: XÓA nó là cascade mất luôn dấu vết
+    // lượt chia (xem `billIdsWithChildren`). VOID thay vì xóa — bộ lọc "món đã phân bổ" chỉ tính
+    // bill open|paid, nên món của nó vẫn gom được vào hóa đơn gộp y như khi xóa. Bỏ qua hẳn thì
+    // ngược lại: món kẹt ở bill cũ và bàn đó KHÔNG BAO GIỜ gộp được nữa.
+    if (voidable.length > 0)
+      await client
+        .from("bills")
+        .update({ status: "void", updated_at: new Date().toISOString() })
+        .in("id", voidable)
+        .eq("tenant_id", tenantId)
+        .eq("status", "open");
+  }
 
   // order_items ≠cancelled của các phiên.
   const { data: orders } = await client
@@ -1117,6 +1160,14 @@ export async function dropCancelledItemsFromOpenBills(
   for (const billId of [...plan.recomputeBillIds, ...plan.deleteBillIds])
     await recomputeBill(client, tenantId, billId);
   if (plan.deleteBillIds.length > 0) {
-    await client.from("bills").delete().in("id", plan.deleteBillIds).eq("tenant_id", tenantId);
+    // Bill rỗng nhưng còn con `void` treo dưới (vỏ đã gỡ chia, sau đó hủy hết món) thì ĐỪNG xóa:
+    // `split_parent_id` cascade sẽ cuốn theo con lẫn `payments` của chúng. Bỏ qua là đủ — thứ còn
+    // lại chỉ là bill 'open' tổng 0, lần mở bill sau dùng lại chính nó. Fail-closed: không kiểm
+    // được thì không xóa dòng nào.
+    const withChildren = await billIdsWithChildren(client, tenantId, plan.deleteBillIds);
+    const deletable = withChildren === null ? [] : plan.deleteBillIds.filter((id) => !withChildren.has(id));
+    if (deletable.length > 0) {
+      await client.from("bills").delete().in("id", deletable).eq("tenant_id", tenantId);
+    }
   }
 }
