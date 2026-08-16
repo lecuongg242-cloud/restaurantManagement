@@ -208,9 +208,16 @@ export async function openBillForSession(
   //
   // BỎ QUA IM LẶNG, KHÔNG trả lỗi: hàm này chạy mỗi lần thu ngân MỞ panel hóa đơn — thao tác đọc,
   // và là thao tác bắt buộc để bấm "Thu tiền" cho từng con. Fail cứng ở đây sẽ chặn luôn việc thu
-  // tiền hợp lệ của một bàn đang chia đều, tức biến một chốt bảo vệ thành cái khóa bàn. Món chưa
-  // phân bổ không mất đi: nó nằm chờ, và tự vào hóa đơn ngay khi nhân viên bấm "Gỡ chia"
-  // (recomputeBill của unsplitBill + lần mở bill kế tiếp gom lại) — đúng lối thoát BILL-06.
+  // tiền hợp lệ của một bàn đang chia đều, tức biến một chốt bảo vệ thành cái khóa bàn.
+  //
+  // Món bị bỏ qua KHÔNG mất: nó nằm nguyên ở `order_items`, chưa phân bổ vào bill nào. Chuỗi thao
+  // tác thật để nó lên hóa đơn là "Gỡ chia" → DUYỆT ĐƠN → mở lại panel (lối thoát BILL-06). Đủ ba
+  // bước, không rút gọn được — đừng nghĩ riêng nút "Gỡ chia" là xong:
+  //  - `unsplitBill` bỏ cờ vỏ, nhưng `recomputeBill` của nó chỉ tính lại tổng TỪ `bill_items` sẵn
+  //    có, KHÔNG BAO GIỜ thêm dòng mới;
+  //  - ca chính rơi vào đây là món của đơn `pending_confirm` (khách QR gọi thêm khi bàn đang chia),
+  //    mà chốt 1 — `collectBillableSessionItems` — vẫn loại nó cho tới khi nhân viên duyệt đơn;
+  //  - chèn thật sự chỉ xảy ra ở LẦN MỞ BILL KẾ TIẾP, tức chính đoạn dưới đây.
   if (unallocated.length > 0 && !pickedIsShell) {
     const rows = unallocated.map((i) => ({
       tenant_id: tenantId,
