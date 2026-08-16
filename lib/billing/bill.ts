@@ -404,14 +404,21 @@ export async function payBill(
     .eq("tenant_id", tenantId);
 
   // Con chia đều: mọi con paid → cha paid.
+  // Bỏ con 'void' (tàn dư của một lượt chia ĐÃ GỠ, vẫn giữ `split_parent_id` — 0030) khỏi phép
+  // kiểm: sau chuỗi chia → gỡ → chia lại, tập con là [void cũ…, paid mới…] nên `every(paid)` không
+  // bao giờ đúng, vỏ mãi 'open', món không lên 'served' và phiên bàn kẹt "đang phục vụ" vĩnh viễn.
+  // KÈM kiểm tập KHÔNG RỖNG: `[].every(...)` trả true, sẽ đánh 'paid' cho vỏ không có con nào.
   const parentId = (bill.split_parent_id as string) ?? null;
   if (parentId) {
-    const { data: sib } = await client
+    const { data: sib, error: sibErr } = await client
       .from("bills")
       .select("status")
       .eq("tenant_id", tenantId)
-      .eq("split_parent_id", parentId);
-    if ((sib ?? []).every((s) => s.status === "paid"))
+      .eq("split_parent_id", parentId)
+      .neq("status", "void");
+    // Đọc hỏng thì KHÔNG chốt vỏ: để vỏ 'open' chỉ làm chậm việc đóng phiên (thu lại lần nữa là
+    // xong), còn chốt nhầm là mất dấu phần chưa thu.
+    if (!sibErr && (sib?.length ?? 0) > 0 && (sib ?? []).every((s) => s.status === "paid"))
       await client.from("bills").update({ status: "paid", paid_at: now, updated_at: now }).eq("id", parentId).eq("tenant_id", tenantId);
   }
 
