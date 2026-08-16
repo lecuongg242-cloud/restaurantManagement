@@ -81,21 +81,42 @@ async function authorizePos(
  */
 const SPLIT_EVENLY_CANCEL_ERROR = "Hóa đơn đã chia đều — gỡ chia trước khi hủy món.";
 
-/** Phiên bàn có hóa đơn 'open' đang ở trạng thái chia đều (vỏ) hay không. */
-async function sessionHasEvenSplitBill(
+/**
+ * Có hóa đơn chia đều đang mở chặn việc hủy các món này không? Hai đường vào, vì vỏ chia đều có
+ * thể gắn phiên bàn HOẶC là hóa đơn gộp nhiều bàn (`table_session_id = null`):
+ *  1. phiên bàn của đơn đang có bill 'open' mang `split_count`;
+ *  2. chính món đang hủy nằm trên một bill 'open' mang `split_count` (bắt được hóa đơn gộp).
+ */
+async function evenSplitBlocksCancel(
   supabase: SupabaseClient,
   tenantId: string,
-  sessionId: string
+  sessionId: string | null,
+  orderItemIds: string[]
 ): Promise<boolean> {
-  const { data } = await supabase
-    .from("bills")
-    .select("id")
+  if (sessionId) {
+    const { data } = await supabase
+      .from("bills")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("table_session_id", sessionId)
+      .eq("status", "open")
+      .not("split_count", "is", null)
+      .limit(1);
+    if ((data ?? []).length > 0) return true;
+  }
+
+  if (orderItemIds.length === 0) return false;
+  const { data: lines } = await supabase
+    .from("bill_items")
+    .select("bill_id, bills!inner(status, split_count)")
     .eq("tenant_id", tenantId)
-    .eq("table_session_id", sessionId)
-    .eq("status", "open")
-    .not("split_count", "is", null)
-    .limit(1);
-  return (data ?? []).length > 0;
+    .eq("bills.status", "open")
+    .in("order_item_id", orderItemIds);
+  // Lọc `split_count` ở JS: cùng khuôn truy vấn với dropCancelledItemsFromOpenBills, khỏi phụ thuộc
+  // cú pháp lọc trên bảng nhúng; số dòng ở đây là món của một đơn.
+  return (lines ?? []).some(
+    (r) => (r.bills as { split_count?: number | null } | null)?.split_count != null
+  );
 }
 
 /** Đánh dấu đã xử lý 1 lời "Gọi nhân viên" (CALL-01). */
@@ -723,7 +744,7 @@ export async function cancelOrderItem(
   // Chốt chặn chia đều — ngay trước lệnh ghi đầu tiên (xem SPLIT_EVENLY_CANCEL_ERROR).
   // Chỉ đơn CÓ phiên bàn mới dính: mang về/giao không chia đều.
   const sessionId = (item.orders as { table_session_id?: string | null } | null)?.table_session_id ?? null;
-  if (sessionId && (await sessionHasEvenSplitBill(supabase, tenantId, sessionId)))
+  if (await evenSplitBlocksCancel(supabase, tenantId, sessionId, [input.itemId]))
     return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
 
   const now = new Date().toISOString();
@@ -834,11 +855,6 @@ export async function cancelOrder(
   if (!order) return { ok: false, error: "Không tìm thấy đơn." };
   if (order.status === "cancelled") return { ok: false, error: "Đơn đã hủy." };
 
-  // Chốt chặn chia đều (xem SPLIT_EVENLY_CANCEL_ERROR). Đủ khi xét đơn này: nhóm gọi thêm chỉ có ở
-  // đơn KHÔNG gắn bàn (isGroupRoot bên dưới đòi channel ≠ dine_in), nên đơn có phiên bàn luôn đi lẻ.
-  if (order.table_session_id && (await sessionHasEvenSplitBill(supabase, tenantId, order.table_session_id)))
-    return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
-
   // Hủy ĐƠN GỐC của nhóm gọi thêm = hủy CẢ NHÓM, một lý do, một lần duyệt PIN (QD-011 §5).
   // Chỉ hủy đúng đơn gốc sẽ để đơn con mồ côi và bill mất mốc neo. Hủy đơn con thì chỉ đơn đó.
   const isGroupRoot =
@@ -849,7 +865,7 @@ export async function cancelOrder(
 
   const { data: items } = await supabase
     .from("order_items")
-    .select("status")
+    .select("id, status")
     .in("order_id", targetIds)
     .eq("tenant_id", tenantId);
   const rows = items ?? [];
@@ -863,6 +879,18 @@ export async function cancelOrder(
     };
   if (!rows.some((s) => s.status !== "cancelled"))
     return { ok: false, error: "Đơn không còn món để hủy." };
+
+  // Chốt chặn chia đều — vẫn TRƯỚC mọi lệnh ghi (xem SPLIT_EVENLY_CANCEL_ERROR). Nhóm gọi thêm chỉ
+  // có ở đơn KHÔNG gắn bàn (isGroupRoot đòi channel ≠ dine_in) nên phiên bàn lấy từ đơn này là đủ.
+  if (
+    await evenSplitBlocksCancel(
+      supabase,
+      tenantId,
+      (order.table_session_id as string) ?? null,
+      rows.map((r) => r.id as string)
+    )
+  )
+    return { ok: false, error: SPLIT_EVENLY_CANCEL_ERROR };
 
   const reasonSlice = reason.slice(0, 300);
   const now = new Date().toISOString();
