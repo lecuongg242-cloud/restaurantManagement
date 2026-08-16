@@ -31,6 +31,7 @@ export function OrderPanel({
   onConfirmAdd,
   adding,
   addError,
+  splitEvenly,
   cancelStaff,
   canCancelWithoutPin,
   onOpenBill,
@@ -49,6 +50,11 @@ export function OrderPanel({
   onConfirmAdd: () => void;
   adding: boolean;
   addError: string | null;
+  /**
+   * Bàn đang có hóa đơn chia đều mở → server chặn cả hủy lẫn thêm món (BILL-06). Tính ở PosBoard,
+   * KHÔNG tự suy từ `session` nữa: ảnh chụp server đi sau thao tác chia/gỡ một vòng mạng.
+   */
+  splitEvenly: boolean;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
   onOpenBill: () => void;
@@ -137,6 +143,14 @@ export function OrderPanel({
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
+        {/* Bàn đã chia đều: server chặn CẢ hủy lẫn thêm món (tiền của vỏ không đổi theo được, các
+            phần con đã chốt số — BILL-06), nên ẩn nút Hủy, khóa thực đơn + nút "Xác nhận thêm" và
+            nói rõ phải làm gì thay vì để nhân viên bấm rồi ăn lỗi. */}
+        {splitEvenly && (
+          <p role="status" className="mb-md rounded-md bg-surface px-md py-sm text-xs text-steel">
+            Hóa đơn đã chia đều — gỡ chia ở khối hóa đơn trước khi hủy hoặc thêm món.
+          </p>
+        )}
         {/* Món đã gọi — nhóm theo order, mỗi order in phiếu bếp riêng */}
         {session && session.orders.length > 0 ? (
           <div className="flex flex-col gap-lg">
@@ -190,7 +204,7 @@ export function OrderPanel({
                       <div className="flex shrink-0 flex-col items-end gap-xs">
                         {/* Chỉ đánh dấu món đã thu; món đang chờ để trống (POS lo tính tiền, không theo dõi bếp). */}
                         {it.status === "served" && <ItemStatusBadge status={it.status} />}
-                        {it.status !== "served" && it.status !== "cancelled" && (
+                        {it.status !== "served" && it.status !== "cancelled" && !splitEvenly && (
                           <button
                             type="button"
                             onClick={() => setCancelItem({ id: it.id, name: it.name })}
@@ -272,10 +286,13 @@ export function OrderPanel({
                 );
               })}
             </ul>
+            {/* Giỏ gõ dở TRƯỚC khi chia đều vẫn còn đây — giữ nguyên để không mất công gõ lại sau
+                khi gỡ chia, chỉ khóa nút gửi. */}
             <button
               type="button"
               onClick={onConfirmAdd}
-              disabled={adding}
+              disabled={adding || splitEvenly}
+              title={splitEvenly ? "Hóa đơn đã chia đều — gỡ chia trước khi thêm món." : ""}
               className="mt-md flex h-11 w-full items-center justify-center gap-sm rounded-md bg-primary text-sm font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
             >
               {adding ? (

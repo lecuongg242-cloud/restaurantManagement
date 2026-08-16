@@ -37,7 +37,12 @@ export default async function PosOnlinePage({
           Đơn mang về / giao của khách. Nhận đơn để xuống bếp, đánh dấu sẵn sàng, rồi thu tiền hoàn tất.
         </p>
 
-        <OnlineQueue slug={slug} tenantId={session.tenant.id} orders={orders} />
+        <OnlineQueue
+          slug={slug}
+          tenantId={session.tenant.id}
+          orders={orders}
+          canBackdatePayment={session.role === "owner" || session.role === "manager"}
+        />
       </div>
     </StationScreen>
   );

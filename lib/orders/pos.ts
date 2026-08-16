@@ -58,7 +58,8 @@ export type PosSession = {
   tableId: string;
   opened_at: string;
   orders: PosOrder[];
-  openBill: { id: string; bill_no: number | null; total: number } | null;
+  /** `splitCount != null` = hóa đơn đang chia đều → không hủy món được (BILL-06). */
+  openBill: { id: string; bill_no: number | null; total: number; splitCount: number | null } | null;
 };
 
 /** Đặt bàn hôm nay đã xác nhận + gán bàn — hiện trên thẻ bàn để nhân viên biết. */
@@ -165,9 +166,12 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
         .order("created_at", { ascending: true }),
       supabase
         .from("bills")
-        .select("id, bill_no, total, table_session_id")
+        .select("id, bill_no, total, table_session_id, split_count")
         .eq("tenant_id", tenantId)
-        .eq("status", "open"),
+        .eq("status", "open")
+        // Phiên có thể có nhiều bill 'open' (tách bill, hoặc vỏ + con chia đều) mà panel chỉ hiện
+        // được một → sắp cố định để lần mở nào cũng ra cùng hóa đơn, không tùy Postgres trả về.
+        .order("created_at", { ascending: true }),
       supabase
         .from("reservations")
         .select("id, table_id, reserved_at, customer_name, party_size")
@@ -191,11 +195,23 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
 
   const tableById = new Map((tables ?? []).map((t) => [t.id, t]));
   const sessionById = new Map((sessions ?? []).map((s) => [s.id, s]));
-  const openBillBySession = new Map(
-    (openBills ?? [])
-      .filter((b) => b.table_session_id != null)
-      .map((b) => [b.table_session_id as string, b])
-  );
+  // Một phiên đã chia đều có nhiều bill 'open' cùng lúc (vỏ + N con). Panel chỉ hiện được MỘT, và
+  // phải là VỎ: nó mới mang `split_count` để biết bàn đang chia (khóa nút hủy món — BILL-06), còn
+  // con chỉ là phần tiền. Không chọn tường minh thì rơi vào bill nào là tùy thứ tự Postgres trả về.
+  type OpenBillRow = {
+    id: string;
+    bill_no: number | null;
+    total: number;
+    table_session_id: string | null;
+    split_count: number | null;
+  };
+  const openBillBySession = new Map<string, OpenBillRow>();
+  for (const b of (openBills ?? []) as OpenBillRow[]) {
+    if (b.table_session_id == null) continue;
+    const prev = openBillBySession.get(b.table_session_id);
+    if (prev == null || (b.split_count != null && prev.split_count == null))
+      openBillBySession.set(b.table_session_id, b);
+  }
 
   const allOrders: PosOrder[] = (orders ?? []).map((o) => ({
     id: o.id,
@@ -276,7 +292,14 @@ export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
       tableId: s.table_id,
       opened_at: s.opened_at,
       orders: ordersBySession.get(s.id) ?? [],
-      openBill: b ? { id: b.id as string, bill_no: (b.bill_no as number) ?? null, total: b.total as number } : null,
+      openBill: b
+        ? {
+            id: b.id,
+            bill_no: b.bill_no ?? null,
+            total: b.total,
+            splitCount: b.split_count ?? null,
+          }
+        : null,
     };
   });
 

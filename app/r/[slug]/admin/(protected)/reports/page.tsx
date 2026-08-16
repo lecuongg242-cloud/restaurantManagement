@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
-import { getReportData, getComparison, type ReportData, type ComparisonData } from "@/lib/billing/reports";
+import { getReportData, getComparison, getCancellationBlock, type ReportData, type ComparisonData, type CancellationBlock } from "@/lib/billing/reports";
 import { resolveRange, previousRange, deltaPct, vnToday } from "@/lib/billing/report-range";
 import { formatVnd } from "@/lib/orders/cart";
 import { RangePicker } from "@/components/admin/reports/RangePicker";
@@ -13,6 +13,7 @@ import { CategoryBreakdown } from "@/components/admin/reports/CategoryBreakdown"
 import { PlaceBreakdown } from "@/components/admin/reports/PlaceBreakdown";
 import { AreaBreakdown } from "@/components/admin/reports/AreaBreakdown";
 import { HourHeatmap } from "@/components/admin/reports/HourHeatmap";
+import { CancellationPanel } from "@/components/admin/reports/CancellationPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,14 @@ export default async function ReportsPage({
 
   let data: ReportData;
   let prev: ComparisonData;
+  // Khối "Món bị hủy" tự nuốt lỗi của riêng nó (xem getCancellationBlock) — REPORT-10 hỏng thì
+  // REPORT-01..09 vẫn phải hiện. Nhờ vậy cũng không còn ràng buộc thứ tự triển khai code ↔ 0029.
+  let cancellations: CancellationBlock;
   try {
-    [data, prev] = await Promise.all([
+    [data, prev, cancellations] = await Promise.all([
       getReportData(session.tenant.id, range),
       getComparison(session.tenant.id, prevRange),
+      getCancellationBlock(session.tenant.id, range, prevRange),
     ]);
   } catch (err) {
     return (
@@ -131,6 +136,21 @@ export default async function ReportsPage({
           </div>
         </>
       )}
+
+      <Panel title="Món bị hủy" className="mt-lg">
+        {cancellations.ok ? (
+          <CancellationPanel data={cancellations.data} prev={cancellations.prev} />
+        ) : (
+          <div className="rounded-lg border border-status-late bg-canvas p-md">
+            <p className="text-sm font-medium text-status-late">Không tải được thống kê món bị hủy.</p>
+            <p className="mt-xs text-sm text-steel">
+              {cancellations.message} Kiểm tra migration{" "}
+              <code className="font-mono text-xs">0029_cancel_report_rpcs.sql</code> đã chạy chưa. Các
+              khối còn lại của báo cáo không bị ảnh hưởng.
+            </p>
+          </div>
+        )}
+      </Panel>
     </ReportShell>
   );
 }

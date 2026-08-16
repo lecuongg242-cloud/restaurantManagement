@@ -20,6 +20,8 @@ const order = (
   contact: {},
   parentOrderId,
   total,
+  cancelReason: null,
+  cancelledAt: null,
   // Một dòng món khớp `total` — nhóm cộng theo `total` nên chi tiết không ảnh hưởng.
   items: [
     {
@@ -30,6 +32,9 @@ const order = (
       status: "queued",
       unitPrice: total,
       modifiers: [],
+      cancelReason: null,
+      cancelledBy: null,
+      cancelledAt: null,
     },
   ],
 });

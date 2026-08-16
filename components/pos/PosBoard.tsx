@@ -16,6 +16,7 @@ import {
   splitByItemsAction,
   splitByOrdersAction,
   splitEvenlyAction,
+  unsplitBillAction,
   mergeTablesAction,
   applyDiscountAction,
   setChargePctAction,
@@ -34,6 +35,7 @@ import { MenuPanel } from "./MenuPanel";
 import { PendingOrdersDrawer } from "./PendingOrdersDrawer";
 import { TakeawayPanel } from "./TakeawayPanel";
 import { BillPanel } from "./BillPanel";
+import { PAY_OFFLINE_MSG } from "./PaymentDialog";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
 
@@ -56,6 +58,7 @@ export function PosBoard({
   menu,
   cancelStaff,
   canCancelWithoutPin,
+  canBackdatePayment,
   allowDiscount,
   serviceMode = "table",
 }: {
@@ -65,6 +68,8 @@ export function PosBoard({
   menu: CustomerMenu | null;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
+  /** Chủ/quản lý mới được ghi lùi thời điểm nhận tiền (thu bù đơn tồn). */
+  canBackdatePayment: boolean;
   allowDiscount: boolean;
   serviceMode?: ServiceMode;
 }) {
@@ -272,6 +277,38 @@ export function PosBoard({
   const selectedTable = initial.tables.find((t) => t.id === selectedTableId) ?? null;
   const selectedSession = selectedTableId ? sessionByTable.get(selectedTableId) ?? null : null;
 
+  /**
+   * Bàn đang chọn có hóa đơn chia đều đang mở không? Quyết định việc ẩn nút "Hủy" và khóa đường
+   * thêm món — cả hai đều bị server chặn (BILL-06), nên để nhân viên bấm rồi mới ăn lỗi là tệ.
+   *
+   * Ưu tiên `bills` (danh sách hóa đơn do chính action chia/gỡ vừa trả về) hơn `initial` (ảnh chụp
+   * server): sau khi bấm chia đều hay gỡ chia, `router.refresh()` phải đi một vòng mạng nữa mới
+   * về, và trong khoảng đó `initial` vẫn là trạng thái CŨ — đúng cửa sổ nhân viên bấm tiếp. `bills`
+   * còn bắt được cả vỏ chia đều của HÓA ĐƠN GỘP (`table_session_id = null`) mà `initial.sessions`
+   * không bao giờ thấy. `bills` chỉ có sau khi mở khối hóa đơn và bị xóa khi đổi bàn, nên rỗng thì
+   * rơi về ảnh chụp server như cũ.
+   */
+  const splitEvenlyNow =
+    bills.length > 0
+      ? bills.some((b) => b.status === "open" && b.splitCount != null)
+      : selectedSession?.openBill?.splitCount != null;
+
+  /**
+   * Các bàn đang chia đều — drawer "Chờ duyệt" dùng để báo trước vì sao không duyệt được đơn của
+   * bàn đó (server chặn, BILL-06). Lấy từ chính ảnh chụp phiên bàn đã có, KHÔNG kéo thêm dữ liệu.
+   * Bàn đang chọn ưu tiên `splitEvenlyNow` vì nó mới hơn ảnh chụp một nhịp (xem trên).
+   */
+  const splitEvenlyTableIds = useMemo(() => {
+    const ids = new Set(
+      initial.sessions.filter((s) => s.openBill?.splitCount != null).map((s) => s.tableId)
+    );
+    if (selectedTableId) {
+      if (splitEvenlyNow) ids.add(selectedTableId);
+      else ids.delete(selectedTableId);
+    }
+    return ids;
+  }, [initial.sessions, selectedTableId, splitEvenlyNow]);
+
   // Gộp dòng trùng: cùng món + cùng tùy chọn + cùng ghi chú → cộng dồn số lượng
   // thay vì tạo dòng mới (chủ dự án: "chọn option giống hệt nhau thì tự gộp").
   const lineKey = (l: Pick<CartLine, "itemId" | "optionIds" | "note">) =>
@@ -367,6 +404,8 @@ export function PosBoard({
     if (!selectedSession) return;
     runBillAction(() => splitEvenlyAction(slug, selectedSession.id, billId, n));
   };
+  // Gỡ chia không cần sessionId: action tự tra phiên từ hóa đơn. runBillAction lo cả lỗi lẫn refresh.
+  const doUnsplit = (billId: string) => runBillAction(() => unsplitBillAction(slug, billId));
   const doMerge = (sessionIds: string[]) => {
     if (!selectedSession) return;
     runBillAction(() => mergeTablesAction(slug, selectedSession.id, sessionIds));
@@ -389,12 +428,19 @@ export function PosBoard({
     if (!selectedSession) return { ok: false, error: "Chưa chọn bàn." };
     setBillBusy(true);
     setBillError(null);
-    const res = await payBillAction(slug, selectedSession.id, billId, { method, amountReceived });
-    setBillBusy(false);
-    if (!res.ok) return { ok: false, error: res.error };
-    setBills(res.bills);
-    router.refresh();
-    return { ok: true, change: res.change };
+    // Mạng rớt giữa chừng ⇒ server action NÉM. Không có finally thì `setBillBusy(false)` không bao
+    // giờ chạy: nút kẹt quay mãi, không một chữ báo lỗi, nhân viên tưởng đã thu xong.
+    try {
+      const res = await payBillAction(slug, selectedSession.id, billId, { method, amountReceived });
+      if (!res.ok) return { ok: false, error: res.error };
+      setBills(res.bills);
+      router.refresh();
+      return { ok: true, change: res.change };
+    } catch {
+      return { ok: false, error: PAY_OFFLINE_MSG };
+    } finally {
+      setBillBusy(false);
+    }
   };
   const doPrintReceipt = (billId: string) => getPrintAdapter().printReceipt({ slug, billId });
 
@@ -683,7 +729,7 @@ export function PosBoard({
           <MenuPanel
             slug={slug}
             menu={menu}
-            canAdd={takeawayMode || !!selectedTable}
+            canAdd={takeawayMode || (!!selectedTable && !splitEvenlyNow)}
             onAddLine={addLine}
           />
         </section>
@@ -712,6 +758,7 @@ export function PosBoard({
               onClose={exitTakeaway}
               cancelStaff={cancelStaff}
               canCancelWithoutPin={canCancelWithoutPin}
+              canBackdatePayment={canBackdatePayment}
               counter={counter}
               filterOrderId={filterOrderId}
               onClearFilter={() => setFilterOrderId(null)}
@@ -734,6 +781,7 @@ export function PosBoard({
               onConfirmAdd={confirmAdd}
               adding={adding}
               addError={addError}
+              splitEvenly={splitEvenlyNow}
               cancelStaff={cancelStaff}
               canCancelWithoutPin={canCancelWithoutPin}
               onOpenBill={openBill}
@@ -753,6 +801,7 @@ export function PosBoard({
         open={pendingOpen}
         onOpenChange={setPendingOpen}
         pending={initial.pending}
+        splitEvenlyTableIds={splitEvenlyTableIds}
       />
 
       {billOpen && (
@@ -768,6 +817,7 @@ export function PosBoard({
           onSplitByItems={doSplitByItems}
           onSplitByOrders={doSplitByOrders}
           onSplitEvenly={doSplitEvenly}
+          onUnsplit={doUnsplit}
           onMerge={doMerge}
           onApplyDiscount={doApplyDiscount}
           onSetCharges={doSetCharges}

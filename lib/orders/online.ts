@@ -16,6 +16,7 @@ import {
   type CreateOrderResult,
 } from "./create-order";
 import { broadcastOrderStatus } from "./broadcast";
+import { historyStatuses, type HistoryStatusFilter } from "./history-filter";
 import type { BillStatus, PaymentMethod } from "@/lib/billing/types";
 import type { OrderItemStatus, OrderStatus } from "./types";
 import type { OrderLineInput } from "./types";
@@ -98,6 +99,10 @@ export type OnlineOrderItem = {
   status: OrderItemStatus;
   unitPrice: number;
   modifiers: string[];
+  /** Chỉ có nghĩa khi status = 'cancelled'. */
+  cancelReason: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
 };
 
 export type OnlineOrderView = {
@@ -112,10 +117,12 @@ export type OnlineOrderView = {
   total: number;
   /** Đơn gốc nếu đây là lượt "gọi thêm" (QD-011); null = đơn gốc. */
   parentOrderId: string | null;
+  cancelReason: string | null;
+  cancelledAt: string | null;
 };
 
 const ONLINE_ORDER_SELECT =
-  "id, channel, status, kitchen_no, note, customer_contact, created_at, parent_order_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))";
+  "id, channel, status, kitchen_no, note, customer_contact, created_at, parent_order_id, cancel_reason, cancelled_at, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, created_at, cancel_reason, cancelled_by, cancelled_at, order_item_modifiers(name_snapshot))";
 
 /**
  * Map 1 row order (kèm items) → OnlineOrderView.
@@ -139,6 +146,9 @@ function toOnlineOrderView(
       status: it.status as OrderItemStatus,
       unitPrice: it.unit_price_snapshot as number,
       modifiers: ((it.order_item_modifiers as { name_snapshot: string }[]) ?? []).map((m) => m.name_snapshot),
+      cancelReason: (it.cancel_reason as string) ?? null,
+      cancelledBy: (it.cancelled_by as string) ?? null,
+      cancelledAt: (it.cancelled_at as string) ?? null,
     }));
   const total = items
     .filter((it) => it.status !== "cancelled")
@@ -155,6 +165,8 @@ function toOnlineOrderView(
     items,
     total,
     parentOrderId: (o.parent_order_id as string | null) ?? null,
+    cancelReason: (o.cancel_reason as string) ?? null,
+    cancelledAt: (o.cancelled_at as string) ?? null,
   };
 }
 
@@ -201,13 +213,25 @@ export type TakeawayBillInfo = {
 
 /** Con số của CẢ khoảng lọc — không phải của trang đang xem. */
 export type TakeawayHistorySummary = {
-  /** Số NHÓM đơn khớp bộ lọc, đếm chính xác ở DB (không kéo dòng nào về). */
-  orderCount: number;
-  /** Σ bill đã thu. */
+  /** Số nhóm đơn ĐÃ THU (completed), đếm chính xác ở DB. Theo ngày TẠO đơn. */
+  paidCount: number;
+  /**
+   * Số nhóm đơn ĐÃ HỦY — tách riêng vì không cùng mẫu số với `paidTotal`. Theo ngày TẠO đơn.
+   * `paidCount + cancelledCount` chính là `orderCount` của bản cũ (ORDER-18 tách đôi để dòng
+   * tổng kết không ghép "N đơn" với số tiền của một tập khác).
+   */
+  cancelledCount: number;
+  /**
+   * Σ tiền THU trong kỳ — theo `bills.paid_at`, cùng gốc với trang Báo cáo (xem 0027).
+   * KHÁC gốc với `paidCount` (ngày tạo đơn): đơn hôm qua chốt bù sáng nay tính vào hôm nay.
+   */
   paidTotal: number;
-  /** Chạm trần `SUM_ROW_CAP` → `paidTotal` là con số THIẾU, màn hình phải nói rõ. */
-  paidTotalCapped: boolean;
+  /** Số hóa đơn tạo nên `paidTotal` — để nhãn nói rõ đây là tiền thu, không phải tiền của N đơn. */
+  paidBills: number;
 };
+
+/** Người từng duyệt hủy — tra tên ở tầng app vì `cancelled_by` KHÔNG có FK sang memberships. */
+export type CancelActorRow = { id: string; name: string; role: string };
 
 export type TakeawayHistoryPage = {
   /** Đơn gốc + đơn con của TRANG này (chưa gom nhóm — gom ở client). */
@@ -225,6 +249,12 @@ export type TakeawayHistoryPage = {
    * "khớp lượt #90".
    */
   matchedIds: string[];
+  /**
+   * Nhân sự của tenant để tra `cancelled_by → tên`. Không thêm FK sang `memberships` vì dữ liệu
+   * cũ có thể trỏ tới membership đã xóa — migration thêm FK sẽ fail giữa chừng. Tra không ra thì
+   * component tự bỏ phần tên.
+   */
+  actors: CancelActorRow[];
 };
 
 const VN_OFFSET = 7 * 3600 * 1000;
@@ -232,8 +262,6 @@ const VN_OFFSET = 7 * 3600 * 1000;
 const HISTORY_PAGE = 20;
 /** Trần số đơn khớp một lần tìm. Tìm ra hơn ngần này thì từ khóa quá rộng, không phải nhu cầu thật. */
 const SEARCH_MATCH_CAP = 500;
-/** Trần số bill gom vào tổng tiền. Mỗi dòng chỉ có cột `total` nên rất nhẹ. */
-const SUM_ROW_CAP = 5000;
 
 /**
  * Chuỗi tìm kiếm đi THẲNG vào bộ lọc `or=(...)` của PostgREST, nơi `,()"*\` là ký tự CÚ PHÁP —
@@ -270,17 +298,19 @@ export async function listTakeawayHistory(
   tenantId: string,
   fromDay: string,
   toDay: string,
-  opts: { cursor?: string | null; query?: string } = {}
+  opts: { cursor?: string | null; query?: string; status?: HistoryStatusFilter } = {}
 ): Promise<TakeawayHistoryPage> {
   const supabase = await createClient();
   const { fromUtc, toUtc } = vnDayRangeToUtc(fromDay, toDay);
   const q = sanitizeSearch(opts.query ?? "");
+  const statuses = historyStatuses(opts.status ?? "all");
   const empty: TakeawayHistoryPage = {
     orders: [],
     bills: [],
     nextCursor: null,
-    summary: { orderCount: 0, paidTotal: 0, paidTotalCapped: false },
+    summary: { paidCount: 0, cancelledCount: 0, paidTotal: 0, paidBills: 0 },
     matchedIds: [],
+    actors: [],
   };
 
   // ---- 1. Tìm kiếm chạy Ở SERVER, trên CẢ khoảng ngày ----------------------
@@ -297,12 +327,15 @@ export async function listTakeawayHistory(
     // Số đơn khớp CHÍNH XÁC: gõ "8" mà ra cả #18, #80, #89 thì danh sách vô dụng.
     if (/^\d+$/.test(q)) ors.unshift(`kitchen_no.eq.${q}`);
 
+    // Tìm trên CẢ hai trạng thái, KHÔNG theo chip: dòng tổng kết bên dưới lấy chính danh sách này
+    // làm phạm vi, mà nó phải ĐỨNG YÊN khi đổi chip (đổi chip mà con số nhảy theo thì mất tác
+    // dụng đối chiếu). Trang đơn gốc vẫn lọc theo chip riêng ở bước 2.
     const { data: hits } = await supabase
       .from("orders")
       .select("id, parent_order_id")
       .eq("tenant_id", tenantId)
       .eq("channel", "takeaway")
-      .in("status", ["completed", "cancelled"])
+      .in("status", historyStatuses("all"))
       .gte("created_at", fromUtc)
       .lt("created_at", toUtc)
       .or(ors.join(","))
@@ -325,7 +358,7 @@ export async function listTakeawayHistory(
     .select("id, created_at")
     .eq("tenant_id", tenantId)
     .eq("channel", "takeaway")
-    .in("status", ["completed", "cancelled"])
+    .in("status", statuses)
     .is("parent_order_id", null)
     .gte("created_at", fromUtc)
     .lt("created_at", toUtc)
@@ -359,7 +392,7 @@ export async function listTakeawayHistory(
     : await takeawayHistorySummary(supabase, tenantId, fromUtc, toUtc, searchRootIds);
 
   if (rootIds.length === 0)
-    return { orders: [], bills: [], nextCursor: null, summary, matchedIds: [] };
+    return { orders: [], bills: [], nextCursor: null, summary, matchedIds: [], actors: [] };
 
   // ---- 3. Cây đơn đầy đủ của đúng các gốc trong trang ------------------------
   const idList = rootIds.join(",");
@@ -407,23 +440,39 @@ export async function listTakeawayHistory(
     methods: methodsByBill.get(b.id as string) ?? [],
   }));
 
+  // Chỉ tra ở TRANG ĐẦU: màn hình giữ nguyên danh sách của trang đầu qua các lượt "Tải thêm"
+  // (cùng tenant, cùng danh sách nhân sự) nên tra lại là một truy vấn thừa mỗi lần bấm.
+  const { data: actorRows } = opts.cursor
+    ? { data: null }
+    : await supabase.from("memberships").select("id, display_name, role").eq("tenant_id", tenantId);
+  const actors: CancelActorRow[] = (actorRows ?? []).map((m) => ({
+    id: m.id as string,
+    name: (m.display_name as string) ?? "",
+    role: (m.role as string) ?? "",
+  }));
+
   return {
     orders,
     bills,
     nextCursor,
     summary,
     matchedIds: matchedAll ? orders.filter((o) => matchedAll.has(o.id)).map((o) => o.id) : [],
+    actors,
   };
 }
 
 /**
- * Số đơn + tiền đã thu của CẢ khoảng lọc (không phải của trang đang xem).
+ * Số đơn của danh sách + tiền THU của CẢ khoảng lọc (không phải của trang đang xem).
  *
- * Trước đây hai con số này cộng từ tập đã tải nên khi danh sách bị cắt là hiện SỐ TIỀN SAI mà
- * không báo gì. Nay: đếm bằng `count: exact` (không kéo dòng nào về), cộng tiền bằng một truy vấn
- * chỉ lấy cột `total` của bill.
+ * Tiền đi qua RPC `takeaway_paid_total` (0027) vì hai lý do đã đo trên dữ liệu thật:
+ *  - Gốc ngày: cộng theo `bills.paid_at` để KHỚP trang Báo cáo. Bản cũ neo theo ngày TẠO đơn nên
+ *    đơn hôm trước chốt bù sáng hôm sau bị tính nhầm sang ngày cũ (14/08/2026: POS 13.585.000đ
+ *    trong khi Báo cáo 18.350.000đ — lệch đúng 37 hóa đơn chốt bù).
+ *  - Trần dòng: PostgREST chặn cứng 1000 dòng bất kể `.limit(5000)`, mà một tháng của quán đông
+ *    khách đã hơn 1000 hóa đơn ⇒ cộng thiếu âm thầm. SUM chạy trong Postgres thì không có trần.
  *
- * Không dùng hàm tổng hợp của PostgREST vì project Supabase này tắt chúng (PGRST123).
+ * `paidCount`/`cancelledCount` vẫn đếm theo ngày TẠO đơn vì chúng mô tả DANH SÁCH bên dưới — nhãn
+ * phải nói rõ hai con số khác gốc, đừng ghép thành "N đơn thu được X".
  */
 async function takeawayHistorySummary(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -432,47 +481,39 @@ async function takeawayHistorySummary(
   toUtc: string,
   searchRootIds: string[] | null
 ): Promise<TakeawayHistorySummary> {
-  let countQ = supabase
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId)
-    .eq("channel", "takeaway")
-    .in("status", ["completed", "cancelled"])
-    .is("parent_order_id", null)
-    .gte("created_at", fromUtc)
-    .lt("created_at", toUtc);
-  if (searchRootIds) countQ = countQ.in("id", searchRootIds);
+  const countFor = (status: "completed" | "cancelled") => {
+    let q = supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .eq("channel", "takeaway")
+      .eq("status", status)
+      .is("parent_order_id", null)
+      .gte("created_at", fromUtc)
+      .lt("created_at", toUtc);
+    if (searchRootIds) q = q.in("id", searchRootIds);
+    return q;
+  };
 
-  // Đang tìm kiếm thì đã có sẵn danh sách gốc khớp (≤ SEARCH_MATCH_CAP) → lọc thẳng theo id.
-  // Không tìm kiếm thì neo bill vào khoảng ngày của ĐƠN GỐC qua join inner, để con số khớp đúng
-  // danh sách bên dưới (lọc theo created_at của đơn, không phải paid_at của bill).
-  const sumQ = searchRootIds
-    ? supabase
-        .from("bills")
-        .select("total")
-        .eq("tenant_id", tenantId)
-        .eq("status", "paid")
-        .in("online_order_id", searchRootIds)
-        .limit(SUM_ROW_CAP)
-    : supabase
-        .from("bills")
-        .select("total, orders!inner(created_at, channel, status, parent_order_id)")
-        .eq("tenant_id", tenantId)
-        .eq("status", "paid")
-        .eq("orders.channel", "takeaway")
-        .is("orders.parent_order_id", null)
-        .in("orders.status", ["completed", "cancelled"])
-        .gte("orders.created_at", fromUtc)
-        .lt("orders.created_at", toUtc)
-        .limit(SUM_ROW_CAP);
+  const sumQ = supabase.rpc("takeaway_paid_total", {
+    p_tenant: tenantId,
+    p_from: fromUtc,
+    p_to: toUtc,
+    p_root_ids: searchRootIds,
+  });
 
-  const [{ count }, { data: totals }] = await Promise.all([countQ, sumQ]);
+  const [{ count: paid }, { count: cancelled }, { data: totals, error: sumError }] =
+    await Promise.all([countFor("completed"), countFor("cancelled"), sumQ]);
 
-  const rows = (totals ?? []) as { total: number }[];
+  // Lỗi RPC mà nuốt đi thì màn hình hiện "đã thu 0đ" — sai còn tệ hơn báo lỗi (xem lib/billing/reports.ts).
+  if (sumError) throw new Error(`Lịch sử đơn: không cộng được tiền đã thu — ${sumError.message}`);
+
+  const row = (totals as { paid_total: number; paid_bills: number }[] | null)?.[0];
   return {
-    orderCount: count ?? 0,
-    paidTotal: rows.reduce((s, r) => s + (r.total ?? 0), 0),
-    paidTotalCapped: rows.length >= SUM_ROW_CAP,
+    paidCount: paid ?? 0,
+    cancelledCount: cancelled ?? 0,
+    paidTotal: Number(row?.paid_total ?? 0),
+    paidBills: Number(row?.paid_bills ?? 0),
   };
 }
 
@@ -520,20 +561,31 @@ export async function acceptOnlineOrder(
   return { ok: true };
 }
 
-/** Từ chối đơn chờ: pending_confirm → cancelled (bắt buộc lý do). Broadcast cho khách. */
+/**
+ * Từ chối đơn chờ: pending_confirm → cancelled (bắt buộc lý do). Broadcast cho khách.
+ *
+ * Hủy luôn `order_items` như `rejectOrder` (đường QR) chứ không chỉ đổi trạng thái đơn: mọi RPC
+ * của REPORT-10 đếm trên `order_items.status = 'cancelled'`. Để món ở `queued` thì đơn mang về bị
+ * từ chối đóng góp 0 vào "Số món bị hủy" trong khi `qty` của nó vẫn phồng mẫu số `ordered_qty` —
+ * tỷ lệ hủy bị hạ thấp hai lần, và REPORT-10 hứa "gồm cả dine-in lẫn mang về".
+ */
 export async function rejectOnlineOrder(
   tenantId: string,
   orderId: string,
-  reason: string
+  reason: string,
+  actorMembershipId: string
 ): Promise<MutateResult> {
   if (!reason?.trim()) return { error: "Vui lòng nhập lý do từ chối." };
   const supabase = await createClient();
+  const now = new Date().toISOString();
+  const trimmed = reason.trim().slice(0, 300);
   const { data, error } = await supabase
     .from("orders")
     .update({
       status: "cancelled",
-      cancel_reason: reason.trim().slice(0, 300),
-      updated_at: new Date().toISOString(),
+      cancel_reason: trimmed,
+      cancelled_at: now,
+      updated_at: now,
     })
     .eq("tenant_id", tenantId)
     .eq("id", orderId)
@@ -543,6 +595,19 @@ export async function rejectOnlineOrder(
 
   if (error) return { error: "Không từ chối được. Vui lòng thử lại." };
   if (!data) return { error: "Đơn đã được xử lý hoặc không tồn tại." };
+
+  await supabase
+    .from("order_items")
+    .update({
+      status: "cancelled",
+      cancel_reason: trimmed,
+      cancelled_at: now,
+      cancelled_by: actorMembershipId,
+    })
+    .eq("tenant_id", tenantId)
+    .eq("order_id", orderId)
+    .neq("status", "cancelled");
+
   await broadcastOrderStatus(orderId);
   return { ok: true };
 }

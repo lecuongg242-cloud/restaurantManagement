@@ -3,12 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarRange, ChevronDown, Loader2, Printer } from "lucide-react";
 import type {
+  CancelActorRow,
   OnlineOrderView,
   TakeawayBillInfo,
   TakeawayHistorySummary,
 } from "@/lib/orders/online";
-import { groupTakeawayOrders } from "@/lib/orders/takeaway-group";
+import { groupTakeawayOrders, type TakeawayGroup } from "@/lib/orders/takeaway-group";
 import { formatVnd } from "@/lib/orders/cart";
+import {
+  formatCancelNote,
+  orderCancelActorId,
+  isSharedOrderCancelReason,
+  type CancelActor,
+} from "@/lib/orders/cancel-label";
+import type { HistoryStatusFilter } from "@/lib/orders/history-filter";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import { listTakeawayHistoryAction } from "@/app/r/[slug]/pos/actions";
 import { cn } from "@/lib/utils";
@@ -52,12 +60,52 @@ const PRESETS: Preset[] = [
   { key: "30d", label: "30 ngày", from: () => vnDay(-29), to: () => vnDay(0) },
 ];
 
+const STATUS_CHIPS: { key: HistoryStatusFilter; label: string }[] = [
+  { key: "all", label: "Tất cả" },
+  { key: "paid", label: "Đã thu" },
+  { key: "cancelled", label: "Đã hủy" },
+];
+
+/**
+ * Người duyệt lượt hủy CẢ NHÓM — tra qua `cancelled_by` của món (xem orderCancelActorId).
+ *
+ * Neo theo `cancelledAt` của ĐƠN GỐC cho cả nhóm: hủy nhóm ghi cùng một mốc lên mọi đơn con lẫn
+ * mọi món của chúng, nên chỉ đúng những món do CHÍNH lượt hủy đó đụng tới mới khớp.
+ */
+function cancelActorOf(
+  g: TakeawayGroup,
+  actorById: Map<string, CancelActor>
+): CancelActor | null {
+  const id = orderCancelActorId(
+    [g.root, ...g.children].flatMap((o) => o.items),
+    g.root.cancelledAt
+  );
+  return (id && actorById.get(id)) || null;
+}
+
 /** Danh sách món của một đơn trong lịch sử — món đã hủy gạch ngang, không biến mất. */
-function HistoryLines({ order }: { order: OnlineOrderView }) {
+function HistoryLines({
+  order,
+  actorById,
+}: {
+  order: OnlineOrderView;
+  actorById: Map<string, CancelActor>;
+}) {
   return (
     <ul className="mt-sm flex flex-col divide-y divide-hairline-soft">
       {order.items.map((it) => {
         const cancelled = it.status === "cancelled";
+        // Hủy CẢ ĐƠN thì mọi món mang cùng một lý do — đã hiện một lần ở đầu thẻ, khỏi lặp
+        // lại ở từng dòng. Nhưng "có lý do cấp đơn" KHÔNG đồng nghĩa lý do chung: xem
+        // isSharedOrderCancelReason.
+        const note =
+          cancelled && !isSharedOrderCancelReason(it.cancelReason, order.cancelReason)
+            ? formatCancelNote({
+                reason: it.cancelReason,
+                at: it.cancelledAt,
+                actor: (it.cancelledBy && actorById.get(it.cancelledBy)) || null,
+              })
+            : null;
         return (
           <li key={it.id} className="flex items-start justify-between gap-md py-xs">
             <div className="min-w-0">
@@ -68,6 +116,7 @@ function HistoryLines({ order }: { order: OnlineOrderView }) {
                 <p className="text-xs text-steel">{it.modifiers.join(" · ")}</p>
               )}
               {it.note && <p className="text-xs italic text-stone">“{it.note}”</p>}
+              {note && <p className="text-xs text-status-late">{note}</p>}
             </div>
             <span
               className={
@@ -113,6 +162,7 @@ export function TakeawayHistory({
   const [preset, setPreset] = useState<string>("today");
   const [from, setFrom] = useState(() => vnDay(0));
   const [to, setTo] = useState(() => vnDay(0));
+  const [status, setStatus] = useState<HistoryStatusFilter>("all");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +172,7 @@ export function TakeawayHistory({
   const [summary, setSummary] = useState<TakeawayHistorySummary | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [matched, setMatched] = useState<Set<string>>(new Set());
+  const [actors, setActors] = useState<CancelActorRow[]>([]);
 
   // Ô tìm nằm ở thanh POS (component cha) nên chữ tới đây theo từng phím → tự hoãn ở đây.
   const [debouncedQuery, setDebouncedQuery] = useState(query);
@@ -137,7 +188,7 @@ export function TakeawayHistory({
     const run = ++runId.current;
     setLoading(true);
     setError(null);
-    const res = await listTakeawayHistoryAction(slug, from, to, { query: debouncedQuery });
+    const res = await listTakeawayHistoryAction(slug, from, to, { query: debouncedQuery, status });
     if (run !== runId.current) return;
     setLoading(false);
     if (!res.ok) {
@@ -147,6 +198,7 @@ export function TakeawayHistory({
       setCursor(null);
       setSummary(null);
       setMatched(new Set());
+      setActors([]);
       return;
     }
     setOrders(res.history.orders);
@@ -154,8 +206,9 @@ export function TakeawayHistory({
     setCursor(res.history.nextCursor);
     setSummary(res.history.summary);
     setMatched(new Set(res.history.matchedIds));
+    setActors(res.history.actors);
     setExpanded(new Set());
-  }, [slug, from, to, debouncedQuery]);
+  }, [slug, from, to, debouncedQuery, status]);
 
   useEffect(() => {
     void loadFirst();
@@ -168,6 +221,7 @@ export function TakeawayHistory({
     const res = await listTakeawayHistoryAction(slug, from, to, {
       cursor,
       query: debouncedQuery,
+      status,
     });
     if (run !== runId.current) return; // bộ lọc đã đổi giữa chừng → bỏ trang này
     setLoadingMore(false);
@@ -206,10 +260,32 @@ export function TakeawayHistory({
 
   const billByOrderId = useMemo(() => new Map(bills.map((b) => [b.orderId, b])), [bills]);
   const groups = useMemo(() => groupTakeawayOrders(orders, { newestFirst: true }), [orders]);
+  const actorById = useMemo(
+    () => new Map(actors.map((a) => [a.id, { name: a.name, role: a.role }])),
+    [actors]
+  );
 
-  const emptyLabel = counter
-    ? "Không có đơn nào đã xong trong khoảng này."
-    : "Không có đơn mang về nào đã xong trong khoảng này.";
+  // Mẫu số của "Tải thêm" PHẢI bám chip — khác dòng tổng kết ở trên (luôn cả khoảng ngày, không
+  // theo chip). Dòng tổng kết trả lời "khoảng ngày này có gì"; dòng này trả lời "danh sách ĐANG
+  // XEM (đã lọc theo chip) còn bao nhiêu chưa tải" — tử số `groups.length` đã lọc theo chip ở
+  // server nên mẫu số lệch chip sẽ cho tỉ lệ sai (vd: chọn "Đã hủy" mà mẫu vẫn cộng cả đơn đã thu).
+  const shownTotal =
+    status === "cancelled"
+      ? summary?.cancelledCount
+      : status === "paid"
+        ? summary?.paidCount
+        : summary
+          ? summary.paidCount + summary.cancelledCount
+          : undefined;
+
+  const emptyLabel =
+    status === "cancelled"
+      ? "Không có đơn nào bị hủy trong khoảng này."
+      : status === "paid"
+        ? "Không có đơn nào đã thu trong khoảng này."
+        : counter
+          ? "Không có đơn nào đã xong trong khoảng này."
+          : "Không có đơn mang về nào đã xong trong khoảng này.";
 
   return (
     <div className="flex flex-col">
@@ -238,6 +314,20 @@ export function TakeawayHistory({
             <CalendarRange className="mr-xxs h-3.5 w-3.5" aria-hidden />
             Tùy chọn
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-xs" role="group" aria-label="Lọc theo trạng thái">
+          {STATUS_CHIPS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setStatus(s.key)}
+              aria-pressed={status === s.key}
+              className={chip(status === s.key)}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
 
         {preset === "custom" && (
@@ -270,19 +360,26 @@ export function TakeawayHistory({
           <span className="text-xs text-steel">{rangeLabel(from, to)}</span>
           {!loading && !error && summary && (
             <span className="text-sm text-steel">
-              <span className="font-medium text-ink">{summary.orderCount} đơn</span>
-              {" · đã thu "}
-              <span className="font-semibold tabular-nums text-ink">
-                {summary.paidTotalCapped ? "≥ " : ""}
-                {formatVnd(summary.paidTotal)}
-              </span>
+              <span className="font-medium text-ink">{summary.paidCount} đơn đã thu</span>
+              {" · "}
+              <span className="font-semibold tabular-nums text-ink">{formatVnd(summary.paidTotal)}</span>
+              {summary.paidBills !== summary.paidCount && (
+                <span className="text-xs">{` (${summary.paidBills} HĐ)`}</span>
+              )}
+              {summary.cancelledCount > 0 && (
+                <span className="text-status-late"> · {summary.cancelledCount} đơn hủy</span>
+              )}
             </span>
           )}
         </div>
-        {summary?.paidTotalCapped && !loading && (
-          <p className="text-xs text-status-late">
-            Khoảng này quá nhiều hóa đơn nên tổng tiền chỉ là mức tối thiểu — xem Báo cáo để có số
-            chính xác.
+        {/* Hai con số khác gốc: tiền theo ngày THU (khớp trang Báo cáo), đơn theo ngày TẠO. Chỉ nói
+            khi chúng thực sự lệch — quán chốt tiền gọn trong ngày thì dòng này không hiện.
+            So với `paidCount` (đơn ĐÃ THU) chứ không phải tổng đơn: đơn hủy không sinh hóa đơn
+            nào nên gộp chúng vào phép so sẽ báo "chốt bù" mỗi khi trong kỳ có đơn hủy. */}
+        {!loading && !error && summary && summary.paidBills !== summary.paidCount && (
+          <p className="text-xs text-steel">
+            Tiền tính theo ngày thu (khớp trang Báo cáo), số đơn tính theo ngày tạo đơn — chênh nhau
+            là do đơn của ngày trước được chốt bù trong kỳ này.
           </p>
         )}
       </div>
@@ -357,6 +454,20 @@ export function TakeawayHistory({
                   )}
                 </div>
 
+                {cancelled && g.root.cancelReason && (
+                  <p className="mt-xxs text-xs text-status-late">
+                    {formatCancelNote({
+                      reason: g.root.cancelReason,
+                      at: g.root.cancelledAt,
+                      // `orders` không có cột `cancelled_by`, nhưng lượt hủy cả đơn ghi người
+                      // duyệt lên MỌI món nó hủy — lấy từ đó ra (ORDER-18 hứa "tên (vai trò)").
+                      // Quét cả lượt gọi thêm: hủy nhóm ghi lên toàn nhóm, mà đơn gốc có thể
+                      // không còn món nào chưa hủy từ trước.
+                      actor: cancelActorOf(g, actorById),
+                    })}
+                  </p>
+                )}
+
                 {(g.root.contact?.name || g.root.contact?.phone) && (
                   <p className="mt-xxs flex flex-wrap items-baseline gap-x-xs text-xs">
                     {g.root.contact?.name && (
@@ -381,7 +492,7 @@ export function TakeawayHistory({
                         <span className="ml-xs font-normal">{vnStamp(g.root.createdAt)}</span>
                       </p>
                     )}
-                    <HistoryLines order={g.root} />
+                    <HistoryLines order={g.root} actorById={actorById} />
                     {g.children.map((c) => (
                       <div
                         key={c.id}
@@ -393,7 +504,7 @@ export function TakeawayHistory({
                             {vnStamp(c.createdAt)}
                           </span>
                         </p>
-                        <HistoryLines order={c} />
+                        <HistoryLines order={c} actorById={actorById} />
                       </div>
                     ))}
                   </>
@@ -460,7 +571,7 @@ export function TakeawayHistory({
                 </>
               ) : (
                 `Tải thêm${
-                  summary ? ` (đang hiện ${groups.length}/${summary.orderCount})` : ""
+                  shownTotal !== undefined ? ` (đang hiện ${groups.length}/${shownTotal})` : ""
                 }`
               )}
             </button>

@@ -58,6 +58,7 @@ export default async function PosHome({
         menu={menu}
         cancelStaff={cancelStaff}
         canCancelWithoutPin={isPrincipal}
+        canBackdatePayment={isPrincipal}
         allowDiscount={allowDiscount}
         serviceMode={tenantSettings.service_mode}
       />

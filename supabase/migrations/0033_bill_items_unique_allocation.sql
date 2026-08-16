@@ -1,0 +1,31 @@
+-- 0033_bill_items_unique_allocation.sql — Một `order_item` chỉ được nằm MỘT LẦN trên cùng một bill.
+--
+-- LƯỚI CUỐI CHỐNG TÍNH TIỀN HAI LẦN. `bill_items` là bảng phân bổ món vào hóa đơn; `recomputeBill`
+-- cộng thẳng `amount` của mọi dòng, nên hai dòng cùng `(bill_id, order_item_id)` = khách trả gấp đôi
+-- đúng món đó, và không lớp nào phía sau phát hiện được (panel hiển thị "đúng" cái tổng đã sai).
+--
+-- VÌ SAO CẦN Ở TẦNG DB DÙ ỨNG DỤNG ĐÃ FAIL-CLOSED: đường sinh trùng đã biết là truy vấn "món nào đã
+-- phân bổ" trong `openBillForSession`/`mergeSessionsIntoBill` — đọc hỏng mà nuốt lỗi thì MỌI món của
+-- phiên bị coi là chưa phân bổ và bị chèn lại. Cả hai chỗ nay đã kiểm `error` và dừng. Nhưng đó là
+-- chốt ở tầng ứng dụng: nó chỉ giữ được những đường ghi ĐANG TỒN TẠI. Ràng buộc này dành cho đường
+-- ghi `bill_items` nào đó của tương lai mà người viết quên mất bất biến — DB từ chối thay vì im lặng
+-- nhận, và lỗi nổ ngay tại lệnh INSERT sai chứ không hiện ra ở hóa đơn của khách.
+--
+-- BẤT BIẾN NÀY ĐÚNG VỚI CẢ TÁCH/GỘP: tách theo món (`splitBillByItems`) chuyển bớt `qty_allocated`
+-- sang một bill MỚI (khác `bill_id`), tách theo đơn (`splitBillByOrders`) đổi `bill_id` của cả dòng,
+-- gộp bàn gom món CHƯA phân bổ. Không luồng nào cần hai dòng cùng món trên cùng một hóa đơn — nhiều
+-- suất của cùng một món nằm ở `qty_allocated`, không phải ở số dòng.
+--
+-- AN TOÀN DỮ LIỆU SẴN CÓ: đã đếm trên DB thật trước khi áp — 0 cặp trùng (3.380 dòng / 2.064 hóa
+-- đơn), nên index build không vấp. Nếu về sau ai đó chạy lại migration trên một DB có trùng thì lệnh
+-- sẽ THẤT BẠI — đúng ý: dòng thừa là tiền trên hóa đơn thật, phải người thật xem, không được tự dọn.
+--
+-- KHÔNG dùng `concurrently`: bảng nhỏ (vài nghìn dòng, khóa dưới một nhịp), mà `concurrently` lại
+-- không chạy được trong transaction nên sẽ làm migration phức tạp hơn không vì lý do gì.
+--
+-- Tên `uniq_*` + `if not exists` theo đúng khuôn các ràng buộc unique sẵn có (`uniq_membership_tenant_user`
+-- 0001, `uniq_table_session_open` 0008, `uniq_memberships_email` 0017) — index thường mới mang tiền tố
+-- `idx_*`. Không thêm `tenant_id` vào khóa: `bill_id` đã thuộc đúng một tenant (FK về `bills`), thêm
+-- vào chỉ làm ràng buộc YẾU đi (hai dòng khác `tenant_id` cùng `bill_id` sẽ lọt).
+create unique index if not exists uniq_bill_items_bill_order_item
+  on public.bill_items (bill_id, order_item_id);

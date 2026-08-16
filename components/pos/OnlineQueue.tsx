@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatVnd } from "@/lib/orders/cart";
 import { getPrintAdapter } from "@/lib/print/adapter";
-import { PaymentDialog } from "@/components/pos/PaymentDialog";
+import { PaymentDialog, PAY_OFFLINE_MSG } from "@/components/pos/PaymentDialog";
 import type { BillView, PaymentMethod } from "@/lib/billing/types";
 import type { OnlineOrderView } from "@/lib/orders/online";
 import {
@@ -31,10 +31,13 @@ export function OnlineQueue({
   slug,
   tenantId,
   orders,
+  canBackdatePayment = false,
 }: {
   slug: string;
   tenantId: string;
   orders: OnlineOrderView[];
+  /** Chủ/quản lý mới được ghi lùi thời điểm nhận tiền khi thu bù đơn tồn. */
+  canBackdatePayment?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -43,6 +46,8 @@ export function OnlineQueue({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [payBill, setPayBill] = useState<BillView | null>(null);
+  /** Giờ tạo đơn đang thu — hộp thoại cần để hỏi "tiền về hôm nào" với đơn tồn từ ngày trước. */
+  const [payOrderAt, setPayOrderAt] = useState<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Realtime: đơn mới / đổi trạng thái → refresh (gộp 400ms). setAuth để RLS không chặn.
@@ -99,7 +104,10 @@ export function OnlineQueue({
       const res = await openOnlineBillAction(slug, id);
       setBusyId(null);
       if (!res.ok) setError(res.error);
-      else setPayBill(res.bill);
+      else {
+        setPayOrderAt(orders.find((o) => o.id === id)?.createdAt ?? null);
+        setPayBill(res.bill);
+      }
     });
   }
 
@@ -257,10 +265,18 @@ export function OnlineQueue({
         <PaymentDialog
           bill={payBill}
           busy={isPending}
-          onPay={async (method: PaymentMethod, amountReceived: number) => {
-            const res = await payOnlineBillAction(slug, payBill.id, { method, amountReceived });
-            if (!res.ok) return { ok: false, error: res.error };
-            return { ok: true, change: res.change };
+          orderCreatedAt={payOrderAt}
+          canBackdate={canBackdatePayment}
+          onPay={async (method: PaymentMethod, amountReceived: number, receivedAt?: string) => {
+            // Mạng rớt ⇒ server action ném; bắt tại đây để hộp thoại hiện đúng lý do thay vì
+            // đứng im (xem PAY_OFFLINE_MSG).
+            try {
+              const res = await payOnlineBillAction(slug, payBill.id, { method, amountReceived, receivedAt });
+              if (!res.ok) return { ok: false, error: res.error };
+              return { ok: true, change: res.change };
+            } catch {
+              return { ok: false, error: PAY_OFFLINE_MSG };
+            }
           }}
           onPrint={() => getPrintAdapter().printReceipt({ slug, billId: payBill.id })}
           onClose={() => {

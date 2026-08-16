@@ -18,11 +18,17 @@ export function PendingOrdersDrawer({
   open,
   onOpenChange,
   pending,
+  splitEvenlyTableIds,
 }: {
   slug: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   pending: PosPending[];
+  /**
+   * Bàn đang có hóa đơn chia đều mở → server chặn duyệt đơn của bàn đó (BILL-06). Tính ở PosBoard
+   * từ đúng ảnh chụp phiên bàn đã có sẵn, không phải kéo thêm dữ liệu nào.
+   */
+  splitEvenlyTableIds: Set<string>;
 }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -96,6 +102,10 @@ export function PendingOrdersDrawer({
               <ul className="flex flex-col gap-md">
                 {pending.map((o) => {
                   const total = o.items.reduce((s, it) => s + it.unit_price * it.qty, 0);
+                  // Bàn đang chia đều: duyệt sẽ bị server chặn. Nói trước lý do + khóa nút thay vì
+                  // để nhân viên bấm rồi mới ăn lỗi. "Từ chối" vẫn mở — đó là lối xử lý hợp lệ nếu
+                  // khách gọi nhầm, và nó không đụng tới hóa đơn.
+                  const splitBlocked = o.tableId != null && splitEvenlyTableIds.has(o.tableId);
                   return (
                     // data-order-id: mốc để E2E neo đúng đơn cần duyệt (danh sách có nhiều đơn).
                     <li
@@ -129,6 +139,12 @@ export function PendingOrdersDrawer({
                       <p className="mt-sm text-sm font-semibold tabular-nums text-primary">
                         {formatVnd(total)}
                       </p>
+
+                      {splitBlocked && (
+                        <p role="status" className="mt-sm rounded-md bg-surface px-md py-sm text-xs text-steel">
+                          Hóa đơn bàn này đã chia đều — gỡ chia ở khối hóa đơn rồi mới duyệt được đơn.
+                        </p>
+                      )}
 
                       {rejectingId === o.id ? (
                         <div className="mt-md">
@@ -165,8 +181,9 @@ export function PendingOrdersDrawer({
                         <div className="mt-md flex gap-sm">
                           <button
                             type="button"
-                            disabled={busyId === o.id}
+                            disabled={busyId === o.id || splitBlocked}
                             onClick={() => doApprove(o.id)}
+                            title={splitBlocked ? "Hóa đơn đã chia đều — gỡ chia trước khi duyệt đơn." : ""}
                             className="inline-flex h-11 flex-1 items-center justify-center gap-xs rounded-md bg-primary text-sm font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
                           >
                             {busyId === o.id ? (

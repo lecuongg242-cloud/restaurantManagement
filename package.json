@@ -13,6 +13,7 @@
     "print:bridge": "node scripts/print-bridge.mjs",
     "print:bridge:test": "node scripts/print-bridge.mjs --test",
     "db:reset": "node scripts/db-reset.mjs --confirm",
+    "check:unsplit": "node scripts/check-unsplit-rpc.mjs",
     "test": "vitest run",
     "test:rls": "vitest run tests/rls",
     "test:e2e": "playwright test"
