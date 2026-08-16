@@ -78,8 +78,17 @@ async function authorizePos(
  * sẽ làm vỏ ≠ Σ con), nên hủy lúc này = món 'cancelled' mà khách vẫn trả đủ tiền.
  * Thêm: món mới rơi vào VỎ (chỗ duy nhất giữ `bill_items`) làm tổng vỏ tăng trong khi các con giữ
  * nguyên số cũ ⇒ Σ con < vỏ, mà vỏ thì không thu trực tiếp được ⇒ thu thiếu đúng phần vừa gọi.
- * Duyệt đơn QR: y hệt ca "thêm", chỉ khác món do KHÁCH gõ. Khách vẫn gửi được đơn (createQrOrder
- * giữ nguyên) — hàng rào ở bước duyệt, vì nhân viên mới là người biết phải gỡ chia rồi duyệt lại.
+ * Duyệt đơn QR: y hệt ca "thêm", chỉ khác món do KHÁCH gõ. Khách vẫn GỬI được đơn — `createQrOrder`
+ * không từ chối ai, chỉ ép đơn về `pending_confirm` khi bàn đang chia đều (kể cả tenant bật
+ * `qr_order_auto_send`) để đơn rơi đúng vào hàng đợi mà chốt dưới đây canh; nhân viên mới là người
+ * biết phải gỡ chia rồi duyệt lại.
+ *
+ * PHẠM VI THẬT của các chốt trong file này: chúng canh những đường SỬA MÓN của POS. Chúng KHÔNG
+ * phải chốt cuối cùng giữ bất biến Σ con = vỏ — chốt đó nằm ở `openBillForSession`
+ * (`lib/billing/bill.ts`), nơi từ chối chèn `bill_items` mới vào vỏ và bỏ món của đơn chưa duyệt.
+ * Cần cả hai: đơn `pending_confirm` mang món 'queued' vẫn được coi là "món của phiên", nên chỉ
+ * chặn ở bước duyệt thôi thì thao tác MỞ PANEL hóa đơn (thao tác đọc, không qua chốt nào ở đây)
+ * vẫn tự phân bổ món đó vào vỏ và làm thu thiếu.
  *
  * Lối thoát cho nhân viên ở cả ba ca: bấm "Gỡ chia" ở khối hóa đơn → sửa/duyệt món → chia lại.
  *
@@ -168,8 +177,9 @@ export async function approveOrder(slug: string, orderId: string): Promise<Actio
     return { ok: false, error: "Đơn không ở trạng thái chờ duyệt." };
 
   // Chốt chặn chia đều — TRƯỚC lệnh ghi đầu tiên (xem SPLIT_EVENLY_APPROVE_ERROR). Khách QR vẫn
-  // gửi được đơn (createQrOrder không chặn — khách không hiểu "gỡ chia" giữa bữa ăn); người biết
-  // phải làm gì tiếp là nhân viên, nên hàng rào dựng đúng ở bước duyệt.
+  // GỬI được đơn (createQrOrder không từ chối ai — khách không hiểu "gỡ chia" giữa bữa ăn; nó chỉ
+  // ép đơn về `pending_confirm` khi bàn đang chia đều); người biết phải làm gì tiếp là nhân viên,
+  // nên hàng rào dựng đúng ở bước duyệt.
   // Truy vấn món hỏng thì DỪNG: đưa mảng rỗng vào chốt là tự tay tắt nhánh bắt hóa đơn gộp.
   const { data: oiRows, error: oiErr } = await supabase
     .from("order_items")

@@ -25,6 +25,40 @@ export type SessionOpenBill = {
   createdAt: string;
 };
 
+/** Một order của phiên bàn cùng danh sách món của nó (đã chuẩn hóa khỏi hình dạng PostgREST). */
+export type SessionOrderForBill = {
+  /** Trạng thái ORDER (không phải món): 'pending_confirm' = khách gửi, nhân viên CHƯA duyệt. */
+  status: string;
+  items: { id: string; unitPrice: number; qty: number; status: string }[];
+};
+
+export type BillableSessionItem = { id: string; unit: number; qty: number };
+
+/**
+ * Món của phiên bàn được phép lên hóa đơn — THUẦN, không I/O.
+ *
+ * Bỏ món đã hủy, và bỏ TOÀN BỘ món của order chưa duyệt / đã hủy. Món của đơn `pending_confirm`
+ * mang `order_items.status = 'queued'` (mặc định DB — `insertOrderGraph` không set), nên nếu chỉ
+ * lọc theo trạng thái MÓN thì chúng lọt vào hóa đơn y như món đã duyệt.
+ *
+ * VÌ SAO PHẢI CHẶN: đơn chưa duyệt là đơn nhân viên chưa chấp nhận — chưa có lý do gì để tính tiền.
+ * Nghiêm trọng hơn, nó là đường vòng qua chốt "bàn đã chia đều": khách QR gọi thêm khi bàn đang
+ * chia đều thì đơn nằm ở `pending_confirm` (chốt duyệt canh ở đó), nhưng chỉ cần thu ngân mở panel
+ * hóa đơn là món ấy tự phân bổ vào VỎ, đội tổng vỏ lên trong khi các con vẫn mang số cũ ⇒ thu đủ
+ * các con vẫn THIẾU đúng phần khách vừa gọi, mà món thì đã ra cho khách.
+ */
+export function collectBillableSessionItems(orders: SessionOrderForBill[]): BillableSessionItem[] {
+  const out: BillableSessionItem[] = [];
+  for (const o of orders) {
+    if (o.status === "pending_confirm" || o.status === "cancelled") continue;
+    for (const it of o.items) {
+      if (it.status === "cancelled") continue;
+      out.push({ id: it.id, unit: it.unitPrice, qty: it.qty });
+    }
+  }
+  return out;
+}
+
 export function pickSessionOpenBill(bills: SessionOpenBill[]): string | null {
   // Không tin thứ tự đầu vào: sắp lại tại chỗ (id là chốt hòa cho trường hợp trùng createdAt).
   const candidates = bills

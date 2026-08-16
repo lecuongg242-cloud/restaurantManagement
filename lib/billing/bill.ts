@@ -11,7 +11,7 @@ import { computeBillTotals } from "./compute";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
 import { planCancelledBillCleanup } from "./cancel-cleanup";
 import { parseUnsplitResult } from "./unsplit";
-import { pickSessionOpenBill } from "./session-bill";
+import { collectBillableSessionItems, pickSessionOpenBill } from "./session-bill";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
 import type { BillView, BillLineView, DiscountType } from "./types";
@@ -96,9 +96,15 @@ async function billIdsWithChildren(
 }
 
 /**
- * Mở/đồng bộ bill của 1 phiên bàn — IDEMPOTENT. Gom mọi order_item (≠cancelled) của các order
+ * Mở/đồng bộ bill của 1 phiên bàn — IDEMPOTENT. Gom order_item (≠cancelled) của các order ĐÃ DUYỆT
  * thuộc phiên CHƯA được phân bổ vào bill nào (open|paid) → thêm vào bill 'open' hiện có (hoặc tạo
  * mới). Gọi lại sau khi bàn gọi thêm món → chỉ thêm phần mới. Trả billId (null nếu không có món).
+ *
+ * HAI CHỐT GIỮ TIỀN, xem chi tiết ở `collectBillableSessionItems` và ngay chỗ chèn `bill_items`:
+ *  1. món của order chưa duyệt (`pending_confirm`) KHÔNG lên hóa đơn;
+ *  2. bill được chọn là VỎ chia đều thì KHÔNG chèn thêm món vào nó.
+ * Hàm này là đường ghi duy nhất mà panel POS gọi mỗi lần mở hóa đơn của bàn (kể cả chỉ để thu tiền
+ * từng con), nên nó phải tự giữ bất biến Σ con = vỏ — không dựa vào chốt ở các action.
  */
 export async function openBillForSession(
   tenantId: string,
@@ -107,22 +113,24 @@ export async function openBillForSession(
 ): Promise<{ billId: string } | { error: string }> {
   const client = await createClient();
 
-  // Bàn có phiên hợp lệ + lấy order_items (≠cancelled) của phiên.
-  const { data: orders } = await client
+  // Bàn có phiên hợp lệ + lấy order_items của phiên. Cần CẢ trạng thái order (lọc đơn chưa duyệt).
+  const { data: orders, error: ordErr } = await client
     .from("orders")
-    .select("id, order_items(id, unit_price_snapshot, qty, status)")
+    .select("id, status, order_items(id, unit_price_snapshot, qty, status)")
     .eq("tenant_id", tenantId)
     .eq("table_session_id", sessionId);
+  // Fail-closed: đọc hỏng thì DỪNG. Rơi xuống với danh sách rỗng là mở hóa đơn thiếu món.
+  if (ordErr) return { error: "Không đọc được món của bàn. Vui lòng thử lại." };
 
-  type OI = { id: string; unit: number; qty: number };
-  const sessionItems: OI[] = [];
-  for (const o of orders ?? []) {
-    for (const it of (o.order_items as { id: string; unit_price_snapshot: number; qty: number; status: string }[]) ?? []) {
-      if (it.status !== "cancelled") {
-        sessionItems.push({ id: it.id, unit: it.unit_price_snapshot, qty: it.qty });
-      }
-    }
-  }
+  // Luật "món nào được tính tiền" nằm ở hàm thuần (có test) — đây chỉ chuẩn hóa hình dạng dữ liệu.
+  const sessionItems = collectBillableSessionItems(
+    (orders ?? []).map((o) => ({
+      status: o.status as string,
+      items: ((o.order_items as { id: string; unit_price_snapshot: number; qty: number; status: string }[]) ?? []).map(
+        (it) => ({ id: it.id, unitPrice: it.unit_price_snapshot, qty: it.qty, status: it.status })
+      ),
+    }))
+  );
   if (sessionItems.length === 0) return { error: "Bàn chưa có món để tính tiền." };
 
   // order_item_id đã phân bổ vào bill open|paid (của tenant) → không thêm lại.
@@ -160,6 +168,11 @@ export async function openBillForSession(
       createdAt: b.created_at as string,
     }))
   );
+  // Bill được chọn có phải VỎ chia đều không — đọc lại từ chính danh sách vừa lấy, khỏi thêm một
+  // truy vấn (và khỏi thêm một đường hỏng). `pickSessionOpenBill` ưu tiên vỏ nên ca này rất thật.
+  const pickedIsShell =
+    existingBillId != null &&
+    (openBills ?? []).some((b) => (b.id as string) === existingBillId && b.split_count != null);
 
   let billId: string;
   if (existingBillId) {
@@ -184,7 +197,16 @@ export async function openBillForSession(
     billId = created.id as string;
   }
 
-  if (unallocated.length > 0) {
+  // Vỏ chia đều: KHÔNG chèn thêm món. Vỏ là chỗ duy nhất giữ `bill_items`, nên mỗi dòng thêm vào
+  // đây đội tổng vỏ lên trong khi N con vẫn mang số tiền cố định từ lúc chia ⇒ Σ con < vỏ ⇒ thu đủ
+  // các con vẫn thiếu tiền. Lớp này giữ bất biến kể cả với những đường vào chưa lường hết.
+  //
+  // BỎ QUA IM LẶNG, KHÔNG trả lỗi: hàm này chạy mỗi lần thu ngân MỞ panel hóa đơn — thao tác đọc,
+  // và là thao tác bắt buộc để bấm "Thu tiền" cho từng con. Fail cứng ở đây sẽ chặn luôn việc thu
+  // tiền hợp lệ của một bàn đang chia đều, tức biến một chốt bảo vệ thành cái khóa bàn. Món chưa
+  // phân bổ không mất đi: nó nằm chờ, và tự vào hóa đơn ngay khi nhân viên bấm "Gỡ chia"
+  // (recomputeBill của unsplitBill + lần mở bill kế tiếp gom lại) — đúng lối thoát BILL-06.
+  if (unallocated.length > 0 && !pickedIsShell) {
     const rows = unallocated.map((i) => ({
       tenant_id: tenantId,
       bill_id: billId,
