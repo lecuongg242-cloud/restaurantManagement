@@ -715,13 +715,22 @@ export async function listTakeawayHistoryAction(
   if (days > MAX_HISTORY_DAYS)
     return { ok: false, error: `Chỉ xem được tối đa ${MAX_HISTORY_DAYS} ngày một lần.` };
 
-  const history = await listTakeawayHistory(auth.tenantId, fromDay, toDay, {
-    cursor: opts.cursor ?? null,
-    query: opts.query ?? "",
-    // Không tin giá trị từ client — rơi về "all" nếu lạ.
-    status: isHistoryStatusFilter(opts.status) ? opts.status : "all",
-  });
-  return { ok: true, history };
+  // `takeawayHistorySummary` cố tình NÉM khi RPC cộng tiền lỗi (thà hỏng còn hơn hiện thiếu tiền).
+  // Nhưng ném xuyên qua đây thì client `await` trúng promise reject: cờ tải không bao giờ tắt,
+  // panel quay vĩnh viễn và nhân viên không thấy chữ nào. Bắt tại đây để đi đúng đường lỗi chung.
+  try {
+    const history = await listTakeawayHistory(auth.tenantId, fromDay, toDay, {
+      cursor: opts.cursor ?? null,
+      query: opts.query ?? "",
+      // Không tin giá trị từ client — rơi về "all" nếu lạ.
+      status: isHistoryStatusFilter(opts.status) ? opts.status : "all",
+    });
+    return { ok: true, history };
+  } catch (e) {
+    // Chi tiết chỉ ra log server — màn POS không phơi lỗi kỹ thuật cho nhân viên.
+    console.error("[listTakeawayHistoryAction] failed:", e instanceof Error ? e.message : e);
+    return { ok: false, error: "Không tải được lịch sử đơn. Vui lòng thử lại." };
+  }
 }
 
 /**
