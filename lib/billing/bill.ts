@@ -952,10 +952,22 @@ export async function splitBillByOrders(
  * giữ nguyên số tiền cũ ⇒ Σ con ≠ vỏ mà không ai thấy. "Chưa chia" là trạng thái hợp lệ duy nhất
  * còn lại — thu ngân bấm chia lại là xong.
  *
- * XÓA CON Ở ĐÂY AN TOÀN, khác hẳn ca `billIdsWithChildren` canh (cấm xóa VỎ còn con lịch sử): con
- * vừa sinh trong chính lời gọi này, chưa từng hiện lên panel nên không thể có `payments` để
- * cascade mất. `.eq("split_parent_id", billId)` chốt thêm để lệnh xóa không chạm bill ngoài lượt
- * chia này. Xóa hỏng nốt thì phải báo KHÁC đi: thứ còn lại là dữ liệu dở dang cần người thật xử lý.
+ * BA BỘ LỌC CỦA LỆNH XÓA, không cái nào thừa — `bills.split_parent_id` và `payments.bill_id` đều
+ * `on delete cascade` (0013/0012) nên mỗi dòng xóa nhầm là mất luôn dấu vết thu tiền:
+ *  - `.eq("split_parent_id", billId)`: không chạm bill ngoài lượt chia này;
+ *  - `.in("id", childIds)`: chỉ con vừa sinh trong CHÍNH lời gọi này. Vỏ từng chia-rồi-gỡ vẫn còn
+ *    con `void` mang `split_parent_id` (0030 — void thay vì xóa), thiếu bộ lọc này là quét luôn
+ *    chúng và cascade mất `payments` của lượt chia cũ;
+ *  - `.eq("status", "open")`: con vừa tạo VẪN CÓ THỂ đã được thu. `getSessionBills` cố ý trả cả
+ *    hóa đơn con (con thừa hưởng `table_session_id` của vỏ) và `payBill` chỉ chặn VỎ
+ *    (`split_count != null`), không chặn con — nên trong lúc hàm này chạy N+1 lượt gọi mạng, thu
+ *    ngân ở máy thứ hai mở panel là thấy con và bấm thu được. Cửa sổ dưới một giây, nhưng cascade
+ *    thì mất thật.
+ *
+ * Con đã `paid` sống sót ⇒ xóa được ít dòng hơn `childIds.length` ⇒ rơi vào đúng nhánh "báo quản
+ * lý" bên dưới (số dòng xóa được kiểm ngay sau lệnh). Đó là kết cục ĐÚNG: tiền đã nhận rồi thì
+ * không có cách tự dọn nào an toàn, phải để người thật đối soát. Đường bình thường (mọi con còn
+ * 'open') không đổi hành vi. Xóa hỏng cũng báo KHÁC đi vì lý do y hệt.
  */
 async function rollbackEvenSplitChildren(
   client: SupabaseClient,
@@ -965,13 +977,17 @@ async function rollbackEvenSplitChildren(
 ): Promise<{ error: string }> {
   const retry = { error: "Không chia đều được hóa đơn. Vui lòng thử lại." };
   if (childIds.length === 0) return retry;
-  const { error } = await client
+  const { data: removed, error } = await client
     .from("bills")
     .delete()
     .eq("tenant_id", tenantId)
     .eq("split_parent_id", billId)
-    .in("id", childIds);
-  if (error)
+    .in("id", childIds)
+    .eq("status", "open")
+    .select("id");
+  // Xóa hỏng, HOẶC dọn không hết (con nào đó đã kịp 'paid' nên bộ lọc status giữ nó lại): cả hai đều
+  // để lại dữ liệu dở dang mà thu ngân không tự sửa được — phải nói KHÁC câu "thử lại".
+  if (error || (removed ?? []).length < childIds.length)
     return {
       error: "Chia đều lỗi giữa chừng và không tự dọn được — báo quản lý kiểm hóa đơn của bàn trước khi thu tiền.",
     };
