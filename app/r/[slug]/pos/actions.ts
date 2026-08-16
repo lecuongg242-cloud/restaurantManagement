@@ -754,12 +754,15 @@ export async function cancelOrderItem(
   // Chỉ đơn CÓ phiên bàn mới dính: mang về/giao không chia đều. Đọc phiên bằng một truy vấn riêng
   // (không nhúng `orders(...)` vào select trên): hình dạng dữ liệu nhúng phải cast tay nên `tsc`
   // không bắt được, mà đoán sai một nhịp là `sessionId` thành null và chốt tắt lặng lẽ.
-  const { data: ord } = await supabase
+  // Query hỏng thì DỪNG, không rơi về `sessionId = null`: tách truy vấn ra khỏi select món đã làm
+  // mất tính fail-closed sẵn có (trước đây `item` null → "Không tìm thấy món."), phải bù lại ở đây.
+  const { data: ord, error: ordErr } = await supabase
     .from("orders")
     .select("table_session_id")
     .eq("id", item.order_id)
     .eq("tenant_id", tenantId)
     .maybeSingle();
+  if (ordErr) return { ok: false, error: SPLIT_CHECK_FAILED_ERROR };
   const guard = await evenSplitBlocksCancel(
     supabase,
     tenantId,
