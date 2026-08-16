@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   formatCancelNote,
-  firstCancelActorId,
+  orderCancelActorId,
   isSharedOrderCancelReason,
 } from "@/lib/orders/cancel-label";
 
@@ -86,15 +86,55 @@ describe("isSharedOrderCancelReason (ORDER-18)", () => {
   });
 });
 
-describe("firstCancelActorId (ORDER-18)", () => {
-  it("lấy người duyệt từ món đầu tiên có cancelled_by", () => {
+describe("orderCancelActorId (ORDER-18)", () => {
+  // 19:00 VN và 20:15 VN
+  const AT_A = "2026-08-16T12:00:00.000Z";
+  const AT_B = "2026-08-16T13:15:00.000Z";
+
+  it("lấy người duyệt từ món đầu tiên có cancelled_by khớp mốc hủy của đơn", () => {
     expect(
-      firstCancelActorId([{ cancelledBy: null }, { cancelledBy: "m1" }, { cancelledBy: "m2" }])
-    ).toBe("m1");
+      orderCancelActorId(
+        [
+          { cancelledBy: null, cancelledAt: null },
+          { cancelledBy: "B", cancelledAt: AT_B },
+          { cancelledBy: "B", cancelledAt: AT_B },
+        ],
+        AT_B
+      )
+    ).toBe("B");
+  });
+
+  // Hồi quy: cancelOrder bỏ qua món đã hủy từ trước (.neq status cancelled) nên món của A vẫn
+  // giữ nguyên cancelled_by=A. Lấy "món đầu tiên có cancelled_by" sẽ đọc ra
+  // 'Đã hủy 20:15 · "lý do của B" · A' — gán nhầm tên.
+  it("món bị A hủy lẻ 19:00, B hủy cả đơn 20:15 → phải ra B, không phải A", () => {
+    expect(
+      orderCancelActorId(
+        [
+          { cancelledBy: "A", cancelledAt: AT_A },
+          { cancelledBy: "B", cancelledAt: AT_B },
+        ],
+        AT_B
+      )
+    ).toBe("B");
+  });
+
+  it("mọi món đều hủy lẻ trước đó (đơn roll-up) → không gán ai vào ghi chú cấp thẻ", () => {
+    expect(orderCancelActorId([{ cancelledBy: "A", cancelledAt: AT_A }], AT_B)).toBe(null);
+  });
+
+  it("dữ liệu trước 0027 (cancelled_at món backfill từ created_at, lệch mốc đơn) → null", () => {
+    expect(
+      orderCancelActorId([{ cancelledBy: "A", cancelledAt: "2026-08-01T03:00:00.000Z" }], AT_B)
+    ).toBe(null);
+  });
+
+  it("đơn không có mốc hủy → null (không có gì để neo, thà bỏ trống còn hơn chỉ sai người)", () => {
+    expect(orderCancelActorId([{ cancelledBy: "B", cancelledAt: AT_B }], null)).toBe(null);
   });
 
   it("không món nào có người duyệt (đơn khách tự hủy / dữ liệu cũ) → null", () => {
-    expect(firstCancelActorId([{ cancelledBy: null }])).toBe(null);
-    expect(firstCancelActorId([])).toBe(null);
+    expect(orderCancelActorId([{ cancelledBy: null, cancelledAt: AT_B }], AT_B)).toBe(null);
+    expect(orderCancelActorId([], AT_B)).toBe(null);
   });
 });

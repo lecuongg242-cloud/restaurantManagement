@@ -12,7 +12,7 @@ import { groupTakeawayOrders, type TakeawayGroup } from "@/lib/orders/takeaway-g
 import { formatVnd } from "@/lib/orders/cart";
 import {
   formatCancelNote,
-  firstCancelActorId,
+  orderCancelActorId,
   isSharedOrderCancelReason,
   type CancelActor,
 } from "@/lib/orders/cancel-label";
@@ -66,12 +66,20 @@ const STATUS_CHIPS: { key: HistoryStatusFilter; label: string }[] = [
   { key: "cancelled", label: "Đã hủy" },
 ];
 
-/** Người duyệt lượt hủy CẢ NHÓM — tra qua `cancelled_by` của món (xem firstCancelActorId). */
+/**
+ * Người duyệt lượt hủy CẢ NHÓM — tra qua `cancelled_by` của món (xem orderCancelActorId).
+ *
+ * Neo theo `cancelledAt` của ĐƠN GỐC cho cả nhóm: hủy nhóm ghi cùng một mốc lên mọi đơn con lẫn
+ * mọi món của chúng, nên chỉ đúng những món do CHÍNH lượt hủy đó đụng tới mới khớp.
+ */
 function cancelActorOf(
   g: TakeawayGroup,
   actorById: Map<string, CancelActor>
 ): CancelActor | null {
-  const id = firstCancelActorId([g.root, ...g.children].flatMap((o) => o.items));
+  const id = orderCancelActorId(
+    [g.root, ...g.children].flatMap((o) => o.items),
+    g.root.cancelledAt
+  );
   return (id && actorById.get(id)) || null;
 }
 

@@ -70,8 +70,22 @@ export function isSharedOrderCancelReason(
 
 /**
  * Người duyệt của một lượt hủy CẢ ĐƠN. `orders` không có cột `cancelled_by`, nhưng `cancelOrder`
- * ghi `cancelled_by` lên MỌI món nó hủy — lấy món đầu tiên có là ra đúng người đó.
+ * ghi `cancelled_by` lên mọi món mà CHÍNH LƯỢT ĐÓ hủy — lấy từ đó ra.
+ *
+ * Phải khớp thêm MỐC THỜI GIAN, không được lấy món đầu tiên có `cancelled_by`: `cancelOrder` bỏ
+ * qua món đã hủy từ trước (`.neq("status","cancelled")`), nên một đơn có món bị A hủy lẻ lúc
+ * 19:00 rồi B hủy cả đơn lúc 20:15 sẽ đọc ra 'Đã hủy 20:15 · "lý do của B" · A' — gán nhầm tên
+ * còn tệ hơn không gán tên ai, với đúng một tính năng sinh ra để quy trách nhiệm. Phép so khớp
+ * này chặt vì `cancelOrder` ghi CÙNG một `now` cho cả `orders` lẫn `order_items`.
+ *
+ * Không món nào khớp mốc → null (không hiện người duyệt). Đây là ca của dữ liệu trước migration
+ * 0027: `order_items.cancelled_at` khi đó backfill từ `created_at` nên không thể khớp
+ * `orders.cancelled_at`. Thà bỏ trống còn hơn chỉ sai người.
  */
-export function firstCancelActorId(items: { cancelledBy: string | null }[]): string | null {
-  return items.find((i) => i.cancelledBy)?.cancelledBy ?? null;
+export function orderCancelActorId(
+  items: { cancelledBy: string | null; cancelledAt: string | null }[],
+  orderCancelledAt: string | null
+): string | null {
+  if (!orderCancelledAt) return null;
+  return items.find((i) => i.cancelledBy && i.cancelledAt === orderCancelledAt)?.cancelledBy ?? null;
 }
