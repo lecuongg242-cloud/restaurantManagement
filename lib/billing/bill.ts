@@ -11,7 +11,7 @@ import { computeBillTotals } from "./compute";
 import { planSplitByItems, planSplitEvenly, type SplitPick, type SplitSourceLine } from "./split";
 import { planCancelledBillCleanup } from "./cancel-cleanup";
 import { parseUnsplitResult } from "./unsplit";
-import { collectBillableSessionItems, pickSessionOpenBill } from "./session-bill";
+import { collectBillableSessionItems, hasUnapprovedSessionItems, pickSessionOpenBill } from "./session-bill";
 import { broadcastOrderStatus } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
 import type { BillView, BillLineView, DiscountType } from "./types";
@@ -123,15 +123,22 @@ export async function openBillForSession(
   if (ordErr) return { error: "Không đọc được món của bàn. Vui lòng thử lại." };
 
   // Luật "món nào được tính tiền" nằm ở hàm thuần (có test) — đây chỉ chuẩn hóa hình dạng dữ liệu.
-  const sessionItems = collectBillableSessionItems(
-    (orders ?? []).map((o) => ({
-      status: o.status as string,
-      items: ((o.order_items as { id: string; unit_price_snapshot: number; qty: number; status: string }[]) ?? []).map(
-        (it) => ({ id: it.id, unitPrice: it.unit_price_snapshot, qty: it.qty, status: it.status })
-      ),
-    }))
-  );
-  if (sessionItems.length === 0) return { error: "Bàn chưa có món để tính tiền." };
+  const sessionOrders = (orders ?? []).map((o) => ({
+    status: o.status as string,
+    items: ((o.order_items as { id: string; unit_price_snapshot: number; qty: number; status: string }[]) ?? []).map(
+      (it) => ({ id: it.id, unitPrice: it.unit_price_snapshot, qty: it.qty, status: it.status })
+    ),
+  }));
+  const sessionItems = collectBillableSessionItems(sessionOrders);
+  // Nói đúng nguyên nhân: bàn có món mà đơn chưa duyệt thì panel không mở, nhân viên lại đang nhìn
+  // thấy món trên màn hình bàn — câu "chưa có món" ở ca đó làm họ tưởng hệ thống nuốt đơn. Bàn
+  // trống thật vẫn giữ nguyên câu cũ.
+  if (sessionItems.length === 0)
+    return {
+      error: hasUnapprovedSessionItems(sessionOrders)
+        ? "Bàn chưa có món đã duyệt để tính tiền — duyệt đơn trước."
+        : "Bàn chưa có món để tính tiền.",
+    };
 
   // order_item_id đã phân bổ vào bill open|paid (của tenant) → không thêm lại.
   const { data: allocated, error: allocErr } = await client

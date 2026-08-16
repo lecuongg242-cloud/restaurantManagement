@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   collectBillableSessionItems,
+  hasUnapprovedSessionItems,
   pickSessionOpenBill,
   type SessionOpenBill,
   type SessionOrderForBill,
@@ -133,7 +134,37 @@ describe("collectBillableSessionItems", () => {
     expect(got.map((i) => i.id)).toEqual(["oi1", "oi2", "oi3", "oi4"]);
   });
 
-  it("chỉ có order chưa duyệt → rỗng (bên gọi báo 'bàn chưa có món để tính tiền')", () => {
+  it("chỉ có order chưa duyệt → rỗng (bên gọi báo 'chưa có món ĐÃ DUYỆT')", () => {
     expect(collectBillableSessionItems([order("pending_confirm", [{ id: "oi1" }])])).toEqual([]);
+  });
+});
+
+describe("hasUnapprovedSessionItems", () => {
+  it("phiên chưa có order → false (bàn trống thật, giữ câu 'bàn chưa có món')", () => {
+    expect(hasUnapprovedSessionItems([])).toBe(false);
+  });
+
+  it("chỉ có order chưa duyệt → true (nhân viên đang nhìn thấy món, cần bảo họ duyệt đơn)", () => {
+    expect(hasUnapprovedSessionItems([order("pending_confirm", [{ id: "oi1" }])])).toBe(true);
+  });
+
+  it("order chưa duyệt nhưng món đã hủy hết → false (không có gì để duyệt)", () => {
+    expect(
+      hasUnapprovedSessionItems([order("pending_confirm", [{ id: "oi1", status: "cancelled" }])])
+    ).toBe(false);
+  });
+
+  it("chỉ có order đã duyệt → false", () => {
+    expect(hasUnapprovedSessionItems([order("confirmed", [{ id: "oi1" }])])).toBe(false);
+  });
+
+  it("order đã hủy (không phải chưa duyệt) → false, duyệt đơn không cứu được ca này", () => {
+    expect(hasUnapprovedSessionItems([order("cancelled", [{ id: "oi1" }])])).toBe(false);
+  });
+
+  it("vừa có món đã duyệt vừa có đơn chờ duyệt → true (bên gọi chỉ hỏi khi danh sách tính tiền rỗng)", () => {
+    expect(
+      hasUnapprovedSessionItems([order("confirmed", [{ id: "oi1" }]), order("pending_confirm", [{ id: "oi2" }])])
+    ).toBe(true);
   });
 });

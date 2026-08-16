@@ -59,6 +59,22 @@ export function collectBillableSessionItems(orders: SessionOrderForBill[]): Bill
   return out;
 }
 
+/**
+ * Phiên có món đang chờ DUYỆT không? — THUẦN, không I/O.
+ *
+ * Chỉ dùng để nói ĐÚNG NGUYÊN NHÂN khi `collectBillableSessionItems` trả rỗng. Hai ca rất khác
+ * nhau với người dùng: bàn trống thật, và bàn có món nhưng đơn chưa ai duyệt. Ca thứ hai mà báo
+ * "bàn chưa có món" thì nhân viên hoang mang — họ ĐANG NHÌN THẤY món trên màn hình bàn và tưởng hệ
+ * thống mất đơn, trong khi việc cần làm chỉ là bấm duyệt.
+ *
+ * KHÔNG dùng để quyết định tính tiền: luật đó nằm ở `collectBillableSessionItems`, đây chỉ soạn lời.
+ */
+export function hasUnapprovedSessionItems(orders: SessionOrderForBill[]): boolean {
+  return orders.some(
+    (o) => o.status === "pending_confirm" && o.items.some((it) => it.status !== "cancelled")
+  );
+}
+
 export function pickSessionOpenBill(bills: SessionOpenBill[]): string | null {
   // Không tin thứ tự đầu vào: sắp lại tại chỗ (id là chốt hòa cho trường hợp trùng createdAt).
   const candidates = bills
