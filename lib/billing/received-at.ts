@@ -39,3 +39,24 @@ export function resolveReceivedAt(
 
   return { at: at.toISOString() };
 }
+
+/**
+ * Mốc này còn nằm trong hạn ghi lùi không? Dành cho GIAO DIỆN.
+ *
+ * `resolveReceivedAt` là chốt server và giữ nguyên fail-closed. Nhưng màn POS cần biết TRƯỚC để
+ * đừng mời gọi thao tác bất khả thi: đơn 10 ngày trước mà vẫn hiện nút "ghi lùi" thì quản lý bấm
+ * xong mới ăn lỗi "Chỉ được ghi lùi tối đa 7 ngày". Dùng chung hằng số + cùng phép so với chốt
+ * server để hai bên không lệch nhau.
+ */
+export function isWithinBackdateWindow(
+  receivedAt: string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!receivedAt) return false;
+  const at = new Date(receivedAt);
+  if (Number.isNaN(at.getTime())) return false;
+
+  const drift = at.getTime() - now.getTime();
+  if (drift > CLOCK_SKEW_MS) return false; // mốc tương lai: server cũng từ chối
+  return -drift <= BACKDATE_MAX_DAYS * 86_400_000;
+}

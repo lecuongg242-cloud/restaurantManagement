@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveReceivedAt, BACKDATE_MAX_DAYS } from "@/lib/billing/received-at";
+import { resolveReceivedAt, isWithinBackdateWindow, BACKDATE_MAX_DAYS } from "@/lib/billing/received-at";
 
 const NOW = new Date("2026-08-14T06:00:00+07:00");
 const iso = (s: string) => new Date(s).toISOString();
@@ -53,5 +53,34 @@ describe("resolveReceivedAt — mốc tiền về của một lần thu", () => 
 
   it("chuỗi thời gian rác ⇒ báo lỗi, không âm thầm lấy bây giờ", () => {
     expect(err(resolveReceivedAt("hôm qua", true, NOW))).toContain("không hợp lệ");
+  });
+});
+
+describe("isWithinBackdateWindow — giao diện có nên mời ghi lùi không", () => {
+  it("đơn hôm qua / 3 ngày trước ⇒ còn hạn", () => {
+    expect(isWithinBackdateWindow(iso("2026-08-13T06:09:00+07:00"), NOW)).toBe(true);
+    expect(isWithinBackdateWindow(iso("2026-08-11T19:30:00+07:00"), NOW)).toBe(true);
+  });
+
+  it(`đơn quá ${BACKDATE_MAX_DAYS} ngày ⇒ hết hạn (khớp chốt server)`, () => {
+    const quaXa = iso("2026-08-04T06:00:00+07:00"); // 10 ngày trước
+    expect(isWithinBackdateWindow(quaXa, NOW)).toBe(false);
+    expect(err(resolveReceivedAt(quaXa, true, NOW))).toContain("tối đa");
+  });
+
+  it("đúng ranh giới: trong hạn thì true, vừa quá thì false — không lệch với chốt server", () => {
+    const vuaDu = iso("2026-08-07T07:00:00+07:00"); // trong hạn 7 ngày
+    expect(isWithinBackdateWindow(vuaDu, NOW)).toBe(true);
+    expect(at(resolveReceivedAt(vuaDu, true, NOW))).toBe(vuaDu);
+
+    const vuaQua = iso("2026-08-07T05:00:00+07:00"); // quá 7 ngày một chút
+    expect(isWithinBackdateWindow(vuaQua, NOW)).toBe(false);
+    expect(err(resolveReceivedAt(vuaQua, true, NOW))).toContain("tối đa");
+  });
+
+  it("mốc tương lai và chuỗi rác ⇒ false (fail-closed, không mời bấm)", () => {
+    expect(isWithinBackdateWindow(iso("2026-08-14T09:00:00+07:00"), NOW)).toBe(false);
+    expect(isWithinBackdateWindow("hôm qua", NOW)).toBe(false);
+    expect(isWithinBackdateWindow(null, NOW)).toBe(false);
   });
 });

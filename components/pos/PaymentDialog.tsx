@@ -5,6 +5,7 @@ import { X, Loader2, Printer, Banknote, Landmark, Check } from "lucide-react";
 import type { BillView, PaymentMethod } from "@/lib/billing/types";
 import { formatVnd } from "@/lib/orders/cart";
 import { MoneyInput } from "@/components/ui/money-input";
+import { isWithinBackdateWindow, BACKDATE_MAX_DAYS } from "@/lib/billing/received-at";
 
 /**
  * Thông báo khi lời gọi thu tiền KHÔNG tới được server (mất mạng, server ngủ). Phải nói rõ là
@@ -69,6 +70,13 @@ export function PaymentDialog({
   const [backdate, setBackdate] = useState(false);
 
   const isStaleOrder = orderCreatedAt != null && vnDayOf(orderCreatedAt) < vnDayOf(new Date().toISOString());
+  /**
+   * Ngoài hạn ghi lùi thì server chắc chắn từ chối (resolveReceivedAt) — nên đừng mời bấm rồi mới
+   * báo lỗi. Vẫn hiện lựa chọn nhưng khóa lại kèm lý do, giống cách khóa với nhân viên thường:
+   * người dùng cần biết đơn này cũ và vì sao không ghi lùi được, chứ không phải im lặng giấu đi.
+   */
+  const inBackdateWindow = isWithinBackdateWindow(orderCreatedAt);
+  const canPickBackdate = canBackdate && inBackdateWindow;
   const staleDayLabel = orderCreatedAt ? vnDayLabel(orderCreatedAt) : "";
   const staleTimeLabel = orderCreatedAt ? vnTimeLabel(orderCreatedAt) : "";
   const [done, setDone] = useState<{ change: number } | null>(null);
@@ -86,7 +94,8 @@ export function PaymentDialog({
       res = await onPay(
         method,
         method === "cash" ? received : total,
-        backdate && orderCreatedAt ? orderCreatedAt : undefined
+        // Chốt lại lần cuối: hộp thoại mở qua nửa đêm có thể trôi ra khỏi hạn sau khi đã chọn.
+        backdate && canPickBackdate && orderCreatedAt ? orderCreatedAt : undefined
       );
     } catch {
       setError(PAY_OFFLINE_MSG);
@@ -151,12 +160,14 @@ export function PaymentDialog({
                     <DateChoice
                       active={backdate}
                       onClick={() => setBackdate(true)}
-                      disabled={!canBackdate}
+                      disabled={!canPickBackdate}
                       label={`${staleDayLabel}, lúc ${staleTimeLabel}`}
                       hint={
-                        canBackdate
-                          ? "Đã nhận tiền hôm đó, chỉ quên bấm"
-                          : "Chỉ chủ quán hoặc quản lý chọn được"
+                        !inBackdateWindow
+                          ? `Quá hạn ghi lùi ${BACKDATE_MAX_DAYS} ngày — khoản này để kế toán xử lý`
+                          : canBackdate
+                            ? "Đã nhận tiền hôm đó, chỉ quên bấm"
+                            : "Chỉ chủ quán hoặc quản lý chọn được"
                       }
                     />
                   </div>
