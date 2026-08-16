@@ -690,8 +690,16 @@ export async function getOnlineOrderAction(
 ): Promise<{ ok: true; order: OnlineOrderView | null } | { ok: false; error: string }> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
-  const order = await getOnlineOrder(auth.tenantId, orderId);
-  return { ok: true, order };
+  // Cùng khuôn với `listTakeawayHistoryAction`: action mà NÉM thì nơi gọi nhận promise reject,
+  // cờ tải kẹt lại và không có chữ nào hiện ra. Ở đây `getOnlineOrder` chưa chủ động ném, nhưng
+  // để hở là chờ ngày ai đó thêm một `throw` bên dưới rồi lỗi lại lộ ra ở màn POS.
+  try {
+    const order = await getOnlineOrder(auth.tenantId, orderId);
+    return { ok: true, order };
+  } catch (e) {
+    console.error("[getOnlineOrderAction] failed:", e instanceof Error ? e.message : e);
+    return { ok: false, error: "Không tải được chi tiết đơn. Vui lòng thử lại." };
+  }
 }
 
 /**

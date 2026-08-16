@@ -26,6 +26,12 @@ const DAY = 86400000;
 const METHOD_LABEL: Record<string, string> = { cash: "Tiền mặt", transfer: "Chuyển khoản" };
 /** Gõ tới đâu gọi server tới đó là mỗi phím một truy vấn — chờ người dùng ngừng gõ. */
 const SEARCH_DEBOUNCE_MS = 350;
+/**
+ * Lời gọi KHÔNG tới được server (mất mạng, server ngủ) ⇒ server action NÉM. Không bắt thì
+ * `setLoading(false)` không bao giờ chạy: panel quay vĩnh viễn, nhân viên không thấy chữ nào.
+ * Đây chỉ là lỗi ĐỌC nên câu chữ nhẹ hơn `PAY_OFFLINE_MSG` — không có khoản tiền nào treo.
+ */
+const HISTORY_OFFLINE_MSG = "Mất kết nối — chưa tải được lịch sử đơn. Kiểm tra mạng rồi thử lại.";
 
 /** Ngày VN (YYYY-MM-DD) của "hôm nay lệch `offset` ngày". Máy POS có thể để lệch múi giờ. */
 function vnDay(offset = 0): string {
@@ -188,11 +194,17 @@ export function TakeawayHistory({
     const run = ++runId.current;
     setLoading(true);
     setError(null);
-    const res = await listTakeawayHistoryAction(slug, from, to, { query: debouncedQuery, status });
+    // `.catch(() => null)` chứ không phải try/catch bọc cả khối: lời gọi ném cũng phải đi ĐÚNG
+    // nhánh lỗi bên dưới — nghĩa là vẫn qua cửa `runId` trước, để một lượt hỏng cũ không xóa
+    // dữ liệu của lượt mới đang chạy.
+    const res = await listTakeawayHistoryAction(slug, from, to, {
+      query: debouncedQuery,
+      status,
+    }).catch(() => null);
     if (run !== runId.current) return;
     setLoading(false);
-    if (!res.ok) {
-      setError(res.error);
+    if (!res || !res.ok) {
+      setError(res ? res.error : HISTORY_OFFLINE_MSG);
       setOrders([]);
       setBills([]);
       setCursor(null);
@@ -222,11 +234,13 @@ export function TakeawayHistory({
       cursor,
       query: debouncedQuery,
       status,
-    });
+    }).catch(() => null);
     if (run !== runId.current) return; // bộ lọc đã đổi giữa chừng → bỏ trang này
     setLoadingMore(false);
-    if (!res.ok) {
-      setError(res.error);
+    // Trang sau hỏng thì KHÔNG đụng vào các trang đã tải: người dùng vẫn đọc được phần đang có,
+    // chỉ báo là chưa lấy thêm được. Xóa sạch ở đây là cướp mất dữ liệu họ vừa xem.
+    if (!res || !res.ok) {
+      setError(res ? res.error : HISTORY_OFFLINE_MSG);
       return;
     }
     // Gộp theo id: keyset không chồng trang, nhưng bấm đúp / effect chạy hai lần thì vẫn an toàn.
