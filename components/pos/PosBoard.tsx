@@ -36,6 +36,7 @@ import { PendingOrdersDrawer } from "./PendingOrdersDrawer";
 import { TakeawayPanel } from "./TakeawayPanel";
 import { BillPanel } from "./BillPanel";
 import { PAY_OFFLINE_MSG } from "./PaymentDialog";
+import { ACTION_OFFLINE_MSG, ORDER_OFFLINE_MSG, offlineMsg } from "./offline-msg";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
 
@@ -95,6 +96,8 @@ export function PosBoard({
   const [billBusy, setBillBusy] = useState(false);
   const [billError, setBillError] = useState<string | null>(null);
   const [resolvingCall, setResolvingCall] = useState<string | null>(null);
+  /** Lỗi của banner "Bàn đang gọi" — banner này đứng riêng, không dùng chung chỗ báo lỗi nào. */
+  const [callError, setCallError] = useState<string | null>(null);
   /** Đơn đang gửi lệnh in từ banner "Đơn cần in phiếu" — chỉ để hiện spinner trên đúng chip đó. */
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -165,9 +168,16 @@ export function PosBoard({
   // "Gọi nhân viên" (CALL-01): nhân viên bấm "Đã xử lý" → resolve + refresh.
   const handleResolveCall = async (callId: string) => {
     setResolvingCall(callId);
-    await resolveCallAction(slug, callId);
-    router.refresh();
+    setCallError(null);
+    // Trước đây nuốt cả kết quả lẫn lỗi mạng: chip kẹt mờ, bàn vẫn nhấp nháy gọi, không ai hiểu vì
+    // sao. Bấm lại được ngay vì `resolvingCall` luôn được dọn.
+    const res = await resolveCallAction(slug, callId).catch(() => null);
     setResolvingCall(null);
+    if (!res || !res.ok) {
+      setCallError(res ? res.error : ACTION_OFFLINE_MSG);
+      return;
+    }
+    router.refresh();
   };
 
   /**
@@ -346,11 +356,13 @@ export function PosBoard({
     setBillError(null);
     setBillOpen(true);
     setBills([]);
-    const res = await openBillAction(slug, selectedSession.id);
+    // Panel hóa đơn đã MỞ trước khi biết kết quả. Mất mạng mà không bắt thì nó nằm đó rỗng và quay
+    // mãi, còn nhánh đóng lại (`setBillOpen(false)`) không bao giờ chạy — phải đi cùng đường lỗi.
+    const res = await openBillAction(slug, selectedSession.id).catch(() => null);
     setOpeningBill(false);
-    if (!res.ok) {
+    if (!res || !res.ok) {
       setBillOpen(false);
-      setAddError(res.error);
+      setAddError(res ? res.error : ACTION_OFFLINE_MSG);
     } else {
       setBills(res.bills);
       router.refresh();
@@ -380,35 +392,57 @@ export function PosBoard({
       .filter((c) => c.isCurrent || c.total > 0);
   }, [initial.sessions, initial.tables, selectedSession]);
 
-  const runBillAction = async (fn: () => Promise<{ ok: boolean; bills?: BillView[]; error?: string }>) => {
+  /**
+   * Đường chung của MỌI thao tác đổi hóa đơn (chia, gộp, giảm giá, phí). Mất mạng ⇒ action ném ⇒
+   * không có `finally` thì `setBillBusy(false)` không chạy: cả bảng hóa đơn khóa cứng, không chữ nào.
+   *
+   * `what` là tên việc đang chạy: bảy thao tác dùng chung một đường này nên báo "thao tác thất bại"
+   * là bắt nhân viên đoán vừa hỏng cái gì — mà đây là đường tiền, đoán sai thì làm lại sai.
+   */
+  const runBillAction = async (
+    what: string,
+    fn: () => Promise<{ ok: boolean; bills?: BillView[]; error?: string }>
+  ) => {
     setBillBusy(true);
     setBillError(null);
-    const res = await fn();
-    setBillBusy(false);
-    if (!res.ok) setBillError(res.error ?? "Thao tác thất bại.");
-    else {
-      setBills(res.bills ?? []);
-      router.refresh();
+    try {
+      const res = await fn();
+      if (!res.ok) setBillError(res.error ?? "Thao tác thất bại.");
+      else {
+        setBills(res.bills ?? []);
+        router.refresh();
+      }
+    } catch {
+      setBillError(offlineMsg(what));
+    } finally {
+      setBillBusy(false);
     }
   };
 
   const doSplitByItems = (billId: string, picks: SplitPick[]) => {
     if (!selectedSession) return;
-    runBillAction(() => splitByItemsAction(slug, selectedSession.id, billId, picks));
+    runBillAction("chia hóa đơn theo món", () =>
+      splitByItemsAction(slug, selectedSession.id, billId, picks)
+    );
   };
   const doSplitByOrders = (billId: string, orderIds: string[]) => {
     if (!selectedSession) return;
-    runBillAction(() => splitByOrdersAction(slug, selectedSession.id, billId, orderIds));
+    runBillAction("chia hóa đơn theo lượt gọi", () =>
+      splitByOrdersAction(slug, selectedSession.id, billId, orderIds)
+    );
   };
   const doSplitEvenly = (billId: string, n: number) => {
     if (!selectedSession) return;
-    runBillAction(() => splitEvenlyAction(slug, selectedSession.id, billId, n));
+    runBillAction("chia đều hóa đơn", () =>
+      splitEvenlyAction(slug, selectedSession.id, billId, n)
+    );
   };
   // Gỡ chia không cần sessionId: action tự tra phiên từ hóa đơn. runBillAction lo cả lỗi lẫn refresh.
-  const doUnsplit = (billId: string) => runBillAction(() => unsplitBillAction(slug, billId));
+  const doUnsplit = (billId: string) =>
+    runBillAction("gỡ chia hóa đơn", () => unsplitBillAction(slug, billId));
   const doMerge = (sessionIds: string[]) => {
     if (!selectedSession) return;
-    runBillAction(() => mergeTablesAction(slug, selectedSession.id, sessionIds));
+    runBillAction("gộp bàn", () => mergeTablesAction(slug, selectedSession.id, sessionIds));
   };
   const doApplyDiscount = (
     billId: string,
@@ -416,13 +450,15 @@ export function PosBoard({
     creds: { membershipId?: string; pin?: string }
   ) => {
     if (!selectedSession) return;
-    runBillAction(() =>
+    runBillAction("áp giảm giá", () =>
       applyDiscountAction(slug, selectedSession.id, billId, payload, creds.membershipId, creds.pin)
     );
   };
   const doSetCharges = (billId: string, payload: { serviceChargePct: number; vatPct: number }) => {
     if (!selectedSession) return;
-    runBillAction(() => setChargePctAction(slug, selectedSession.id, billId, payload));
+    runBillAction("đổi phí dịch vụ / VAT", () =>
+      setChargePctAction(slug, selectedSession.id, billId, payload)
+    );
   };
   const doPay = async (billId: string, method: PaymentMethod, amountReceived: number) => {
     if (!selectedSession) return { ok: false, error: "Chưa chọn bàn." };
@@ -448,13 +484,14 @@ export function PosBoard({
     if (!selectedTableId || cart.length === 0) return;
     setAdding(true);
     setAddError(null);
+    // Mất mạng ⇒ đơn CHƯA sang bếp. Nút kẹt mà không báo gì thì nhân viên tưởng đã gửi, khách ngồi chờ.
     const res = await createStaffOrderAction(
       slug,
       selectedTableId,
       cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds }))
-    );
+    ).catch(() => null);
     setAdding(false);
-    if (!res.ok) setAddError(res.error);
+    if (!res || !res.ok) setAddError(res ? res.error : ORDER_OFFLINE_MSG);
     else {
       setCart([]);
       router.refresh();
@@ -704,6 +741,11 @@ export function PosBoard({
               />
             </button>
           ))}
+          {callError && (
+            <p role="alert" className="w-full text-sm text-status-late">
+              {callError}
+            </p>
+          )}
         </div>
       )}
 
