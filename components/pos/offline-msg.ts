@@ -25,11 +25,15 @@ export const ACTION_OFFLINE_MSG = "Mất kết nối — thao tác chưa chạy.
  * Câu đó vừa sai vừa nguy hiểm theo cả hai chiều — tin nó thì bấm lại và đẻ đơn trùng; không tin nó
  * thì không dám bấm và khách ngồi chờ món không bao giờ tới.
  *
- * Nay khóa idempotent (0034) làm lượt bấm lại AN TOÀN, nên câu đúng là nói thật cái mình không biết
- * rồi chỉ đúng việc cần làm: cứ bấm gửi lại.
+ * Bản thay thế đầu tiên hứa "gửi lại không tạo đơn trùng" — cũng sai, chỉ ngược chiều: lời hứa đó
+ * chỉ đúng khi nhân viên bấm lại mà KHÔNG sửa giỏ (sửa giỏ ⇒ khóa mới ⇒ đơn mới, đúng thiết kế).
+ * Hứa tuyệt đối lại còn mời gọi đúng cái hành vi phá vỡ lời hứa.
+ *
+ * Câu hiện tại chỉ nói cái đang thấy và việc nên làm. Lớp chống trùng (0034) im lặng làm việc của
+ * nó — người dùng không cần biết tên nó, chỉ cần biết bấm lại là hành động đúng.
  */
 export const ORDER_OFFLINE_MSG =
-  "Mất kết nối — chưa rõ đơn đã gửi được chưa. Kiểm tra mạng rồi bấm gửi lại: gửi lại không tạo đơn trùng.";
+  "Mất kết nối — chưa rõ đơn đã gửi được chưa. Kiểm tra mạng rồi bấm gửi lại; đừng sửa giỏ trước khi gửi lại.";
 
 /**
  * Khi một nút gom NHIỀU thao tác vào cùng một đường (xem `runBillAction` ở PosBoard), thông báo
