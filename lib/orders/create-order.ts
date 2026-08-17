@@ -159,6 +159,12 @@ export async function nextKitchenNo(client: SupabaseClient, tenantId: string): P
 /**
  * Đơn đã tạo từ trước với đúng khóa này? Trả `orderId` nếu có — tức lượt gửi lại của MỘT lần bấm đã
  * thành công. Lọc `tenant_id` tường minh, cùng phạm vi với unique index của 0034.
+ *
+ * ĐÒI HỎI ĐƠN PHẢI CÓ ÍT NHẤT MỘT MÓN mới dám nhận là "đã tạo xong". `insertOrderGraph` ghi đơn rồi
+ * mới ghi món bằng các lượt gọi rời, và nó CUỘN LẠI bằng `delete from orders` khi ghi món hỏng. Nên
+ * một đơn 0 món đang ở một trong hai trạng thái: (a) người tạo còn đang ghi món dở, (b) người tạo
+ * sắp xóa nó. Báo "đã gửi" cho ca (b) là đưa nhân viên một mã đơn sẽ biến mất — tệ hơn hẳn việc bảo
+ * họ bấm lại một lần nữa (lượt bấm lại đó an toàn, và lúc đó đơn hoặc đã đủ món hoặc đã biến mất).
  */
 async function findOrderByKey(
   admin: SupabaseClient,
@@ -167,11 +173,23 @@ async function findOrderByKey(
 ): Promise<string | null> {
   const { data } = await admin
     .from("orders")
-    .select("id")
+    .select("id, order_items(id)")
     .eq("tenant_id", tenantId)
     .eq("idempotency_key", key)
     .maybeSingle();
-  return (data?.id as string) ?? null;
+  if (!data) return null;
+  const items = (data.order_items as { id: string }[] | null) ?? [];
+  return items.length > 0 ? (data.id as string) : null;
+}
+
+/** `findOrderByKey` cho khóa THÔ từ client (chuẩn hóa hộ; khóa rỗng/rác ⇒ không tra, coi như mới). */
+async function findExistingOrder(
+  admin: SupabaseClient,
+  tenantId: string,
+  rawKey: string | null | undefined
+): Promise<string | null> {
+  const key = normalizeIdempotencyKey(rawKey);
+  return key ? findOrderByKey(admin, tenantId, key) : null;
 }
 
 /** Insert orders + order_items + order_item_modifiers (snapshot). Rollback thủ công nếu lỗi. */
@@ -349,6 +367,14 @@ export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrde
   const validated = await validateAndBuildLines(admin, tenantId, lines);
   if ("error" in validated) return { error: validated.error };
 
+  // Tra khóa TRƯỚC `openOrJoinSession` — đây là lệnh GHI đầu tiên của cả đường, và nó không vô hại:
+  // nếu phiên bàn cũ đã đóng (khách trả tiền xong) thì nó MỞ PHIÊN MỚI và đánh bàn 'occupied' rồi
+  // mới phát hiện trùng khóa, để lại một phiên rỗng và một cái bàn báo sai trạng thái.
+  // Đây chỉ là đường TẮT tránh tác dụng phụ, KHÔNG phải cơ chế chống trùng: hai request đồng thời
+  // vẫn cùng trượt phép tra này, và chốt thật vẫn là 23505 ở `insertOrderGraph`.
+  const replayed = await findExistingOrder(admin, tenantId, input.idempotencyKey);
+  if (replayed) return { orderId: replayed };
+
   const sessionId = await openOrJoinSession(admin, tenantId, table.id, null);
   if (!sessionId) return { error: "Không mở được phiên bàn. Vui lòng thử lại." };
 
@@ -408,6 +434,11 @@ export async function createStaffOrder(input: CreateStaffOrderInput): Promise<Cr
 
   const validated = await validateAndBuildLines(admin, tenantId, lines);
   if ("error" in validated) return { error: validated.error };
+
+  // Cùng lý do như `createQrOrder`: `openOrJoinSession` là lệnh ghi, đừng chạy nó cho một lượt gửi
+  // lại. Chốt chống trùng thật vẫn nằm ở 23505 trong `insertOrderGraph`.
+  const replayed = await findExistingOrder(admin, tenantId, input.idempotencyKey);
+  if (replayed) return { orderId: replayed };
 
   const sessionId = await openOrJoinSession(admin, tenantId, tableId, actingStaffId);
   if (!sessionId) return { error: "Không mở được phiên bàn. Vui lòng thử lại." };
