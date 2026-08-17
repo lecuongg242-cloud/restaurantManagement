@@ -749,30 +749,45 @@ function clampPct(v: number): number {
  * Điều chỉnh bill (04-03, BILL-03): giảm giá (none/amount/percent) + %phí + %VAT → tính lại tổng.
  * Chỉ bill 'open', không phải vỏ/con chia đều. Giảm giá cần settings.allow_discount.
  * (PIN gate manager/cashier kiểm ở tầng action — hàm này giả định đã qua quyền.)
+ *
+ * `approverMembershipId` = NGƯỜI DUYỆT giảm giá, ghi vào `bills.discount_by/discount_at` (0037,
+ * BILL-07). Trước đây cổng PIN có chạy nhưng kết quả bị vứt đi: chốt kiểm soát tồn tại mà không
+ * để lại bằng chứng nào thì không kiểm được gì. Tham số BẮT BUỘC (không default null) để lần sau
+ * thêm lời gọi mới là compiler bắt phải nói rõ ai duyệt, thay vì lặng lẽ mất dấu.
  */
 export async function applyBillAdjustment(
   tenantId: string,
   billId: string,
-  input: { discountType: DiscountType; discountValue: number; serviceChargePct: number; vatPct: number }
+  input: { discountType: DiscountType; discountValue: number; serviceChargePct: number; vatPct: number },
+  approverMembershipId: string | null
 ): Promise<{ ok: true } | { error: string }> {
   const client = await createClient();
   const bill = await loadOpenBill(client, tenantId, billId);
   if (!bill || bill.status !== "open" || bill.split_count != null || bill.split_parent_id != null)
     return { error: "Hóa đơn không thể điều chỉnh (đã chốt hoặc đã chia đều)." };
 
-  if (input.discountType !== "none") {
+  const hasDiscount = input.discountType !== "none";
+  if (hasDiscount) {
     const settings = await getSessionSettings(client, tenantId);
     if (!settings.allow_discount) return { error: "Nhà hàng đang tắt giảm giá (bật ở /admin/settings)." };
   }
+
+  const now = new Date().toISOString();
 
   await client
     .from("bills")
     .update({
       discount_type: input.discountType,
-      discount_value: input.discountType === "none" ? 0 : Math.max(0, Math.round(input.discountValue)),
+      discount_value: hasDiscount ? Math.max(0, Math.round(input.discountValue)) : 0,
+      // Bỏ giảm giá ⇒ XÓA luôn cặp discount_by/discount_at. Hai cột này mô tả lượt giảm ĐANG có
+      // trên hóa đơn; giữ lại tên người duyệt trên một hóa đơn không còn giảm đồng nào chính là
+      // kiểu "ghi một đằng, thực tế một nẻo" mà 0037 sinh ra để dọn. Ai gỡ giảm giá là câu hỏi
+      // khác, cần nhật ký thao tác riêng — ngoài phạm vi lần này (chỉ đo, không thêm khái niệm).
+      discount_by: hasDiscount ? approverMembershipId : null,
+      discount_at: hasDiscount ? now : null,
       service_charge_pct: clampPct(input.serviceChargePct),
       vat_pct: clampPct(input.vatPct),
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     })
     .eq("id", billId)
     .eq("tenant_id", tenantId);

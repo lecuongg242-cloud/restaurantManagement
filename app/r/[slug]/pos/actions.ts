@@ -461,17 +461,28 @@ export async function applyDiscountAction(
   const tenantId = session.tenant.id;
 
   // PIN gate cho giảm giá (owner/manager đăng nhập email được bỏ qua).
-  if (payload.discountType !== "none" && session.role !== "owner" && session.role !== "manager") {
-    const gate = await verifyPinForRoles({
-      tenantId,
-      membershipId: membershipId ?? "",
-      pin: pin ?? "",
-      allowedRoles: ["manager", "cashier"],
-    });
-    if (!gate.ok) return { ok: false, error: gate.error };
+  //
+  // `approvedBy` = người duyệt, để ghi vào `bills.discount_by` (BILL-07). HAI nhánh cho ra người
+  // duyệt theo hai đường khác nhau: qua cổng PIN thì đó là chủ nhân của mã PIN (`gate.staffId`,
+  // có thể KHÁC người đang đăng nhập trên máy POS); owner/manager không đi qua cổng nên chính họ
+  // là người duyệt (`session.membershipId`). Bỏ giảm giá thì không có ai để ghi.
+  let approvedBy: string | null = null;
+  if (payload.discountType !== "none") {
+    if (session.role === "owner" || session.role === "manager") {
+      approvedBy = session.membershipId;
+    } else {
+      const gate = await verifyPinForRoles({
+        tenantId,
+        membershipId: membershipId ?? "",
+        pin: pin ?? "",
+        allowedRoles: ["manager", "cashier"],
+      });
+      if (!gate.ok) return { ok: false, error: gate.error };
+      approvedBy = gate.staffId;
+    }
   }
 
-  const res = await applyBillAdjustment(tenantId, billId, payload);
+  const res = await applyBillAdjustment(tenantId, billId, payload, approvedBy);
   if ("error" in res) return { ok: false, error: res.error };
   const bills = await getSessionBills(tenantId, sessionId);
   revalidatePath(`/r/${slug}/pos`);
