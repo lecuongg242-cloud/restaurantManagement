@@ -17,7 +17,7 @@ import {
   readContact,
   writeContact,
 } from "@/lib/orders/guest-contact";
-import { useActionKey } from "@/components/use-action-key";
+import { usePersistedActionKey } from "@/components/use-action-key";
 import { actionSignature } from "@/lib/idempotency";
 import { GuestInfoModal } from "./GuestInfoModal";
 import { ModifierSheet, type PendingLine } from "./ModifierSheet";
@@ -58,8 +58,6 @@ export function MenuBrowser({
   const [address, setAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  /** Khóa idempotent của lần bấm "Gửi đơn" đang dở — xem `submit`. */
-  const orderKey = useActionKey();
   const [activeCat, setActiveCat] = useState(menu.categories[0]?.id ?? "");
   const [badgePulse, setBadgePulse] = useState(0);
   // Gọi nhân viên (CALL-01): chỉ khi ăn tại bàn (có qrToken). Mở sheet để nhập yêu cầu kèm.
@@ -81,6 +79,13 @@ export function MenuBrowser({
   // Phạm vi lưu liên hệ/sổ đơn: bàn (qr_token) hoặc "online" (lib/orders/guest-contact).
   const contactScope = online ? null : qrToken;
   const hasContactStore = online || !!qrToken;
+  /**
+   * Khóa idempotent của lần bấm "Gửi đơn" đang dở. Lưu CẠNH GIỎ trong `sessionStorage` (không phải
+   * trong RAM) vì giỏ ở màn này cũng được lưu như thế: khách mất phản hồi → tải lại trang (phản xạ
+   * phổ biến nhất trên điện thoại) → giỏ khôi phục nguyên vẹn. Khóa nằm trong RAM thì lượt gửi sau
+   * F5 mang khóa MỚI trên đúng nội dung cũ ⇒ đơn thứ hai. Xóa cùng lúc với giỏ khi gửi thành công.
+   */
+  const orderKey = usePersistedActionKey(storageKey);
 
   const itemMap = useMemo(() => {
     const m = new Map<string, CustomerMenuItem>();
@@ -239,8 +244,9 @@ export function MenuBrowser({
         setSubmitting(false);
         return;
       }
+      // Xóa giỏ + khóa của lượt gửi (hai thứ phải mất CÙNG LÚC: còn khóa mà giỏ đã sạch thì lượt
+      // gọi món sau của chính khách đó có thể vớ phải khóa cũ) + ghi sổ đơn + chuyển trang theo dõi.
       orderKey.done();
-      // Xóa giỏ + ghi vào sổ đơn của máy (panel "Đơn của bạn") + chuyển trang theo dõi.
       if (storageKey) sessionStorage.removeItem(storageKey);
       rememberOrder(slug, online ? null : qrToken, data.orderId, new Date().toISOString());
       setCart([]);

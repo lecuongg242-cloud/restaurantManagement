@@ -24,7 +24,12 @@ export type ActionKey = {
   done(): void;
 };
 
+/** Khóa đang dở + chữ ký nội dung đã sinh ra nó. Hình dạng dùng chung cho bản trong RAM và bản lưu. */
+export type PendingActionKey = { signature: string; key: string };
+
 /**
+ * Luật lõi: chữ ký giống lần trước ⇒ giữ khóa cũ; khác đi (hoặc chưa có gì) ⇒ khóa mới.
+ *
  * Vì sao ràng buộc "khóa mới" vào NỘI DUNG chứ không vào các mốc thao tác (mở/đóng hộp thoại, đổi
  * bàn, sửa giỏ): đặt `reset()` rải rác ở từng chỗ sửa giỏ là đường sai sót cao nhất — quên một chỗ
  * là hỏng theo hướng NGUY HIỂM. Ca cụ thể: gửi hỏng vì mạng, nhân viên thêm một món rồi bấm lại;
@@ -34,19 +39,43 @@ export type ActionKey = {
  * Chiều ngược lại — cùng nội dung nhưng là hành động THẬT SỰ mới (hai khách liên tiếp gọi y hệt
  * nhau) — do `done()` lo: gửi xong là quên khóa, lần sau chắc chắn khóa mới.
  *
- * `newId` tách ra được để test không phụ thuộc `crypto.randomUUID`.
+ * Tách thành hàm thuần vì có HAI nơi giữ khóa với vòng đời khác nhau (RAM theo component; hoặc
+ * `sessionStorage` sống qua F5 — xem `usePersistedActionKey`), mà luật thì chỉ được có một bản.
  */
+export function nextActionKey(
+  previous: PendingActionKey | null,
+  signature: string,
+  newId: () => string
+): PendingActionKey {
+  if (previous && previous.signature === signature) return previous;
+  return { signature, key: newId() };
+}
+
+/** Bản giữ khóa TRONG RAM — mất khi component unmount hoặc tải lại trang. `newId` tách ra để test. */
 export function createActionKey(newId: () => string = () => crypto.randomUUID()): ActionKey {
-  let pending: { signature: string; key: string } | null = null;
+  let pending: PendingActionKey | null = null;
   return {
     keyFor(signature: string): string {
-      if (!pending || pending.signature !== signature) pending = { signature, key: newId() };
+      pending = nextActionKey(pending, signature, newId);
       return pending.key;
     },
     done(): void {
       pending = null;
     },
   };
+}
+
+/** Đọc `{signature, key}` đã lưu; trả `null` nếu chưa có / hỏng hình dạng. Thuần, không chạm storage. */
+export function parsePendingActionKey(raw: string | null): PendingActionKey | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as { signature?: unknown; key?: unknown };
+    // Khóa lưu mà không phải uuid thì coi như chưa có — thà sinh khóa mới còn hơn gửi lên rác.
+    if (typeof v?.signature !== "string" || normalizeIdempotencyKey(v?.key) === null) return null;
+    return { signature: v.signature, key: v.key as string };
+  } catch {
+    return null;
+  }
 }
 
 /**

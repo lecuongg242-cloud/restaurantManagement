@@ -3,7 +3,9 @@ import {
   actionSignature,
   createActionKey,
   isDuplicateKeyError,
+  nextActionKey,
   normalizeIdempotencyKey,
+  parsePendingActionKey,
 } from "@/lib/idempotency";
 
 /** Sinh id đếm được để khẳng định "khóa mới" / "khóa cũ" mà không phụ thuộc crypto.randomUUID. */
@@ -100,6 +102,55 @@ describe("normalizeIdempotencyKey — lọc trước khi chạm cột uuid", () 
     expect(normalizeIdempotencyKey(null)).toBeNull();
     expect(normalizeIdempotencyKey(42)).toBeNull();
     expect(normalizeIdempotencyKey({ key: "x" })).toBeNull();
+  });
+});
+
+describe("nextActionKey — luật lõi, dùng chung cho bản RAM và bản lưu sessionStorage", () => {
+  it("chưa có gì → khóa mới", () => {
+    expect(nextActionKey(null, "sig", () => "k1")).toEqual({ signature: "sig", key: "k1" });
+  });
+
+  it("chữ ký khớp → GIỮ NGUYÊN khóa cũ (đây là ca cứu khách bấm lại sau khi tải lại trang)", () => {
+    const prev = { signature: "sig", key: "cu" };
+    expect(nextActionKey(prev, "sig", () => "moi")).toBe(prev);
+  });
+
+  it("chữ ký khác → khóa mới", () => {
+    expect(nextActionKey({ signature: "a", key: "cu" }, "b", () => "moi")).toEqual({
+      signature: "b",
+      key: "moi",
+    });
+  });
+});
+
+describe("parsePendingActionKey — đọc khóa đã lưu qua lần tải lại trang", () => {
+  const good = { signature: "sig", key: "3f2504e0-4f89-11d3-9a0c-0305e82c3301" };
+
+  it("bản ghi hợp lệ → đọc lại được nguyên vẹn", () => {
+    expect(parsePendingActionKey(JSON.stringify(good))).toEqual(good);
+  });
+
+  it("chưa lưu gì (null / chuỗi rỗng) → null", () => {
+    expect(parsePendingActionKey(null)).toBeNull();
+    expect(parsePendingActionKey("")).toBeNull();
+  });
+
+  it("JSON hỏng → null, KHÔNG ném (storage có thể bị thứ khác ghi đè)", () => {
+    expect(parsePendingActionKey("{khong-phai-json")).toBeNull();
+  });
+
+  it("khóa lưu không phải uuid → null, thà sinh khóa mới còn hơn gửi rác lên server", () => {
+    expect(parsePendingActionKey(JSON.stringify({ signature: "sig", key: "abc" }))).toBeNull();
+    expect(parsePendingActionKey(JSON.stringify({ signature: "sig" }))).toBeNull();
+  });
+
+  it("thiếu chữ ký → null (không có gì để so thì không thể khẳng định là cùng hành động)", () => {
+    expect(parsePendingActionKey(JSON.stringify({ key: good.key }))).toBeNull();
+  });
+
+  it("JSON hợp lệ nhưng không phải object (mảng / số) → null", () => {
+    expect(parsePendingActionKey("[1,2]")).toBeNull();
+    expect(parsePendingActionKey("42")).toBeNull();
   });
 });
 

@@ -12,13 +12,16 @@ import { actionSignature } from "@/lib/idempotency";
 /**
  * Thông báo khi lời gọi thu tiền KHÔNG tới được server (mất mạng, server ngủ).
  *
- * KHÔNG được khẳng định "CHƯA ghi nhận" như bản cũ: mất phản hồi thì máy POS thật sự KHÔNG BIẾT
- * server đã ghi hay chưa — server có thể đã commit xong rồi mới đứt mạng. Nói chắc một điều mình
- * không biết là dạy nhân viên tin vào thứ sai. Nay khóa idempotent (0034) làm lượt bấm lại an toàn,
- * nên câu đúng là: chưa rõ, nhưng cứ bấm lại. Dùng chung ở mọi nơi gọi thu tiền.
+ * KHÔNG được khẳng định "CHƯA ghi nhận": mất phản hồi thì máy POS thật sự KHÔNG BIẾT server đã ghi
+ * hay chưa — server có thể đã commit xong rồi mới đứt mạng.
+ *
+ * Nhưng cũng KHÔNG hứa "thử lại không ghi trùng khoản": lời hứa đó chỉ đúng khi thu ngân bấm lại mà
+ * không đổi gì, và một câu hứa tuyệt đối thì MỜI GỌI đúng cái hành vi phá vỡ nó. Hai bản trước đều
+ * là nói chắc điều hệ thống không kiểm soát được, chỉ khác chiều. Câu đúng chỉ mô tả cái đang thấy
+ * và việc nên làm, để lớp chống trùng thật sự (0034/0035) im lặng làm việc của nó.
  */
 export const PAY_OFFLINE_MSG =
-  "Mất kết nối — chưa rõ khoản thu đã ghi nhận chưa. Kiểm tra mạng rồi bấm Thử lại: thử lại không ghi trùng khoản.";
+  "Mất kết nối — chưa rõ khoản thu đã ghi nhận chưa. Kiểm tra mạng rồi bấm Thử lại; đừng đổi gì trước khi thử lại.";
 
 const VN_OFFSET_MS = 7 * 3600 * 1000;
 /** Mốc ISO → ngày VN `YYYY-MM-DD`. So ngày phải theo giờ VN, không theo UTC. */
@@ -104,10 +107,14 @@ export function PaymentDialog({
     let res: { ok: boolean; change?: number; error?: string };
     // Chốt lại lần cuối: hộp thoại mở qua nửa đêm có thể trôi ra khỏi hạn sau khi đã chọn.
     const receivedAt = backdate && canPickBackdate && orderCreatedAt ? orderCreatedAt : undefined;
-    // Chữ ký KHÔNG gồm "khách đưa": số đó chỉ để tính tiền thối ở màn hình, dòng `payments` luôn ghi
-    // đúng `total`. Đưa nó vào chữ ký thì thu ngân sửa lại số tiền khách đưa rồi bấm Thử lại sẽ ra
-    // khóa mới — tức mất đúng lớp chống trùng, cho một thay đổi không hề đổi thứ được ghi.
-    const key = payKey.keyFor(actionSignature([bill.id, method, receivedAt ?? null]));
+    // Chữ ký chỉ gồm thứ đổi được SỐ TIỀN ĐƯỢC GHI. Cố ý BỎ:
+    //  - "khách đưa": chỉ để tính tiền thối trên màn hình, dòng `payments` luôn ghi đúng `total`;
+    //  - phương thức (tiền mặt / chuyển khoản): đổi nhãn của khoản thu, không đổi số tiền.
+    // Đưa chúng vào là mất đúng lớp chống trùng cho một thay đổi không đổi thứ được ghi — ca thật:
+    // thu tiền mặt hỏng giữa chừng, thu ngân gạt sang "Chuyển khoản" bấm lại, khóa mới ⇒ dòng
+    // `payments` thứ hai ⇒ doanh thu gấp đôi. (Từ 0035 thì RPC còn một chốt nữa neo vào hóa đơn,
+    // nhưng chữ ký vẫn phải tự nó đúng — đừng dựa vào lớp dưới đỡ hộ.)
+    const key = payKey.keyFor(actionSignature([bill.id, receivedAt ?? null]));
     try {
       res = await onPay(method, method === "cash" ? received : total, receivedAt, key);
     } catch {
