@@ -11,6 +11,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { PaymentMethod } from "./types";
 import type { ReportRange } from "./report-range";
+import type { AfterPrintSummary } from "./after-print";
 import { parseSettings, type ServiceMode } from "@/lib/tenant/settings";
 
 export type { Grain, Preset, ReportRange } from "./report-range";
@@ -39,6 +40,9 @@ export type CancelActorSlice = {
   cnt: number;
   qty: number;
   amount: number;
+  /** Phần của người này rơi vào nhóm "hủy sau khi đã in phiếu bếp" (REPORT-11). */
+  afterQty: number;
+  afterAmount: number;
 };
 export type CancelItemSlice = { name: string; qty: number; amount: number };
 export type CancelRow = {
@@ -49,9 +53,47 @@ export type CancelRow = {
   amount: number;
   reason: string;
   actorName: string;
+  /** Mốc in phiếu bếp SỚM NHẤT của đơn chứa món này; null = đơn chưa in lần nào. */
+  printedAt: string | null;
+  /** Hủy sau mốc đó; null khi chưa in hoặc mốc giờ hủy không đáng tin. */
+  afterPrint: boolean | null;
+  /** Mốc giờ hủy chỉ là ước lượng (dòng backfill của 0028). */
+  timeApprox: boolean;
 };
+
+/**
+ * Đơn thỏa CẢ BA: đã in phiếu bếp · bị hủy toàn bộ · không có dòng `payments` nào (REPORT-11).
+ *
+ * Hàm SQL trả cả `printedAt` lẫn `cancelledAt` và KHÔNG lọc theo thứ tự hai mốc — người xem tự
+ * nhìn. Kèm `timeApprox` để không ai đọc mốc ước lượng của dữ liệu cũ như mốc thật.
+ */
+export type CancelSignatureRow = {
+  orderId: string;
+  cancelledAt: string;
+  printedAt: string | null;
+  place: string;
+  qty: number;
+  amount: number;
+  reason: string;
+  actorName: string;
+  actorRole: string;
+  timeApprox: boolean;
+};
+
+export type DiscountActorSlice = {
+  membershipId: string | null;
+  name: string;
+  role: string;
+  cnt: number;
+  amount: number;
+};
+/** Khối "Giảm giá" (REPORT-12): ai duyệt · số lượt · tổng tiền giảm. */
+export type DiscountData = { billCnt: number; amount: number; actors: DiscountActorSlice[] };
+
 export type CancellationData = {
   summary: CancelSummary;
+  afterPrint: AfterPrintSummary;
+  signature: CancelSignatureRow[];
   actors: CancelActorSlice[];
   items: CancelItemSlice[];
   rows: CancelRow[];
@@ -87,7 +129,7 @@ export type ComparisonData = { summary: RevenueSummary; series: number[] };
  * báo lỗi. Khối mới hỏng thì chỉ khối mới hiện lỗi.
  */
 export type CancellationBlock =
-  | { ok: true; data: CancellationData; prev: CancelSummary }
+  | { ok: true; data: CancellationData; prev: CancelSummary; discounts: DiscountData }
   | { ok: false; message: string };
 
 type Client = Awaited<ReturnType<typeof createClient>>;
@@ -233,6 +275,47 @@ function toCancelSummary(rows: CancelSummaryRow[]): CancelSummary {
   };
 }
 
+type AfterPrintRow = {
+  after_qty: number;
+  after_amount: number;
+  comparable_qty: number;
+  comparable_amount: number;
+  approx_qty: number;
+};
+
+const EMPTY_AFTER_PRINT: AfterPrintSummary = {
+  afterQty: 0,
+  afterAmount: 0,
+  comparableQty: 0,
+  comparableAmount: 0,
+  approxQty: 0,
+};
+
+function toAfterPrint(rows: AfterPrintRow[]): AfterPrintSummary {
+  const r = rows[0];
+  if (!r) return EMPTY_AFTER_PRINT;
+  return {
+    afterQty: Number(r.after_qty),
+    afterAmount: Number(r.after_amount),
+    comparableQty: Number(r.comparable_qty),
+    comparableAmount: Number(r.comparable_amount),
+    approxQty: Number(r.approx_qty),
+  };
+}
+
+type SignatureRow = {
+  order_id: string;
+  cancelled_at: string;
+  printed_at: string | null;
+  place: string;
+  qty: number;
+  amount: number;
+  reason: string;
+  actor_name: string;
+  actor_role: string;
+  time_approx: boolean;
+};
+
 /**
  * Thống kê món bị hủy trong kỳ (REPORT-10). Gồm CẢ dine-in lẫn mang về — lịch sử POS chỉ có
  * takeaway nên đây là chỗ duy nhất xem lại được đơn tại bàn bị hủy.
@@ -246,13 +329,21 @@ export async function getCancellationData(
   const args = baseArgs(tenantId, range);
   const offset = Math.max(opts.offset ?? 0, 0);
 
-  const [summaryRows, actorRows, itemRows, listRows] = await Promise.all([
+  const [summaryRows, afterRows, signatureRows, actorRows, itemRows, listRows] = await Promise.all([
     rpc<CancelSummaryRow>(client, "report_cancel_summary", args),
-    rpc<{ membership_id: string | null; display_name: string; role: string; cnt: number; qty: number; amount: number }>(
-      client,
-      "report_cancel_by_actor",
-      args
-    ),
+    rpc<AfterPrintRow>(client, "report_cancel_after_print_summary", args),
+    // Khối này chủ quán nhìn đầu tiên; 20 đơn là đủ để soi một kỳ, hơn nữa thì thu hẹp kỳ lại.
+    rpc<SignatureRow>(client, "report_cancel_full_signature", { ...args, p_limit: 20 }),
+    rpc<{
+      membership_id: string | null;
+      display_name: string;
+      role: string;
+      cnt: number;
+      qty: number;
+      amount: number;
+      after_qty: number;
+      after_amount: number;
+    }>(client, "report_cancel_by_actor", args),
     rpc<{ name: string; qty: number; amount: number }>(client, "report_cancel_top_items", {
       ...args,
       p_limit: 10,
@@ -266,6 +357,9 @@ export async function getCancellationData(
       amount: number;
       reason: string;
       actor_name: string;
+      printed_at: string | null;
+      after_print: boolean | null;
+      time_approx: boolean;
     }>(client, "report_cancel_list", { ...args, p_limit: CANCEL_PAGE + 1, p_offset: offset }),
   ]);
 
@@ -273,6 +367,19 @@ export async function getCancellationData(
 
   return {
     summary: toCancelSummary(summaryRows),
+    afterPrint: toAfterPrint(afterRows),
+    signature: signatureRows.map((r) => ({
+      orderId: r.order_id,
+      cancelledAt: r.cancelled_at,
+      printedAt: r.printed_at,
+      place: r.place,
+      qty: Number(r.qty),
+      amount: Number(r.amount),
+      reason: r.reason,
+      actorName: r.actor_name,
+      actorRole: r.actor_role,
+      timeApprox: !!r.time_approx,
+    })),
     actors: actorRows.map((r) => ({
       membershipId: r.membership_id,
       name: r.display_name,
@@ -280,6 +387,8 @@ export async function getCancellationData(
       cnt: Number(r.cnt),
       qty: Number(r.qty),
       amount: Number(r.amount),
+      afterQty: Number(r.after_qty),
+      afterAmount: Number(r.after_amount),
     })),
     items: itemRows.map((r) => ({ name: r.name, qty: Number(r.qty), amount: Number(r.amount) })),
     rows: (hasMore ? listRows.slice(0, CANCEL_PAGE) : listRows).map((r) => ({
@@ -290,8 +399,40 @@ export async function getCancellationData(
       amount: Number(r.amount),
       reason: r.reason,
       actorName: r.actor_name,
+      printedAt: r.printed_at,
+      // `after_print` là boolean BA TRẠNG THÁI ở SQL (true/false/null) — ép về !!r sẽ nuốt mất
+      // "chưa kết luận được" thành "hủy trước khi in".
+      afterPrint: r.after_print === null ? null : !!r.after_print,
+      timeApprox: !!r.time_approx,
     })),
     hasMore,
+  };
+}
+
+/** Khối "Giảm giá" của kỳ (REPORT-12). Cùng khuôn RPC như phần hủy. */
+async function getDiscountData(tenantId: string, range: ReportRange): Promise<DiscountData> {
+  const client = await createClient();
+  const args = baseArgs(tenantId, range);
+
+  const [summaryRows, actorRows] = await Promise.all([
+    rpc<{ bill_cnt: number; discount_amount: number }>(client, "report_discount_summary", args),
+    rpc<{ membership_id: string | null; display_name: string; role: string; cnt: number; amount: number }>(
+      client,
+      "report_discount_by_actor",
+      args
+    ),
+  ]);
+
+  return {
+    billCnt: Number(summaryRows[0]?.bill_cnt ?? 0),
+    amount: Number(summaryRows[0]?.discount_amount ?? 0),
+    actors: actorRows.map((r) => ({
+      membershipId: r.membership_id,
+      name: r.display_name,
+      role: r.role,
+      cnt: Number(r.cnt),
+      amount: Number(r.amount),
+    })),
   };
 }
 
@@ -303,8 +444,10 @@ async function getCancelSummary(tenantId: string, range: ReportRange): Promise<C
 }
 
 /**
- * Cả khối "Món bị hủy" trong MỘT lời gọi không bao giờ ném. Xem `CancellationBlock`: RPC của
- * REPORT-10 phải không kéo đổ được REPORT-01..09.
+ * Cả khối "Món bị hủy" + "Giảm giá" trong MỘT lời gọi không bao giờ ném. Xem `CancellationBlock`:
+ * RPC của REPORT-10/11/12 phải không kéo đổ được REPORT-01..09. Gộp chung một lời gọi vì cả hai
+ * khối cùng nằm sau migration 0037 — 0037 chưa áp thì hai khối cùng hiện lỗi, phần còn lại của
+ * báo cáo vẫn chạy.
  */
 export async function getCancellationBlock(
   tenantId: string,
@@ -312,11 +455,12 @@ export async function getCancellationBlock(
   prevRange: ReportRange
 ): Promise<CancellationBlock> {
   try {
-    const [data, prev] = await Promise.all([
+    const [data, prev, discounts] = await Promise.all([
       getCancellationData(tenantId, range),
       getCancelSummary(tenantId, prevRange),
+      getDiscountData(tenantId, range),
     ]);
-    return { ok: true, data, prev };
+    return { ok: true, data, prev, discounts };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Lỗi không xác định." };
   }

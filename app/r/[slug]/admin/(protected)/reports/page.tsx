@@ -14,6 +14,7 @@ import { PlaceBreakdown } from "@/components/admin/reports/PlaceBreakdown";
 import { AreaBreakdown } from "@/components/admin/reports/AreaBreakdown";
 import { HourHeatmap } from "@/components/admin/reports/HourHeatmap";
 import { CancellationPanel } from "@/components/admin/reports/CancellationPanel";
+import { DiscountPanel } from "@/components/admin/reports/DiscountPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -141,14 +142,17 @@ export default async function ReportsPage({
         {cancellations.ok ? (
           <CancellationPanel data={cancellations.data} prev={cancellations.prev} />
         ) : (
-          <div className="rounded-lg border border-status-late bg-canvas p-md">
-            <p className="text-sm font-medium text-status-late">Không tải được thống kê món bị hủy.</p>
-            <p className="mt-xs text-sm text-steel">
-              {cancellations.message} Kiểm tra migration{" "}
-              <code className="font-mono text-xs">0029_cancel_report_rpcs.sql</code> đã chạy chưa. Các
-              khối còn lại của báo cáo không bị ảnh hưởng.
-            </p>
-          </div>
+          <CancelBlockError message={cancellations.message} />
+        )}
+      </Panel>
+
+      {/* Giảm 100% cho ra đúng kết quả như hủy sạch món nên khối này đứng ngay sau khối hủy.
+          `summary.totalRevenue` là mẫu số của tỷ lệ — cùng một kỳ, cùng quy ước BILL-05. */}
+      <Panel title="Giảm giá" className="mt-lg">
+        {cancellations.ok ? (
+          <DiscountPanel data={cancellations.discounts} revenue={summary.totalRevenue} />
+        ) : (
+          <CancelBlockError message={cancellations.message} />
         )}
       </Panel>
     </ReportShell>
@@ -156,6 +160,24 @@ export default async function ReportsPage({
 }
 
 const GRAIN_TITLE = { hour: "giờ", day: "ngày", week: "tuần", month: "tháng" } as const;
+
+/**
+ * Lỗi của khối hủy + khối giảm giá. Hai khối dùng CHUNG một lời gọi (`getCancellationBlock`) nên
+ * hỏng là hỏng cùng nhau — dùng chung một hộp lỗi để không phải chép đôi câu chữ.
+ */
+function CancelBlockError({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-status-late bg-canvas p-md">
+      <p className="text-sm font-medium text-status-late">Không tải được thống kê.</p>
+      <p className="mt-xs text-sm text-steel">
+        {message} Kiểm tra migration{" "}
+        <code className="font-mono text-xs">0029_cancel_report_rpcs.sql</code> và{" "}
+        <code className="font-mono text-xs">0037_cancel_after_print_rpcs.sql</code> đã chạy chưa. Các
+        khối còn lại của báo cáo không bị ảnh hưởng.
+      </p>
+    </div>
+  );
+}
 
 /** Khung trang (tiêu đề + bộ chọn kỳ) — dùng chung cho cả nhánh lỗi lẫn nhánh có dữ liệu. */
 function ReportShell({
