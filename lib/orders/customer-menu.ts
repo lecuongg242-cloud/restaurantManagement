@@ -5,6 +5,7 @@
  */
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { activeTenantBySlug } from "@/lib/tenant/active";
 
 export type CustomerModifierOption = {
   id: string;
@@ -48,15 +49,12 @@ export type ResolvedTable = {
   table: { id: string; name: string; status: string };
 };
 
-/** Lấy tenant công khai theo slug (id + tên + logo). null nếu không có. */
+/** Lấy tenant công khai theo slug (id + tên + logo). null nếu không có HOẶC đang tạm ngưng. */
 async function getPublicTenant(slug: string) {
-  const admin = createAdminClient();
-  const { data } = await admin
-    .from("tenants")
-    .select("id, name, logo_url")
-    .eq("slug", slug)
-    .maybeSingle();
-  return data as { id: string; name: string; logo_url: string | null } | null;
+  return activeTenantBySlug<{ id: string; name: string; logo_url: string | null }>(
+    "id, name, logo_url",
+    slug
+  );
 }
 
 /**

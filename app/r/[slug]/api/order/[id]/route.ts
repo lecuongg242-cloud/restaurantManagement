@@ -5,6 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { activeTenantBySlug } from "@/lib/tenant/active";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +16,7 @@ export async function GET(
   const { slug, id } = await params;
   const admin = createAdminClient();
 
-  const { data: tenant } = await admin
-    .from("tenants")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
+  const tenant = await activeTenantBySlug<{ id: string }>("id", slug);
   if (!tenant) return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
 
   const { data: order } = await admin

@@ -9,6 +9,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { activeTenantBySlug } from "@/lib/tenant/active";
 import { parseSettings } from "@/lib/tenant/settings";
 import { isDuplicateKeyError, normalizeIdempotencyKey } from "@/lib/idempotency";
 import type { OrderLineInput } from "./types";
@@ -348,13 +349,12 @@ export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrde
 
   const admin = createAdminClient();
 
-  const { data: tenant } = await admin
-    .from("tenants")
-    .select("id, settings")
-    .eq("slug", slug)
-    .maybeSingle();
+  const tenant = await activeTenantBySlug<{ id: string; settings: Record<string, unknown> }>(
+    "id, settings",
+    slug
+  );
   if (!tenant) return { error: "Không tìm thấy nhà hàng." };
-  const tenantId = tenant.id as string;
+  const tenantId = tenant.id;
 
   const { data: table } = await admin
     .from("tables")

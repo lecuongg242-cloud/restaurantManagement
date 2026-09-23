@@ -6,6 +6,7 @@
  */
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { activeTenantBySlug } from "@/lib/tenant/active";
 import { createClient } from "@/lib/supabase/server";
 import type { Reservation, ReservationCounts, ReservationView } from "./types";
 
@@ -90,13 +91,9 @@ export async function createReservation(
 
   const admin = createAdminClient();
 
-  const { data: tenant } = await admin
-    .from("tenants")
-    .select("id")
-    .eq("slug", input.slug)
-    .maybeSingle();
+  const tenant = await activeTenantBySlug<{ id: string }>("id", input.slug);
   if (!tenant) return { error: "Không tìm thấy nhà hàng." };
-  const tenantId = tenant.id as string;
+  const tenantId = tenant.id;
 
   let areaId: string | null = null;
   if (input.areaId) {
