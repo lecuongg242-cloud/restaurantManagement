@@ -20,6 +20,8 @@
 | TENANT-02 | Cách ly tenant (RLS) | Bộ test tự động: user tenant A không đọc/ghi bất kỳ dữ liệu tenant B | P1 | ☑ (test:rls 6/6 PASS, 01-04) |
 | TENANT-03 | Onboarding ≤ 15 phút | 1 người ngoài team tạo nhà hàng + 10 món + 5 bàn + in QR trong ≤ 15 phút (đo thật) | P2 | ◐ wizard 4 bước code xong; chờ đo ≤15' với người ngoài team |
 | TENANT-04 | Định tuyến slug, chừa subdomain | `/r/[slug]` hoạt động; `tenants.subdomain` + nhánh middleware viết sẵn (tắt) | P1 | ☑ (checkpoint 01-01/02) |
+| TENANT-05 | Ma trận RLS phủ mọi bảng có `tenant_id` | Bộ test tự động phủ **đủ 18 bảng** mang `tenant_id`, mỗi bảng 4 phép: đối chứng dương (A đọc của A ≥1 dòng) · A đọc của B = **0 dòng** · A `insert` mang `tenant_id` của B → **bị từ chối** · A `update`/`delete` dòng của B → **0 dòng đổi** và đối chiếu bằng service-role thấy dữ liệu B nguyên vẹn. Fixture tự dựng/dọn trong test, không phụ thuộc `seed-demo-data`. Mọi khẳng định chạy bằng **anon key + phiên đăng nhập thật** (service-role chỉ dùng dựng fixture + đối chiếu). Chạy trong CI ở `npm run test:rls` | P7 | ◐ code+kiểm xong (ma trận 127/127 + fixture 3/3 + cách ly cũ 6/6 = 136/136 PASS trên DB thật; đối chứng âm bằng bảng canary xác nhận bắt được policy sai); chờ checkpoint |
+| TENANT-06 | Khóa được nhà hàng (`suspended`) | Super-admin đặt `tenants.status='suspended'` → trong **≤1 lần tải trang**: owner/nhân viên quán đó vào `/admin`\|`/pos`\|`/kds` thấy màn “Nhà hàng đang tạm ngưng”, **không** vòng lặp chuyển hướng; menu QR `/r/[slug]/menu`, đặt bàn, đơn online trả 404; cầu in không nhận thêm phiếu. Thực thi ở `auth_tenant_ids()` (DB) + `resolveActiveTenant()` (bề mặt khách chạy service-role). Super-admin vẫn vào `/super` và đặt lại `active` được; đặt lại xong quán hoạt động bình thường, **không mất dữ liệu** | P7 | ☐ |
 
 ## AUTH — Đăng nhập & phân quyền
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
@@ -84,6 +86,7 @@
 | PRINT-01 | PrintAdapter | Interface `PrintAdapter`; BrowserPrintAdapter là mặc định V1; BridgePrintAdapter chừa sẵn (không sửa nghiệp vụ) | P3 | ☐ |
 | PRINT-02 | Phiếu bếp | Bấm in phiếu bếp: bàn, giờ, món+SL+tùy chọn+ghi chú; khổ 58/80mm rõ, không tràn (test PDF preview V1) | P3 | ☐ |
 | PRINT-03 | Hóa đơn khách | Bấm in hóa đơn: tên NH, bàn, món+giá, các dòng điều chỉnh, tổng; khổ 80mm đủ, không tràn | P4 | ☐ |
+| PRINT-05 | Cầu in không giữ khóa toàn hệ thống | `scripts/print-bridge.mjs` **không đọc** `SUPABASE_SERVICE_ROLE_KEY` nữa (grep trong file trả 0 kết quả); đăng nhập bằng anon key + tài khoản thiết bị vai trò `printer` riêng từng quán. Tenant suy từ token, **không** còn `PRINT_TENANT_SLUG`/`PRINT_TENANT_ID`. Test khẳng định: tài khoản `printer` của quán A đọc/sửa được `print_jobs` của A, đọc `print_jobs` của B = 0 dòng, và `canAccess('printer', s)` = `false` với mọi `s` ∈ {admin, pos, kds} | P7 | ☐ |
 
 ## RESV / ONLINE — Đặt bàn & kênh online
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |

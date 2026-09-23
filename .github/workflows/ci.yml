@@ -35,4 +35,14 @@ jobs:
 
       - name: Test RLS (cách ly tenant)
         if: ${{ env.NEXT_PUBLIC_SUPABASE_URL != '' }}
-        run: npm run test:rls
+        run: |
+          npm run test:rls -- --reporter=json --outputFile=rls-report.json
+          COUNT=$(node -e "console.log(require('./rls-report.json').numTotalTests)")
+          echo "Đã chạy $COUNT test RLS."
+          # 136 test tính tới 07-01. Sàn 120 để không vỡ vì thêm/bớt vài test, nhưng vẫn chặn
+          # trường hợp bộ test im lặng không chạy mà CI vẫn xanh (thiếu secrets, file đổi tên,
+          # describe bị .skip) — cổng như vậy không bảo vệ gì.
+          if [ "$COUNT" -lt 120 ]; then
+            echo "::error::Chỉ $COUNT test RLS chạy — ma trận cách ly tenant không được phép bỏ qua."
+            exit 1
+          fi
