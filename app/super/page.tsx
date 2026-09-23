@@ -7,6 +7,7 @@ import {
   StatusToggleForm,
   ResetPasswordForm,
   DeleteTenantForm,
+  PrintBridgeForm,
 } from "./tenant-actions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -136,6 +137,7 @@ export default async function SuperHome({
               {/* Tầng hành động: full-width, cập nhật tại chỗ (URL không đổi) */}
               <div className="mt-md flex flex-wrap items-start gap-xs border-t border-hairline-soft pt-md">
                 {ownerEmail && <ResetPasswordForm tenantId={t.id} />}
+                <PrintBridgeForm tenantId={t.id} />
                 <StatusToggleForm tenantId={t.id} isSuspended={isSuspended} />
                 {isSuspended && <DeleteTenantForm tenantId={t.id} slug={t.slug} />}
               </div>

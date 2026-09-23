@@ -146,3 +146,36 @@ describe("canAssignRole — chặn leo thang quyền (QD-010 §4)", () => {
     }
   });
 });
+
+/**
+ * Vai trò `printer` — tài khoản THIẾT BỊ của cầu in tại quán (QD-012 §1).
+ * Nó thay cho service-role trên máy quán, nên giá trị bảo mật nằm ở chỗ: khóa này lộ ra ngoài
+ * cũng KHÔNG mở được bề mặt nào. Vì vậy mọi câu trả lời dưới đây phải là `false`.
+ */
+describe("Vai trò printer (cầu in)", () => {
+  const ALL_SECTIONS: Section[] = ["admin", "pos", "kds", "customer"];
+
+  it.each(ALL_SECTIONS)("printer KHÔNG vào được khu %s", (section) => {
+    expect(canAccess("printer", section)).toBe(false);
+  });
+
+  it("printer không bật/tắt được hết món", () => {
+    expect(canToggleAvailability("printer")).toBe(false);
+  });
+
+  it("không vai trò nào gán được `printer` qua UI nhân viên", () => {
+    for (const actor of ROLES) {
+      expect(canAssignRole(actor, "printer"), `${actor} gán được printer`).toBe(false);
+    }
+  });
+
+  it("printer không quản lý được mục cấu hình nào", () => {
+    for (const s of SECTIONS) {
+      expect(canManage("printer", s), `printer quản lý được ${s}`).toBe(false);
+    }
+  });
+
+  it("printer không quản lý được nhân viên", () => {
+    expect(canManageStaff("printer")).toBe(false);
+  });
+});

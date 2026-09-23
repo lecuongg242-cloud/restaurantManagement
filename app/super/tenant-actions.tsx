@@ -5,6 +5,7 @@ import {
   setTenantStatus,
   resetOwnerPassword,
   deleteTenant,
+  createPrintBridgeAccount,
   type SuperActionState,
 } from "./actions";
 import { buttonVariants } from "@/components/ui/button";
@@ -112,6 +113,45 @@ export function DeleteTenantForm({ tenantId, slug }: { tenantId: string; slug: s
             Xoá
           </SubmitButton>
         </div>
+        {state.error && <p className="text-xs text-status-late">{state.error}</p>}
+      </form>
+    </details>
+  );
+}
+
+/**
+ * Cấp / xoay tài khoản cầu in. Kết quả hiện MỘT LẦN, dạng chép-dán thẳng vào .env.local của máy
+ * đặt tại quán. Không lưu lại để đọc về sau — mất thì cấp cái mới (QD-012 §1).
+ */
+export function PrintBridgeForm({ tenantId }: { tenantId: string }) {
+  const [state, action] = useActionState(createPrintBridgeAccount, EMPTY);
+  return (
+    <details className="w-full sm:w-auto">
+      <summary
+        className={cn(
+          buttonVariants({ variant: "secondary", size: "sm" }),
+          "w-full cursor-pointer list-none sm:w-auto [&::-webkit-details-marker]:hidden"
+        )}
+      >
+        Tài khoản cầu in
+      </summary>
+      <form
+        action={action}
+        className="mt-sm flex max-w-md flex-col gap-xs rounded-md border border-hairline-soft bg-surface p-sm"
+      >
+        <input type="hidden" name="tenant_id" value={tenantId} />
+        <p className="text-xs text-slate">
+          Cấp mới hoặc xoay mật khẩu cho máy cầu in đặt tại quán. Mật khẩu chỉ hiện một lần. Máy tại
+          quán không bao giờ được giữ khóa service-role.
+        </p>
+        <SubmitButton size="sm" pendingLabel="Đang cấp…">
+          Cấp tài khoản
+        </SubmitButton>
+        {state.ok && (
+          <pre className="w-full whitespace-pre-wrap break-all rounded bg-cream-soft p-xs font-mono text-xs text-ink">
+            {state.ok}
+          </pre>
+        )}
         {state.error && <p className="text-xs text-status-late">{state.error}</p>}
       </form>
     </details>

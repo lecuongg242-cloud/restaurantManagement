@@ -1,6 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 
-export type Role = "owner" | "manager" | "cashier" | "waiter" | "kitchen" | "station";
+export type Role =
+  | "owner"
+  | "manager"
+  | "cashier"
+  | "waiter"
+  | "kitchen"
+  | "station"
+  /** Tài khoản THIẾT BỊ của cầu in ESC/POS tại quán (QD-012 §1). Không mở được bề mặt nào. */
+  | "printer";
 
 export type TenantInfo = {
   id: string;

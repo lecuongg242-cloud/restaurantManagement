@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSuperAdmin } from "@/lib/auth/session";
 import { slugify } from "@/lib/utils";
+import { provisionPrintBridgeAccount } from "@/lib/print/bridge-account";
 
 /** Tra tài khoản auth theo email (phân trang listUsers) — trả null nếu không có. */
 async function findAuthUserByEmail(
@@ -260,4 +261,48 @@ export async function deleteTenant(
 
   revalidatePath("/super");
   return {};
+}
+
+/**
+ * Cấp (hoặc xoay) tài khoản THIẾT BỊ cho cầu in của một nhà hàng — QD-012 §1, PRINT-05.
+ * Chỉ super-admin. Lớp mỏng: kiểm quyền + tra tenant, phần việc thật nằm ở
+ * `lib/print/bridge-account.ts` (tách ra để test được bằng DB thật).
+ *
+ * Đặt ở /super chứ không phải /admin: cầu in do chúng ta lắp khi mở quán. Đưa vào khu admin sẽ
+ * phải mở `canAssignRole` cho vai trò `printer` và biến khóa thiết bị thành thứ chủ quán tự phát.
+ */
+export async function createPrintBridgeAccount(
+  _prev: SuperActionState,
+  formData: FormData
+): Promise<SuperActionState> {
+  const su = await isSuperAdmin();
+  if (!su) redirect("/super/login");
+
+  const tenantId = String(formData.get("tenant_id") ?? "").trim();
+  if (!tenantId) return { error: "Thiếu nhà hàng." };
+
+  const admin = createAdminClient();
+  const { data: tenant, error: tErr } = await admin
+    .from("tenants")
+    .select("id, slug, name")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (tErr) return { error: `Không tra được nhà hàng: ${tErr.message}` };
+  if (!tenant) return { error: "Không tìm thấy nhà hàng." };
+
+  try {
+    const { email, password } = await provisionPrintBridgeAccount(admin, {
+      tenantId: tenant.id,
+      slug: tenant.slug,
+      name: tenant.name,
+    });
+    revalidatePath("/super");
+    return {
+      ok:
+        `PRINT_BRIDGE_EMAIL=${email}\nPRINT_BRIDGE_PASSWORD=${password}\n\n` +
+        `Chép hai dòng trên vào .env.local của máy cầu in. Mật khẩu KHÔNG hiện lại lần nữa.`,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Không cấp được tài khoản cầu in." };
+  }
 }

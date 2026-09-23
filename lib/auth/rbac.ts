@@ -22,6 +22,10 @@ export function defaultSectionForRole(role: Role): Section {
     case "station":
       // Trạm dùng chung — mặc định POS; thiết bị KDS mở /kds trực tiếp.
       return "pos";
+    case "printer":
+      // Không bao giờ dùng tới: cầu in không đăng nhập qua giao diện. Khai báo để switch còn đủ
+      // nhánh — thêm vai trò mới mà quên khai quyền thì TS báo lỗi ngay thay vì im lặng.
+      return "customer";
   }
 }
 
@@ -36,6 +40,10 @@ export function defaultRouteForRole(slug: string, role: Role): string {
  * sau mà lỡ quên guard cũng chỉ lộ cho owner/manager.
  */
 export function canAccess(role: Role, section: Section): boolean {
+  // Cầu in chỉ nói chuyện với PostgREST, không có giao diện nào. Khóa lộ ra ngoài cũng không mở
+  // được /admin, /pos hay /kds — đó là phần lớn giá trị của việc tách nó khỏi service-role.
+  if (role === "printer") return false;
+
   switch (section) {
     case "admin":
       return role === "owner" || role === "manager";
