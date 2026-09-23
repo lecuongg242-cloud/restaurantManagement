@@ -55,6 +55,41 @@ nên để ngoài P7 (chủ dự án chốt 23/09/2026):
 | Không có log/metric gắn `tenant_id` | Đau khi hỗ trợ >10 quán; là việc vận hành, không phải việc code |
 | Mô hình gói cước / self-serve onboarding | Đã hoãn sang **V3** theo `50-PhienBan/V2-KeHoach.md` (định giá theo số chi nhánh nên phải làm đa chi nhánh trước) |
 
+## Việc ngoài kế hoạch đã xử lý — sổ cái migration (23/09/2026)
+
+Phát hiện khi áp `0038`: bảng `supabase_migrations.schema_migrations` (sổ cái các migration đã
+chạy) dừng ở `0028`, trong khi repo đã có tới `0037` và schema database thì đã đổi theo. Nguyên
+nhân: từ `0027` trở đi migration được áp **bằng tay** (SQL editor / psql) thay vì
+`supabase db push`, nên schema đổi mà sổ cái không biết. Dòng `0028` còn mang nhãn sai
+(`cancel_report_rpcs` — tên của file `0029`).
+
+**Vì sao phải sửa.** `supabase db push` chạy mọi file **không có trong sổ cái**. Với 12 file bị
+sót (`0027`, `0029`–`0039`), bước `npx supabase db push` trong `.github/workflows/ci.yml` sẽ chạy
+lại cả 12 trên database đang phục vụ khách. Rà từng file thì cả 12 đều viết theo lối chạy lại được
+(`create index if not exists`, `create or replace function`, `drop constraint if exists` rồi mới
+`add`; các câu `update`/`insert` ở `0031`/`0032`/`0035` nằm trong thân hàm, không phải lệnh chạy
+ngay) — nên chạy lại *hôm nay* vô hại. Nhưng đó là **may**, không phải thiết kế:
+`0028_cancel_tracking.sql` có hai câu `update` backfill chạy thẳng trên `orders` và `order_items`;
+nó chỉ tình cờ nằm trong sổ cái nên thoát. Migration kiểu đó sẽ còn xuất hiện.
+
+**Đã làm.** Sao lưu sổ cái, rồi `supabase migration repair --status applied` cho 12 số hiệu còn
+thiếu, và sửa nhãn dòng `0028`. **Không chạy lại SQL nào** — chỉ ghi nhận sự thật là chúng đã áp.
+
+**Kiểm chứng:**
+
+```
+supabase migration list    → 39/39 dòng local == remote
+supabase db push --dry-run → {"upToDate":true,"migrations":[]}
+```
+
+Dữ liệu không đổi (6.528 đơn, 5.974 bill trước và sau), 3 quán vẫn `active`, cổng `suspended` của
+`0039` còn nguyên.
+
+**Quy tắc từ nay:** migration áp bằng `supabase db push`, không chạy tay trên SQL editor. Nếu buộc
+phải chạy tay (sự cố, hotfix), **ngay sau đó** chạy
+`supabase migration repair --status applied <version>` — sổ cái sai thì không ai còn biết database
+đang ở đâu, và bước `db push` trong CI trở thành khẩu súng đã lên đạn chĩa vào production.
+
 ## Tiêu chí hoàn thành P7
 
 1. `npm run test:rls` xanh, phủ đủ 18 bảng × 4 phép (TENANT-05).
