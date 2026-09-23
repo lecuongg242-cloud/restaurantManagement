@@ -6,10 +6,14 @@
 //
 // Chạy:  npm run print:bridge          (vòng lặp thật)
 //        npm run print:bridge:test     (in 1 phiếu mẫu, không đụng DB — dùng để thử máy in)
+//        node scripts/print-bridge.mjs --test-auth   (kiểm đăng nhập lúc lắp đặt)
 //
-// Env (đọc từ .env.local): NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-// PRINT_TENANT_SLUG (hoặc PRINT_TENANT_ID), PRINTER_HOST, PRINTER_PORT, PRINTER_CHARS, POLL_MS,
-// MAX_JOB_AGE_MIN.
+// Env (đọc từ .env.local): NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+// PRINT_BRIDGE_EMAIL, PRINT_BRIDGE_PASSWORD (cấp ở /super → "Tài khoản cầu in"),
+// PRINTER_HOST, PRINTER_PORT, PRINTER_CHARS, POLL_MS, MAX_JOB_AGE_MIN.
+//
+// KHÔNG dùng service-role: máy này đặt tại quán, service-role bỏ qua RLS nên mất máy là lộ dữ
+// liệu MỌI nhà hàng (QD-012 §1). Tenant suy từ token, không cấu hình tay.
 //
 // KHÔNG phụ thuộc npm nào — chỉ dùng thư viện sẵn của Node (net/fs) + fetch. Nhờ vậy lắp tại quán
 // chỉ cần copy FILE NÀY + .env.local sang laptop có Node 20+, không phải clone repo hay npm install.
@@ -242,57 +246,108 @@ if (TEST_MODE) {
 
 // ── Vòng lặp thật ──────────────────────────────────────────────────────────────
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !serviceKey) {
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const bridgeEmail = process.env.PRINT_BRIDGE_EMAIL;
+const bridgePassword = process.env.PRINT_BRIDGE_PASSWORD;
+
+if (!url || !anonKey || !bridgeEmail || !bridgePassword) {
   console.error(
-    `Thiếu NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY${envFile ? ` trong ${envFile}` : " (không tìm thấy .env.local)"}`
+    `Thiếu NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / PRINT_BRIDGE_EMAIL / ` +
+      `PRINT_BRIDGE_PASSWORD${envFile ? ` trong ${envFile}` : " (không tìm thấy .env.local)"}.
+` +
+      `Tài khoản cầu in cấp ở /super → hàng nhà hàng → "Tài khoản cầu in".`
   );
   process.exit(1);
 }
 
-const REST = `${url.replace(/\/+$/, "")}/rest/v1`;
+const BASE = url.replace(/\/+$/, "");
+const REST = `${BASE}/rest/v1`;
 
-/** Gọi PostgREST của Supabase bằng fetch — thay cho @supabase/supabase-js để cầu in không cần npm. */
-async function rest(pathAndQuery, init = {}) {
+/**
+ * Máy này đặt TẠI QUÁN nên KHÔNG bao giờ giữ service-role (QD-012 §1): service-role bỏ qua RLS,
+ * một laptop bị mất là lộ dữ liệu của mọi nhà hàng. Cầu in đăng nhập như mọi client khác, bằng
+ * tài khoản thiết bị vai trò `printer` chỉ thuộc đúng quán này. RLS lo phần còn lại.
+ */
+let accessToken = null;
+
+async function login() {
+  const res = await fetch(`${BASE}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { apikey: anonKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: bridgeEmail, password: bridgePassword }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Đăng nhập cầu in thất bại (HTTP ${res.status}). Kiểm tra PRINT_BRIDGE_EMAIL/PASSWORD, ` +
+        `hoặc cấp lại tài khoản ở /super.`
+    );
+  }
+  const body = await res.json();
+  accessToken = body.access_token;
+}
+
+/**
+ * Gọi PostgREST bằng fetch — không dùng @supabase/supabase-js để cầu in không cần npm.
+ * Token hết hạn (401) thì đăng nhập lại MỘT lần rồi thử lại: đơn giản hơn theo dõi hạn token và
+ * bền hơn với tiến trình chạy liên tục nhiều ngày.
+ */
+async function rest(pathAndQuery, init = {}, allowRetry = true) {
+  if (!accessToken) await login();
+
   const res = await fetch(`${REST}${pathAndQuery}`, {
     ...init,
     headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
+      apikey: anonKey,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       ...init.headers,
     },
   });
+
+  if (res.status === 401 && allowRetry) {
+    accessToken = null;
+    return rest(pathAndQuery, init, false);
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status} — ${(await res.text()).slice(0, 200)}`);
   if (res.status === 204) return null;
   const body = await res.text();
   return body ? JSON.parse(body) : null;
 }
 
-/** Cầu in đặt tại 1 quán → CHỈ in phiếu của tenant đó (SaaS nhiều tenant chung 1 project). */
+/**
+ * Tenant suy từ CHÍNH token, không phải từ biến môi trường: cấu hình nhầm quán trở thành chuyện
+ * không thể xảy ra, và RLS là thứ quyết định chứ không phải quy ước trong file này.
+ *
+ * Trả null thay vì thoát khi chưa tra được: quán bị tạm ngưng làm auth_tenant_ids() rỗng, và cầu
+ * in phải tự hoạt động lại khi quán được kích hoạt, không cần ai ra tận nơi bật lại.
+ */
 async function resolveTenantId() {
-  if (process.env.PRINT_TENANT_ID) return process.env.PRINT_TENANT_ID;
-  const slug = process.env.PRINT_TENANT_SLUG;
-  if (!slug) {
-    console.error("Thiếu PRINT_TENANT_SLUG (hoặc PRINT_TENANT_ID) trong .env.local — cầu in phải biết in cho quán nào.");
-    process.exit(1);
-  }
   let rows;
   try {
-    rows = await rest(`/tenants?select=id,name&slug=eq.${encodeURIComponent(slug)}&limit=1`);
+    rows = await rest(`/memberships?select=tenant_id&role=eq.printer&active=is.true&limit=1`);
   } catch (err) {
-    console.error(`Không đọc được danh sách quán: ${err.message}`);
-    process.exit(1);
+    log(`Chưa tra được nhà hàng: ${err.message}`);
+    return null;
   }
   if (!rows?.length) {
-    console.error(`Không tìm thấy quán có slug "${slug}".`);
-    process.exit(1);
+    log("Tài khoản cầu in chưa gắn nhà hàng nào, hoặc nhà hàng đang tạm ngưng. Sẽ thử lại.");
+    return null;
   }
-  log(`Quán: ${rows[0].name} (${slug})`);
-  return rows[0].id;
+  return rows[0].tenant_id;
 }
 
-const tenantId = await resolveTenantId();
+// Xác minh thông tin đăng nhập LÚC LẮP ĐẶT, không phải chờ tới phiếu in đầu tiên mới biết sai.
+if (process.argv.includes("--test-auth")) {
+  const id = await resolveTenantId();
+  if (!id) {
+    console.error("Đăng nhập được nhưng chưa gắn nhà hàng nào. Kiểm tra lại ở /super.");
+    process.exit(1);
+  }
+  log(`Đăng nhập OK. Cầu in phục vụ tenant ${id}.`);
+  process.exit(0);
+}
+
+let tenantId = await resolveTenantId();
 const inFlight = new Set(); // chống lấy lại job đang in trong cùng tiến trình
 
 /** Đánh dấu kết quả in. Lỗi mạng ở bước này chỉ ghi log — phiếu đã ra giấy rồi, không in lại. */
@@ -305,6 +360,12 @@ async function markJob(id, patch) {
 }
 
 async function pollOnce() {
+  // Quán có thể bị tạm ngưng rồi bật lại — thử tra lại thay vì chết hẳn.
+  if (!tenantId) {
+    tenantId = await resolveTenantId();
+    if (!tenantId) return;
+  }
+
   const since = new Date(Date.now() - MAX_JOB_AGE_MIN * 60_000).toISOString();
   let jobs;
   try {

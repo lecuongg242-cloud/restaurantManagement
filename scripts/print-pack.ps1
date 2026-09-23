@@ -11,7 +11,10 @@
 #   powershell -ExecutionPolicy Bypass -File print-pack.ps1 -Slug bun-bo -Chars 32
 #
 # Tham so (bo qua het cung chay duoc, dung mac dinh ben duoi):
-#   -Slug    Slug quan trong URL /r/<slug>. Mac dinh: PRINT_TENANT_SLUG trong .env.local, hoac qt-food
+#   -Slug    Slug quan trong URL /r/<slug>. Mac dinh: qt-food
+#   -BridgePassword  BAT BUOC. Mat khau tai khoan cau in, lay o /super -> "Tai khoan cau in".
+#                    Chi hien mot lan luc cap; mat thi vao /super cap lai.
+#   -BridgeEmail     Mac dinh: print-<slug>@bridge.local (dung nhu /super sinh ra)
 #   -AppUrl  URL trang POS. Mac dinh: https://restaurant-management-zeta.vercel.app/r/<slug>/pos
 #   -Chars   Kho giay may in bep: 48 = 80mm (mac dinh), 32 = 58mm
 #   -OutDir  Thu muc xuat. Mac dinh: <repo>\cau-in-<slug>
@@ -20,7 +23,9 @@ param(
   [string]$Slug,
   [string]$AppUrl,
   [int]$Chars = 48,
-  [string]$OutDir
+  [string]$OutDir,
+  [string]$BridgeEmail,
+  [string]$BridgePassword
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,13 +78,18 @@ foreach ($raw in (Get-Content $envPath -Encoding UTF8)) {
   if (-not $cfg.ContainsKey($k)) { $cfg[$k] = $v }
 }
 
-foreach ($k in @("NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")) {
+# CO Y chi lay khoa CONG KHAI. SUPABASE_SERVICE_ROLE_KEY khong bao gio roi khoi may dev nua
+# (QD-012 §1): no bo qua RLS toan project, mot laptop quan bi mat la lo du lieu MOI nha hang.
+foreach ($k in @("NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY")) {
   if (-not $cfg[$k]) { Die "Thieu $k trong $envPath" }
 }
-Ok "Da lay NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY"
+Ok "Da lay NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY (khong lay service-role)"
 
-if (-not $Slug) { $Slug = $cfg["PRINT_TENANT_SLUG"] }
 if (-not $Slug) { $Slug = "qt-food" }
+if (-not $BridgeEmail) { $BridgeEmail = "print-$Slug@bridge.local" }
+if (-not $BridgePassword) {
+  Die "Thieu -BridgePassword. Vao /super -> hang nha hang '$Slug' -> 'Tai khoan cau in' -> 'Cap tai khoan', roi chay lai kem -BridgePassword '<mat khau>'."
+}
 if (-not $AppUrl) { $AppUrl = "https://restaurant-management-zeta.vercel.app/r/$Slug/pos" }
 if (-not $OutDir) { $OutDir = Join-Path $RepoRoot "cau-in-$Slug" }
 $InstallDir = "C:\cau-in-$Slug"
@@ -114,11 +124,15 @@ Write-Host "[3/4] Sinh .env.local va CAI-DAT.bat" -ForegroundColor Cyan
 # PRINTER_HOST co y KHONG ghi o day: print-setup.ps1 buoc 4 tu do may in bep roi ghi vao.
 $envOut = @"
 # Cau hinh cau in bep - quan $Slug
-# File nay do scripts/print-pack.ps1 sinh ra. KHONG gui cho nguoi ngoai:
-# SUPABASE_SERVICE_ROLE_KEY bo qua Row Level Security cua toan project.
+# File nay do scripts/print-pack.ps1 sinh ra. KHONG gui cho nguoi ngoai.
+#
+# Tai khoan duoi day chi la thanh vien vai tro `printer` cua DUNG quan nay: lo ra ngoai thi
+# thiet hai gioi han trong quan nay, va no khong mo duoc /admin, /pos hay /kds (QD-012 §1).
+# Tenant suy tu chinh token - khong co dong nao chi dinh quan o day, nen khong the cau hinh nham.
 NEXT_PUBLIC_SUPABASE_URL=$($cfg['NEXT_PUBLIC_SUPABASE_URL'])
-SUPABASE_SERVICE_ROLE_KEY=$($cfg['SUPABASE_SERVICE_ROLE_KEY'])
-PRINT_TENANT_SLUG=$Slug
+NEXT_PUBLIC_SUPABASE_ANON_KEY=$($cfg['NEXT_PUBLIC_SUPABASE_ANON_KEY'])
+PRINT_BRIDGE_EMAIL=$BridgeEmail
+PRINT_BRIDGE_PASSWORD=$BridgePassword
 PRINTER_PORT=9100
 PRINTER_CHARS=$Chars
 POLL_MS=2000

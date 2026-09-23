@@ -106,14 +106,18 @@ Bẫy hay gặp với Xprinter/Sapo là máy in giữ IP tĩnh mặc định `19
 phát dải khác — hai bên không thấy nhau dù dây cắm đúng. Sửa: cắm USB → `Printer Test Tool` của
 Xprinter → tab Ethernet → chuyển **DHCP**.
 
-**3a. Đóng gói bộ cài — trên máy dev, một lần bấm.** Double-click `scripts/print-pack.bat`.
-Script đọc `.env.local` của repo, lấy đúng 2 khóa cầu in cần (`NEXT_PUBLIC_SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY` — **không** chép cả file, vì `.env.local` repo còn
-`POSTGRES_PASSWORD`/`STAFF_PIN_PEPPER` mà laptop quán không cần), rồi ghép thư mục
-`cau-in-<slug>/` + file `.zip` cùng tên ở gốc repo. Cả hai bị `.gitignore` chặn.
+**3a‑0. Cấp tài khoản cầu in — làm TRƯỚC khi đóng gói.** Vào `/super` → hàng nhà hàng →
+**Tài khoản cầu in** → **Cấp tài khoản**. Khối kết quả hiện `PRINT_BRIDGE_EMAIL` và
+`PRINT_BRIDGE_PASSWORD`; mật khẩu **chỉ hiện một lần**, mất thì cấp lại (mật khẩu cũ hết hiệu lực
+ngay, chỉ ảnh hưởng quán đó).
 
-Quán khác thì đổi tham số: `print-pack.bat -Slug bun-bo -Chars 32` (58mm) — mặc định là
-`qt-food`, khổ 80mm, POS `https://restaurant-management-zeta.vercel.app/r/<slug>/pos`.
+**3a. Đóng gói bộ cài — trên máy dev.** Chạy `print-pack.bat -BridgePassword "<mật khẩu vừa cấp>"`.
+Script đọc `.env.local` của repo, lấy đúng 2 khóa **công khai** (`NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`), ghép với tài khoản cầu in, rồi sinh thư mục `cau-in-<slug>/` +
+file `.zip` cùng tên ở gốc repo. Cả hai bị `.gitignore` chặn.
+
+Quán khác thì đổi tham số: `print-pack.bat -Slug bun-bo -Chars 32 -BridgePassword "…"` (58mm) —
+mặc định là `qt-food`, khổ 80mm, POS `https://restaurant-management-zeta.vercel.app/r/<slug>/pos`.
 
 **3b. Cài lên laptop quán — một lần bấm.** Chép thư mục (hoặc giải nén file zip) sang laptop
 quán rồi double-click `CAI-DAT.bat`. URL POS và thư mục cài đã nhúng sẵn lúc đóng gói nên tại
@@ -146,8 +150,9 @@ Thư mục triển khai (`print-pack.bat` sinh ra, không ghép tay) gồm:
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
-PRINT_TENANT_SLUG=qt-food        # slug trong URL /r/<slug>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...          # khóa CÔNG KHAI, không phải service-role
+PRINT_BRIDGE_EMAIL=print-qt-food@bridge.local
+PRINT_BRIDGE_PASSWORD=...                  # cấp ở /super, hiện một lần
 PRINTER_HOST=192.168.1.234       # IP máy in bếp
 PRINTER_PORT=9100
 PRINTER_CHARS=48                 # 80mm=48, 58mm=32
@@ -155,13 +160,26 @@ POLL_MS=2000
 MAX_JOB_AGE_MIN=30               # bỏ qua phiếu tồn cũ hơn 30 phút
 ```
 
-> **Nợ kỹ thuật cần trả**: `SUPABASE_SERVICE_ROLE_KEY` bỏ qua RLS **toàn project** — laptop quán A
-> cầm key này đọc/ghi được dữ liệu mọi quán khác. Chấp nhận tạm khi mới 1 quán, **phải** đổi sang
-> token riêng theo tenant (cầu in gọi API route của app thay vì Supabase trực tiếp) trước khi lắp
-> cho quán thứ hai.
+> **Nợ kỹ thuật này ĐÃ TRẢ (07-02, QD-012 §1).** Trước đây laptop quán giữ
+> `SUPABASE_SERVICE_ROLE_KEY` — khóa bỏ qua RLS toàn project, nên máy quán A đọc/ghi được dữ liệu
+> mọi quán khác. Nay cầu in dùng tài khoản thiết bị vai trò `printer` chỉ thuộc đúng quán mình.
+> Đo thực tế: token cầu in gọi `/rest/v1/tenants` trả về **1** nhà hàng; service-role trả về **tất
+> cả**. `canAccess('printer', …)` là `false` ở mọi khu vực nên khóa lộ ra cũng không mở được
+> `/admin`, `/pos`, `/kds`.
+>
+> **Rủi ro còn lại (đã cân nhắc, chấp nhận):** tài khoản `printer` vẫn đọc được các bảng khác **của
+> chính quán đó** qua PostgREST thô. Bịt nốt phải sửa policy trên cả 18 bảng — thay đổi rộng, lợi
+> ích nhỏ, vì người cầm được máy đặt tại quán đó vốn đã đứng trong quán đó.
+>
+> **Chuyển đổi quán đang chạy (vd qt-food):** cấp tài khoản ở `/super` → đóng gói lại bằng
+> `print-pack.bat -BridgePassword "…"` → chép `.env.local` mới sang laptop quán → chạy
+> `node print-bridge.mjs --test-auth` để xác nhận → khởi động lại tác vụ `CauInBep`. Làm ngoài giờ
+> phục vụ: trong lúc đổi, phiếu bếp không tự in.
 
-**4. Nghiệm thu** — làm đủ 4 phép mới coi là xong:
+**4. Nghiệm thu** — làm đủ 5 phép mới coi là xong:
 
+0. `node print-bridge.mjs --test-auth` → in ra `Đăng nhập OK. Cầu in phục vụ tenant <uuid>.`
+   Sai mật khẩu hay chưa gắn quán thì biết ngay ở bước này, không phải chờ tới phiếu đầu tiên.
 1. Bấm "Phiếu bếp" trên POS → giấy ra ở **bếp**, chip POS xanh
 2. In 1 hóa đơn → giấy ra ở **quầy**, không hiện hộp thoại
 3. **Tắt hẳn laptop, bật lại, không bấm gì** → bấm "Phiếu bếp" vẫn ra giấy
