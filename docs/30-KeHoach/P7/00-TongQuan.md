@@ -85,6 +85,12 @@ supabase db push --dry-run → {"upToDate":true,"migrations":[]}
 Dữ liệu không đổi (6.528 đơn, 5.974 bill trước và sau), 3 quán vẫn `active`, cổng `suspended` của
 `0039` còn nguyên.
 
+> **Đính chính (23/09/2026, sau khi rà REPORT-04).** Sửa sổ cái là cần nhưng CHƯA đủ, và kết luận
+> "db push là no-op nên an toàn" ở trên rộng hơn mức đã kiểm. Repo vẫn không mô tả đúng production:
+> view `bills_revenue`, 9 hàm báo cáo và trigger `handle_new_user` chỉ tồn tại trên production.
+> Sổ cái đúng mà repo sai còn nguy hiểm hơn cả hai cùng sai — vì lúc đó công cụ báo "mọi thứ ổn".
+> Đã chụp lại ở `0040`; chi tiết và phần chưa xử lý (`has_role` đang hỏng) ở `15-QuyetDinh/QD-013`.
+
 **Quy tắc từ nay:** migration áp bằng `supabase db push`, không chạy tay trên SQL editor. Nếu buộc
 phải chạy tay (sự cố, hotfix), **ngay sau đó** chạy
 `supabase migration repair --status applied <version>` — sổ cái sai thì không ai còn biết database
