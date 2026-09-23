@@ -171,10 +171,8 @@ MAX_JOB_AGE_MIN=30               # bỏ qua phiếu tồn cũ hơn 30 phút
 > chính quán đó** qua PostgREST thô. Bịt nốt phải sửa policy trên cả 18 bảng — thay đổi rộng, lợi
 > ích nhỏ, vì người cầm được máy đặt tại quán đó vốn đã đứng trong quán đó.
 >
-> **Chuyển đổi quán đang chạy (vd qt-food):** cấp tài khoản ở `/super` → đóng gói lại bằng
-> `print-pack.bat -BridgePassword "…"` → chép `.env.local` mới sang laptop quán → chạy
-> `node print-bridge.mjs --test-auth` để xác nhận → khởi động lại tác vụ `CauInBep`. Làm ngoài giờ
-> phục vụ: trong lúc đổi, phiếu bếp không tự in.
+> **Quán ĐANG CHẠY thì chưa tự khỏi.** Sửa mã nguồn không làm cái khóa nằm trên laptop ngoài kia
+> biến mất. Xem §*Chuyển đổi quán đang chạy* bên dưới — có quy trình từng bước và cách quay lại.
 
 **4. Nghiệm thu** — làm đủ 5 phép mới coi là xong:
 
@@ -199,6 +197,113 @@ powershell -ExecutionPolicy Bypass -File print-scan.ps1 -TestPrint <IP>      # i
 
 Muốn xem log thì double-click `print-bridge.bat` (có cửa sổ) — nhớ đóng lại sau khi xem, để hai cầu
 in chạy cùng lúc sẽ **in trùng phiếu**.
+
+## Chuyển đổi quán đang chạy sang tài khoản cầu in
+
+Dành cho quán đã lắp cầu in theo cách cũ (laptop còn giữ `SUPABASE_SERVICE_ROLE_KEY`). Tính tới
+23/09/2026: **qt-food chưa chuyển**.
+
+**Làm ngoài giờ phục vụ.** Trong lúc đổi, phiếu bếp không tự in — bếp in tay ở POS hoặc chờ.
+
+> **Đừng ghi đè cả `.env.local` bằng bản mới đóng gói.** File trên laptop quán có `PRINTER_HOST`
+> mà lúc cài `print-setup.ps1` dò ra rồi ghi vào; bản trong repo không có. Mất dòng đó là cầu in
+> gõ vào IP mặc định `192.168.1.234` — nhiều khả năng không phải máy in của quán. **Sửa tại chỗ.**
+
+### Chuẩn bị trên máy dev
+
+1. `/super` → hàng nhà hàng → **Tài khoản cầu in** → **Cấp tài khoản**. Chép 2 dòng hiện ra
+   (`PRINT_BRIDGE_EMAIL`, `PRINT_BRIDGE_PASSWORD`). Mật khẩu **chỉ hiện một lần**; mất thì cấp
+   lại, mật khẩu cũ hết hiệu lực ngay và chỉ ảnh hưởng quán đó.
+2. Lấy `NEXT_PUBLIC_SUPABASE_ANON_KEY` từ `.env.local` của repo. Khóa này công khai (đã đi vào
+   mọi trình duyệt khách), không phải bí mật.
+3. Chép `scripts/print-bridge.mjs` bản mới ra USB hoặc qua TeamViewer/AnyDesk.
+
+### Tại quán — PowerShell chạy bằng quyền Administrator
+
+```powershell
+# 4. Sao lưu TRƯỚC khi đụng gì
+cd C:\cau-in-qt-food
+copy .env.local .env.local.bak
+copy print-bridge.mjs print-bridge.mjs.bak
+
+# 5. Dừng cầu in (đóng luôn cửa sổ đen "CAU IN BEP DANG CHAY" nếu có mở tay)
+schtasks /end /tn "CauInBep"
+```
+
+**6.** Chép đè `print-bridge.mjs` bản mới vào `C:\cau-in-qt-food`.
+
+**7.** Mở `.env.local` bằng Notepad.
+
+**Xóa** 2 dòng:
+
+```
+SUPABASE_SERVICE_ROLE_KEY=...
+PRINT_TENANT_SLUG=qt-food
+```
+
+**Thêm** 3 dòng:
+
+```
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key bước 2>
+PRINT_BRIDGE_EMAIL=print-qt-food@bridge.local
+PRINT_BRIDGE_PASSWORD=<mật khẩu bước 1>
+```
+
+**Giữ nguyên** `NEXT_PUBLIC_SUPABASE_URL`, `PRINTER_HOST`, `PRINTER_PORT`, `PRINTER_CHARS`,
+`POLL_MS`, `MAX_JOB_AGE_MIN`.
+
+```powershell
+# 8. Thử đăng nhập TRƯỚC khi bật lại
+node print-bridge.mjs --test-auth
+# Phải ra: Đăng nhập OK. Cầu in phục vụ tenant <uuid>.
+
+# 9. Bật lại
+schtasks /run /tn "CauInBep"
+```
+
+**10. Nghiệm thu:** bấm "Phiếu bếp" một đơn trên POS → giấy ra ở **bếp**, chip POS chuyển xanh.
+
+### Đọc lỗi ở bước 8
+
+| Thông báo | Nghĩa là |
+|---|---|
+| `Đăng nhập cầu in thất bại (HTTP 400)` | Sai email hoặc mật khẩu → cấp lại ở `/super` |
+| `Thiếu NEXT_PUBLIC_SUPABASE_ANON_KEY / PRINT_BRIDGE_...` | Gõ thiếu dòng hoặc sai tên biến trong `.env.local` |
+| `Đăng nhập được nhưng chưa gắn nhà hàng nào` | Cấp tài khoản nhầm quán, hoặc quán đang tạm ngưng |
+
+### Quay lại nếu hỏng — 30 giây
+
+```powershell
+schtasks /end /tn "CauInBep"
+cd C:\cau-in-qt-food
+copy /y .env.local.bak .env.local
+copy /y print-bridge.mjs.bak print-bridge.mjs
+schtasks /run /tn "CauInBep"
+```
+
+Tài khoản `printer` vừa cấp cứ để đó, không ảnh hưởng gì.
+
+### Dọn sau khi chạy ổn vài ngày
+
+Xóa `.env.local.bak`, `print-bridge.mjs.bak` trên laptop quán, và mọi bản `.zip` / thư mục
+`cau-in-<slug>` cũ còn sót trên máy dev, USB, Downloads — chúng vẫn chứa service-role key.
+
+### Việc còn lại sau khi chuyển: XOAY KHÓA
+
+Chuyển cầu in làm laptop **thôi không còn dùng** service-role key. Nhưng key đó **vẫn còn hiệu
+lực**. Nó đã nằm trên một máy ngoài tầm kiểm soát nhiều tháng và có thể còn trong file zip bộ cài,
+thư mục Downloads, hay lịch sử chat lúc gửi cho ai đó. Ai đã copy thì vẫn mở được dữ liệu của mọi
+nhà hàng.
+
+Đóng thật sự thì phải xoay khóa: **Supabase Dashboard → Project Settings → API**.
+
+- Dự án có cả khóa kiểu cũ (JWT `eyJ...`) lẫn kiểu mới (`sb_secret_...`). Xoay **JWT secret** vô
+  hiệu mọi phiên đăng nhập — toàn bộ nhân viên phải đăng nhập lại. Làm ngoài giờ.
+- Xoay xong **phải** cập nhật `SUPABASE_SERVICE_ROLE_KEY` ở Vercel env và `.env.local` máy dev,
+  nếu không app production chết.
+
+Rủi ro của việc xoay khóa khác hẳn việc chuyển cầu in, nên làm tách ra: chuyển cầu in trước cho
+sạch, xoay khóa hẹn sau — nhưng đừng bỏ.
 
 ## Nhân viên biết bếp đã nhận phiếu chưa
 Cạnh nút "Phiếu bếp" trên POS có **chip trạng thái thường trực** (không dùng toast — toast bay mất

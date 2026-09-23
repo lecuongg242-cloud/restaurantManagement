@@ -80,7 +80,15 @@ luôn: chỉ lấy `NEXT_PUBLIC_SUPABASE_ANON_KEY`, và bắt buộc truyền `-
    `/super` → cấp tài khoản → `print-pack.bat -BridgePassword "…"` → chép `.env.local` mới sang
    laptop quán → `node print-bridge.mjs --test-auth` → khởi động lại tác vụ `CauInBep`.
 
-   **Làm ngoài giờ phục vụ**: trong lúc đổi, phiếu bếp không tự in.
+   **Làm ngoài giờ phục vụ**: trong lúc đổi, phiếu bếp không tự in. Quy trình đầy đủ (sao lưu,
+   từng bước, đọc lỗi, cách quay lại trong 30 giây, dọn bản sao cũ) ở §*Chuyển đổi quán đang chạy*
+   trong cùng tài liệu đó.
+
+3. **Xoay `SUPABASE_SERVICE_ROLE_KEY`.** Chuyển cầu in làm laptop thôi *dùng* khóa cũ, nhưng khóa
+   đó vẫn còn hiệu lực và đã nằm ngoài tầm kiểm soát nhiều tháng (laptop quán, file zip bộ cài,
+   Downloads, lịch sử chat). Ai đã copy thì vẫn mở được dữ liệu mọi nhà hàng. Việc này rủi ro khác
+   hẳn — xoay JWT secret sẽ đăng xuất toàn bộ nhân viên và phải cập nhật Vercel env ngay — nên tách
+   riêng, nhưng đừng bỏ.
 
 > Chừng nào chưa làm bước 2, lỗ hổng vẫn còn nguyên **ở quán qt-food**. Code đã sẵn sàng, nhưng
 > mã nguồn sạch không tự làm cho cái key trên laptop ngoài kia biến mất.
