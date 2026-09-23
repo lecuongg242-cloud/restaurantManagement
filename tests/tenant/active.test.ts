@@ -51,6 +51,36 @@ describe("activeTenantBySlug", () => {
 
   it("slug không tồn tại → trả null, không ném lỗi", async () => {
     expect(await activeTenantBySlug("id", "khong-ton-tai-abc")).toBeNull();
-    expect(await isTenantActive("khong-ton-tai-abc")).toBe(false);
+  });
+});
+
+/**
+ * Cổng tạm ngưng nằm trên MỌI request vào /r/* nên nó là điểm hỏng đơn lẻ của cả 4 bề mặt.
+ * Quy tắc: CHỈ chặn khi có bằng chứng dương rằng quán đã ngưng. Không biết ≠ đã ngưng.
+ */
+describe("isTenantActive — chỉ chặn khi có bằng chứng dương", () => {
+  /** Client giả lập Supabase trả lỗi hạ tầng (mạng chớp, DB quá tải). */
+  const failingClient = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: null, error: { message: "network error" } }),
+        }),
+      }),
+    }),
+  };
+
+  it("lỗi hạ tầng → KHÔNG dựng biển tạm ngưng", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await isTenantActive(SLUG, failingClient as any)).toBe(true);
+  });
+
+  it("slug không tồn tại → không chặn, để trang con trả 404 đúng nghĩa", async () => {
+    expect(await isTenantActive("khong-ton-tai-abc")).toBe(true);
+  });
+
+  it("quán suspended → vẫn chặn (bằng chứng dương)", async () => {
+    await setStatus("suspended");
+    expect(await isTenantActive(SLUG)).toBe(false);
   });
 });
