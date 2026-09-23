@@ -50,3 +50,19 @@ export async function myTenantId(client: SupabaseClient): Promise<string> {
   if (!data?.length) throw new Error("Owner không thấy membership nào của chính mình (RLS sai?).");
   return data[0].tenant_id as string;
 }
+
+/**
+ * Tra `tenant_id` theo slug bằng SERVICE ROLE. Fixture cần biết ghi vào tenant nào TRƯỚC khi có
+ * phiên đăng nhập nào — `myTenantId()` không dùng được ở đây vì nó đi qua RLS.
+ */
+export async function tenantIdBySlug(slug: string): Promise<string> {
+  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!service) throw new Error("Thiếu SUPABASE_SERVICE_ROLE_KEY để dựng fixture RLS.");
+  const admin = createClient(URL!, service, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data, error } = await admin.from("tenants").select("id").eq("slug", slug).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error(`Không tìm thấy tenant "${slug}". Đã chạy seed chưa? (npm run seed)`);
+  return data.id as string;
+}
