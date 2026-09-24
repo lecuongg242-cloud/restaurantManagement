@@ -188,6 +188,10 @@ nhân viên **biết ngay** thay vì mất nhiều ngày mới phát hiện.
 
 ### Xử lý sự cố
 
+> **Gửi hỏng thì cầu in tự thử lại 3 lần** (giãn 1s → 3s) trước khi báo đỏ. Một cú chớp mạng LAN
+> không còn làm mất phiếu nữa. Máy in rút dây thật thì vẫn báo đỏ như cũ — chip "Bếp CHƯA in" ở POS
+> vẫn là dấu hiệu phải đi xem máy in.
+
 > **Cầu in "im" lúc quán vắng là bình thường, không phải treo.** Từ P8 (PERF-03) nhịp hỏi giãn
 > dần khi không có phiếu nào: 2 giây → 5 giây → 10 giây (trần). Có phiếu là về lại 2 giây ngay.
 > Phiếu đầu tiên sau một kỳ vắng dài ra chậm nhất khoảng 10 giây — đo thật ngày 24/09/2026 là

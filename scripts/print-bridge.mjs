@@ -58,6 +58,8 @@ const PORT = Number(process.env.PRINTER_PORT || 9100);
 const CHARS = Number(process.env.PRINTER_CHARS || 48); // 80mm=48, 58mm=32
 const POLL_MS = Number(process.env.POLL_MS || 2000);
 const SOCKET_TIMEOUT_MS = 8000;
+// Số lần THỬ LẠI khi gửi hỏng (ngoài lần đầu). 0 = giữ hành vi cũ.
+const SO_LAN_THU_LAI = Number(process.env.PRINT_RETRY ?? 2);
 /**
  * Bỏ qua job pending quá cũ. Cầu in tắt một đêm rồi bật lại mà không có chốt này thì toàn bộ phiếu
  * tồn đọng tuôn ra một lượt — bếp nhận cả chục phiếu của hôm qua. Quá hạn thì POS hiện chip đỏ
@@ -244,6 +246,40 @@ if (TEST_MODE) {
   }
 }
 
+// ── Thử lại khi gửi hỏng ──────────────────────────────────────────────────────
+/**
+ * Khoảng chờ giữa các lần thử, giãn dần. Máy in đang nghẽn mà dội liên tiếp vào thì chỉ nghẽn
+ * thêm; chờ một nhịp rồi thử lại mới có cơ hội qua.
+ */
+export const CHO_GIUA_LAN_MS = [1000, 3000];
+
+/**
+ * Gửi tới máy in, hỏng thì thử lại `soLanThuLai` lần trước khi bỏ cuộc.
+ *
+ * VÌ SAO: trước đây hỏng một lần là đánh `failed` luôn. Dữ liệu qt-food (24/09/2026): 174 lượt
+ * failed, chỉ 52 được in lại — **122 phiếu không bao giờ tới bếp**. Phục hồi dựa hoàn toàn vào
+ * người để ý chip đỏ giữa giờ cao điểm, và họ bỏ sót 70%.
+ *
+ * Phần lớn lỗi là chớp nhoáng (nghẽn LAN, timeout socket). Máy in rút dây thật thì thử mấy lần
+ * cũng hỏng — và lúc đó đánh `failed` mới đúng, chip đỏ vẫn hiện.
+ *
+ * Ném lỗi của LẦN CUỐI để log nói đúng nguyên nhân thật, không phải lỗi của lần đầu.
+ */
+export async function thuLaiGui(gui, soLanThuLai = 2, choMs = null) {
+  let loiCuoi;
+  for (let lan = 0; lan <= soLanThuLai; lan++) {
+    try {
+      return await gui();
+    } catch (err) {
+      loiCuoi = err;
+      if (lan === soLanThuLai) break;
+      const cho = choMs ?? CHO_GIUA_LAN_MS[Math.min(lan, CHO_GIUA_LAN_MS.length - 1)];
+      if (cho > 0) await new Promise((r) => setTimeout(r, cho));
+    }
+  }
+  throw loiCuoi;
+}
+
 // ── Nhịp poll thích ứng (PERF-03) ─────────────────────────────────────────────
 /**
  * Nhịp poll kế tiếp theo số nhịp RỖNG liên tiếp (nhịp không tìm thấy phiếu nào).
@@ -413,12 +449,12 @@ async function pollOnce() {
     if (inFlight.has(job.id)) continue;
     inFlight.add(job.id);
     try {
-      await sendToPrinter(buildKitchenTicket(job.payload ?? {}));
+      await thuLaiGui(() => sendToPrinter(buildKitchenTicket(job.payload ?? {})), SO_LAN_THU_LAI);
       await markJob(job.id, { status: "printed", printed_at: new Date().toISOString() });
       log(`Đã in phiếu ${job.payload?.ticketNo ?? job.id} (đơn #${job.payload?.kitchenNo ?? "?"})`);
     } catch (err) {
       await markJob(job.id, { status: "failed" }).catch(() => {});
-      log(`IN LỖI phiếu ${job.id}: ${err.message} — bấm in lại ở POS sau khi sửa máy in.`);
+      log(`IN LỖI phiếu ${job.id} (đã thử ${SO_LAN_THU_LAI + 1} lần): ${err.message} — bấm in lại ở POS sau khi sửa máy in.`);
     } finally {
       inFlight.delete(job.id);
     }

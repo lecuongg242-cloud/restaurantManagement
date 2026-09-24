@@ -1,7 +1,7 @@
 # BUG — Phiếu bếp thất lạc (174 lượt `failed`, 122 không bao giờ tới bếp)
 
-> Điều tra 24/09/2026, phát hiện trong lúc truy bug "in trùng". Trạng thái: **đã tìm ra nguyên
-> nhân gốc, CHƯA sửa** — hướng sửa cần chủ dự án chốt.
+> Điều tra 24/09/2026, phát hiện trong lúc truy bug "in trùng".
+> Trạng thái: **đã sửa phần thử lại (1)**; mục (2) và (3) chưa làm.
 
 ## Quy mô
 
@@ -63,9 +63,22 @@ in" vĩnh viễn cho những đơn đó.
 
 ## Hướng sửa đề nghị
 
-**1. Thử lại trước khi bỏ cuộc** (sửa gốc). Gặp lỗi gửi thì thử lại 2–3 lần, giãn dần (vd 2s → 5s →
-15s), chỉ đánh `failed` sau khi hết lượt. Phần lớn lỗi ở đây là chớp nhoáng — máy in rút dây thật
-thì 3 lần thử cũng hỏng, và lúc đó chip đỏ vẫn hiện đúng.
+**1. Thử lại trước khi bỏ cuộc** (sửa gốc) — ✅ **ĐÃ LÀM**.
+
+`thuLaiGui` trong `scripts/print-bridge.mjs`: 1 lần đầu + **2 lần thử lại**, chờ giãn dần
+**1s → 3s**, chỉ đánh `failed` sau khi hết lượt. Ném lỗi của **lần cuối** để log nói đúng nguyên
+nhân thật. Số lần chỉnh được qua `PRINT_RETRY` (0 = giữ hành vi cũ).
+
+Chờ giãn dần chứ không dội liên tiếp: máy in đang nghẽn mà bắn liên tục vào thì chỉ nghẽn thêm.
+
+Kiểm trên cầu in thật, trỏ vào cổng chết:
+
+```
+IN LỖI phiếu f5000000-…-bb (đã thử 3 lần): connect ECONNREFUSED 127.0.0.1:9 — bấm in lại ở POS…
+```
+
+Trước: bỏ cuộc ngay lần đầu. Sau: thử đủ 3 lần trong ~4 giây rồi mới báo hỏng.
+Test: `tests/print/retry.test.ts` 6/6 — gồm cả "hỏng rồi thành công thì KHÔNG mất phiếu".
 
 **2. Phiếu quá hạn phải có kết cục rõ ràng.** Đánh `failed` kèm lý do "quá hạn" thay vì để treo
 `pending` mãi. POS hiện đúng trạng thái thay vì "đang chờ" giả.
