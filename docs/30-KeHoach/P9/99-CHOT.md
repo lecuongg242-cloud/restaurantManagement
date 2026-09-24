@@ -90,7 +90,7 @@ dùng giờ database.
 
 | # | Thứ | Đã kiểm tới đâu |
 |---|---|---|
-| 21 | `print-setup.ps1` (bản đã sửa) chạy trọn trên Windows | Chỉ bộ phân tích cú pháp PowerShell. Logic `errorlevel` của `.bat` có thử trên cmd.exe thật |
+| 21 | `print-setup.ps1` (bản đã sửa) chạy trọn trên Windows | **Lộ lỗi khi cài thật ở qt-food (24/09 tối):** dòng tắt cầu in cũ tôi thêm dùng `2>$null` — với `$ErrorActionPreference = "Stop"`, PowerShell 5.1 biến lỗi "không có tác vụ" thành lỗi DỪNG script ở bước 6. Đã dựng lại được, vá bằng `cmd /c`, thử lại cùng điều kiện, đóng gói lại. Bước 6–7 vẫn chưa chạy trọn trên máy nào ngoài máy quán |
 | 23 | Thử máy in kiểu "mở kết nối rồi đóng, không gửi byte" trên **máy in nhiệt thật** | Máy in giả nhận 0 byte qua 8 lần thử. Chưa có công tắc tắt việc thử nếu máy in thật hành xử lạ |
 | 22 | Chuỗi đầy đủ **cầu in thật → nhịp tim → POS đổi đường → giấy ra ở máy in thật** | Từng khúc riêng: cầu in báo sống thật (tenant demo); đổi đường thật trên production với nhịp tim giả lập. Chưa bao giờ cả chuỗi với máy in phần cứng |
 

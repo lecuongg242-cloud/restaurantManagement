@@ -213,7 +213,10 @@ $bat = Join-Path $InstallDir "print-bridge.bat"
 # Tat cau in DANG CHAY truoc khi dang ky lai. Cai de (nang cap) ma khong tat thi ban cu van
 # chay song song ban moi. Ban cu chua co khoa mot phien (PRINT-08) nen khong nhuong -> neu ca hai
 # cung in duoc thi MOI PHIEU BEP RA HAI TO.
-schtasks /end /tn "CauInBep" 2>$null | Out-Null
+# Qua cmd /c chu KHONG dung "2>$null": voi $ErrorActionPreference = "Stop", PowerShell 5.1 bien
+# dong loi cua schtasks ("khong tim thay tac vu" - may cai LAN DAU chua co tac vu nay) thanh loi
+# DUNG SCRIPT. Da dung cai dat that o qt-food ngay 24/09/2026.
+cmd /c "schtasks /end /tn CauInBep >nul 2>&1"
 $cu = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
   Where-Object { $_.CommandLine -like '*print-bridge.mjs*' })
 foreach ($p in $cu) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
