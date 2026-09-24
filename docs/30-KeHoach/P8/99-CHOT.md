@@ -48,7 +48,7 @@ Nếu tôi sửa tiêu chí cho khớp thay vì điều tra, cả bốn đã th�
 **PERF-04 — chờ dữ liệu.** Tiêu chí là *"sau 2 tuần chạy thật, trả lời được: quán nào tốn nhất,
 đường nào chậm nhất, POS render bao nhiêu lần mỗi giờ cao điểm"*. Code xong, số nền có, nhưng chưa
 có 2 tuần dữ liệu production. Đây là con số quyết định có viết lại realtime (hướng C) hay không →
-`QD-014`.
+`QD-016`.
 
 **Hướng C cố ý chưa làm.** Bỏ `router.refresh()` chạm sâu `PosBoard`/`KdsBoard` — hai bề mặt
 qt-food dùng thật hằng ngày. Quyết bằng số của PERF-04, không bằng cảm giác.

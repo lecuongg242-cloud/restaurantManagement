@@ -14,6 +14,7 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 - [~] **P4 — Dòng tiền**: Bill gộp/tách, điều chỉnh (giảm giá/phí/VAT), thanh toán, in hóa đơn, dashboard — *code 5/5 plan hoàn tất (04-01..05), migration 0012–0013 áp dev, tsc/lint/test xanh; chờ 5 checkpoint human-verify*
 - [~] **P5 — Kênh online** (3 plan): Đặt bàn (duyệt tay + danh sách theo ngày), đặt món mang về/giao (vòng đời + thu tiền qua bill P4) — *05-01 & 05-02 code xong + **approved**; 05-03 code xong (tsc/lint xanh), migration 0014–0015 áp dev; chờ checkpoint 05-03*
 - [ ] **P6 — Phát hành**: PWA, E2E, 2 tenant demo prod, tài liệu V1.0
+- [x] **P7 — Cứng hóa đa tenant**, [~] **P8 — Tối ưu tải & chi phí**, [ ] **P9 — Vận hành không còn chỗ mù**
 
 ---
 
@@ -125,11 +126,32 @@ Chi tiết: `30-KeHoach/P8/00-TongQuan.md`, spec `superpowers/specs/2026-09-24-p
 - [x] 08-02 **POS thôi nạp lại thực đơn mỗi lần refresh** (PERF-02).
 - [x] 08-03 **Cầu in nhịp thích ứng** (PERF-03) — độc lập.
 
-P8 kết thúc bằng **"đã biết cái gì đáng tối ưu tiếp"** (QD-014), không phải "đã tối ưu". Viết lại
+P8 kết thúc bằng **"đã biết cái gì đáng tối ưu tiếp"** (QD-016), không phải "đã tối ưu". Viết lại
 realtime (bỏ `router.refresh()`) chờ số từ 08-04 rồi mới quyết.
 
 **Chốt P8: `30-KeHoach/P8/99-CHOT.md`** — 4/5 plan xong kèm số đo, 08-04 chờ 2 tuần dữ liệu
 production. Rủi ro còn lại của toàn hệ thống liệt kê ở cuối tệp đó; không mục nào đóng được ở local.
+
+## P9 — Vận hành không còn chỗ mù
+
+Chi tiết: `30-KeHoach/P9/00-TongQuan.md`.
+
+Lập sau khi **hai lỗi lọt tới người dùng trong một ngày** (24/09/2026) — hóa đơn ghi sai giờ 7
+tiếng, và toàn bộ ảnh món vỡ sau khi đổi database. Cả hai đều thoát qua 403 unit + 159 RLS + 16
+E2E. Không phải hai lỗi rời rạc mà **một lớp lỗi**: thứ chỉ sai khi môi trường chạy khác máy dev.
+Cùng ngày, database Mỹ bị xóa khi chưa có sao lưu tự động nào — khôi phục được là nhờ may.
+
+- [ ] 09-01 **Bịt khoảng cách local ↔ production** (OPS-08) — test chạy dưới `TZ=UTC` + khói hậu-deploy trên production thật.
+- [ ] 09-02 **Sao lưu tự động + đường lui** (OPS-09) — sinh `QD-015` (nơi cất, vì bản dump chứa PII khách).
+- [ ] 09-03 **Cầu in đóng nốt ba việc tồn** (PRINT-06, PRINT-07) — **122 phiếu bếp chưa từng tới bếp**.
+- [ ] 09-04 **Kết luận PERF-04 → `QD-016`** — cổng thời gian, sớm nhất 08/10/2026.
+
+P9 kết thúc bằng **"không còn lớp lỗi nào chỉ xuất hiện trên production, và mất database không còn
+là sự cố"** — không phải bằng một tính năng mới.
+
+Không nằm trong P9: 42 yêu cầu `◐` chờ nghiệm thu người thật (là 7 phiên bấm tay ở
+`40-KiemTra/00-DanhSachNghiemThu.md`, không phải việc code) · viết lại realtime (chờ số 09-04) ·
+rate limit ẩn danh (chưa đo thì không biết đặt ngưỡng nào) · gói cước SaaS (đã chốt ở V3).
 
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
