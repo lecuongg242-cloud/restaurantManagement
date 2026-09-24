@@ -23,6 +23,23 @@ Khoảng cách giữa hai lượt liên tiếp — chỗ tách "lỗi" khỏi "i
 
 Nhỏ nhất **0,63 giây**. Cụm dưới 2 giây không thể là người bấm hai lần có ý thức.
 
+### Tách theo trạng thái — một phần "in trùng" thật ra là hệ quả của "in thiếu"
+
+| Loại · trạng thái | Số cặp trùng | Trong đó < 2 giây |
+|---|---|---|
+| Phiếu khách · `printed` | 364 | 12 |
+| Phiếu bếp · `printed` | 137 | 14 |
+| **Phiếu bếp · `failed`** | **66** | 6 |
+
+66/203 cặp trùng của phiếu bếp có dính một lượt **`failed`**. Đó không phải lỗi in trùng — đó là
+nhân viên bấm lại vì lần trước **không ra giấy**. Nói cách khác, một phần đáng kể con số "in trùng"
+là phản ứng đúng đắn của con người trước bug *phiếu bếp thất lạc*
+(`BUG-PhieuBepThatLac.md`).
+
+Hệ quả cho việc đọc số sau này: sau khi cầu in biết **thử lại** (đã sửa), nhóm 66 cặp này phải tự
+giảm mà không cần đụng gì thêm vào đường in trùng. Nếu nó **không** giảm thì giả thuyết trên sai và
+phải tìm lại.
+
 ## Tái hiện được
 
 ```

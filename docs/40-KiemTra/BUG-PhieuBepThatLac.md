@@ -30,6 +30,12 @@ Nhà hàng **xoay xở được** — nhân viên thấy chip đỏ rồi báo m
 hành, không phải mất đơn. Nhưng 122 lần bếp phải làm việc mà không có phiếu là 122 lần dựa vào trí
 nhớ con người giữa giờ cao điểm.
 
+## Nó còn làm hỏng số liệu của bug kia
+
+66/203 cặp "in trùng" phiếu bếp có dính một lượt `failed` — tức là nhân viên bấm lại vì lần trước
+không ra giấy. Một phần con số "in trùng" thật ra là **phản ứng đúng** trước bug này, không phải
+lỗi riêng. Sau khi cầu in biết thử lại, nhóm đó phải tự giảm; nếu không giảm thì giả thuyết sai.
+
 ## Nguyên nhân gốc
 
 `scripts/print-bridge.mjs` — gặp lỗi gửi là **đánh dấu hỏng luôn, không thử lại**:
