@@ -9,6 +9,7 @@ import { normalizeVi as norm } from "@/lib/menu/search";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { AvailabilityToggle } from "@/components/menu/AvailabilityToggle";
 import { cn } from "@/lib/utils";
+import { PortionBadge } from "./PortionBadge";
 
 /**
  * MenuPanel (POS cột phải) — thực đơn luôn hiển thị + Ô TÌM KIẾM. Chạm một món: có tùy chọn thì
@@ -26,6 +27,7 @@ export function MenuPanel({
   onAddLine,
   emptyHint = "Chọn bàn để thêm món",
   modifierPresentation = "dialog",
+  portions,
 }: {
   slug: string;
   menu: CustomerMenu | null;
@@ -35,6 +37,8 @@ export function MenuPanel({
   emptyHint?: string;
   /** Điện thoại (ORDER-15) dùng bottom sheet; POS quầy màn rộng dùng dialog giữa màn hình. */
   modifierPresentation?: "dialog" | "sheet";
+  /** Số phần ước tính theo id món/tùy chọn (INV-07). Chỉ để hiện nhãn — KHÔNG ảnh hưởng `addable`. */
+  portions?: Record<string, number>;
 }) {
   const [activeItem, setActiveItem] = useState<CustomerMenuItem | null>(null);
   const [modifierOpen, setModifierOpen] = useState(false);
@@ -132,6 +136,7 @@ export function MenuPanel({
                           <span className="text-sm font-semibold tabular-nums text-primary">
                             {formatVnd(it.base_price)}
                           </span>
+                          <PortionBadge portions={portions?.[it.id]} />
                         </span>
                         <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-hairline-soft bg-surface">
                           {/* sizes = 2× bề rộng ô (xem admin/menu/page.tsx): tránh ảnh ngang
@@ -184,6 +189,7 @@ export function MenuPanel({
         onOpenChange={setModifierOpen}
         onAdd={onAddLine}
         presentation={modifierPresentation}
+        portions={portions}
       />
     </div>
   );

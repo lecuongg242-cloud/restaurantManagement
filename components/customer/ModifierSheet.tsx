@@ -7,6 +7,7 @@ import type { CustomerMenuItem } from "@/lib/orders/customer-menu";
 import { formatVnd, unitPrice } from "@/lib/orders/cart";
 import { QtyStepper } from "./QtyStepper";
 import { cn } from "@/lib/utils";
+import { PortionBadge } from "@/components/pos/PortionBadge";
 
 /**
  * modifier-sheet (§5.2) — chọn tùy chọn + SL. Ghi chú nhập ở GIỎ (mỗi dòng một ô), không nhập
@@ -25,6 +26,7 @@ export function ModifierSheet({
   initialLine = null,
   submitLabel = "Thêm vào giỏ",
   presentation = "sheet",
+  portions,
 }: {
   item: CustomerMenuItem | null;
   open: boolean;
@@ -37,6 +39,8 @@ export function ModifierSheet({
   initialLine?: { qty: number; note: string; optionIds: string[] } | null;
   submitLabel?: string;
   presentation?: "sheet" | "dialog";
+  /** Chỉ POS truyền (INV-07). Trang khách không bao giờ có — QD-017 C4. */
+  portions?: Record<string, number>;
 }) {
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [qty, setQty] = useState(1);
@@ -157,6 +161,7 @@ export function ModifierSheet({
                   <span className="text-sm text-ink">
                     {o.name}
                     {!o.is_available && <span className="ml-xs text-xs text-status-late">· Hết</span>}
+                    <PortionBadge portions={portions?.[o.id]} className="ml-xs" />
                   </span>
                 </span>
                 {o.price_delta > 0 && (

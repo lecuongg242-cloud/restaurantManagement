@@ -69,6 +69,11 @@ export const IDX = {
   staff_calls: 15,
   print_jobs: 16,
   memberships: 17,
+  ingredients: 19,
+  recipe_lines: 20,
+  production_batches: 21,
+  stock_entries: 22,
+  daily_closes: 23,
   // Khóa chính là (item_id, group_id) → trỏ theo menu_items.
   menu_item_modifier_groups: 2,
 } as const;
@@ -212,6 +217,33 @@ function stepsFor(key: TenantKey, tenantId: string): SeedStep[] {
       table: "memberships",
       row: { id: id(17), ...t, user_id: null, role: "cashier", display_name: label, active: true },
     },
+    {
+      table: "ingredients",
+      row: { id: id(19), ...t, name: label, base_unit: "g", last_unit_cost: 280 },
+    },
+    {
+      table: "recipe_lines",
+      row: { id: id(20), ...t, ingredient_id: id(19), menu_item_id: id(2), qty: 80 },
+    },
+    {
+      table: "production_batches",
+      row: {
+        id: id(21), ...t, business_date: "2030-01-01", ingredient_id: id(19),
+        batch_count: 1, expected_qty: 100, actual_qty: 100,
+      },
+    },
+    {
+      table: "stock_entries",
+      row: {
+        id: id(22), ...t, business_date: "2030-01-01", ingredient_id: id(19),
+        kind: "receipt", qty: 1000, note: label,
+      },
+    },
+    {
+      // Năm 2000: không bao giờ là "bản chốt gần nhất trước hôm nay" của một test chốt sổ đang chạy.
+      table: "daily_closes",
+      row: { id: id(23), ...t, business_date: "2000-01-01", payload: { marker: label } },
+    },
   ];
 }
 
@@ -229,6 +261,12 @@ async function seedTenant(admin: SupabaseClient, key: TenantKey, tenantId: strin
  * nên bill phải chết trước đơn, nếu không Postgres từ chối.
  */
 const TEARDOWN: { table: string; column: string; n: number }[] = [
+  // recipe_lines → ingredients là ON DELETE RESTRICT: định lượng chết trước nguyên liệu.
+  { table: "daily_closes", column: "id", n: 23 },
+  { table: "stock_entries", column: "id", n: 22 },
+  { table: "production_batches", column: "id", n: 21 },
+  { table: "recipe_lines", column: "id", n: 20 },
+  { table: "ingredients", column: "id", n: 19 },
   { table: "payments", column: "id", n: 13 },
   { table: "bill_items", column: "id", n: 12 },
   { table: "bills", column: "id", n: 11 },

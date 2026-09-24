@@ -3,6 +3,7 @@ import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
 import { getPosSnapshot } from "@/lib/orders/pos";
 import { getCustomerMenu } from "@/lib/orders/customer-menu";
+import { getMenuPortions } from "@/lib/inventory/pos-portions";
 import { createClient } from "@/lib/supabase/server";
 import { parseSettings } from "@/lib/tenant/settings";
 import { StaffMobileOrder } from "@/components/pos/StaffMobileOrder";
@@ -29,10 +30,11 @@ export default async function StaffMobileOrderPage({
   if (!canAccess(session.role, "pos")) redirect(defaultRouteForRole(slug, session.role));
 
   const supabase = await createClient();
-  const [snapshot, menu, { data: tenantRow }] = await Promise.all([
+  const [snapshot, menu, { data: tenantRow }, portions] = await Promise.all([
     getPosSnapshot(session.tenant.id, slug),
     getCustomerMenu(slug),
     supabase.from("tenants").select("settings").eq("id", session.tenant.id).maybeSingle(),
+    getMenuPortions(session.tenant.id, slug),
   ]);
 
   const settings = parseSettings(tenantRow?.settings);
@@ -43,6 +45,7 @@ export default async function StaffMobileOrderPage({
       staffName={session.displayName ?? "Nhân viên"}
       initial={snapshot}
       menu={menu}
+      portions={portions}
       counter={settings.service_mode === "counter"}
     />
   );

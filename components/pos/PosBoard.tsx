@@ -61,6 +61,7 @@ export function PosBoard({
   tenantId,
   initial,
   menu,
+  portions,
   cancelStaff,
   canCancelWithoutPin,
   canBackdatePayment,
@@ -71,6 +72,8 @@ export function PosBoard({
   tenantId: string;
   initial: PosSnapshot;
   menu: CustomerMenu | null;
+  /** Số phần ước tính (INV-07) — không có thì POS như trước P10. */
+  portions?: Record<string, number>;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
   /** Chủ/quản lý mới được ghi lùi thời điểm nhận tiền (thu bù đơn tồn). */
@@ -791,6 +794,7 @@ export function PosBoard({
           <MenuPanel
             slug={slug}
             menu={menu}
+            portions={portions}
             canAdd={takeawayMode || (!!selectedTable && !splitEvenlyNow)}
             onAddLine={addLine}
           />

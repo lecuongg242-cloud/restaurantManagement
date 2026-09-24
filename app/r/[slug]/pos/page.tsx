@@ -3,6 +3,7 @@ import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
 import { getPosSnapshot } from "@/lib/orders/pos";
 import { getCustomerMenu } from "@/lib/orders/customer-menu";
+import { getMenuPortions } from "@/lib/inventory/pos-portions";
 import { createClient } from "@/lib/supabase/server";
 import { parseSettings } from "@/lib/tenant/settings";
 import { StationScreen } from "@/components/staff/StationScreen";
@@ -26,7 +27,7 @@ export default async function PosHome({
   if (!canAccess(session.role, "pos")) redirect(defaultRouteForRole(slug, session.role));
 
   const supabase = await createClient();
-  const [{ data: snapshotData }, menu, { data: cancelStaffData }, { data: tenantRow }] = await Promise.all([
+  const [{ data: snapshotData }, menu, { data: cancelStaffData }, { data: tenantRow }, portions] = await Promise.all([
     getPosSnapshot(session.tenant.id, slug).then((s) => ({ data: s })),
     getCustomerMenu(slug),
     // Nhân viên được quyền duyệt hủy món/giảm giá (manager/cashier) — cho CancelItemDialog + PinPrompt.
@@ -38,6 +39,8 @@ export default async function PosHome({
       .in("role", ["manager", "cashier"])
       .order("display_name", { ascending: true }),
     supabase.from("tenants").select("settings").eq("id", session.tenant.id).maybeSingle(),
+    // Song song, KHÔNG cache: số phần đổi sau mỗi đơn (INV-07).
+    getMenuPortions(session.tenant.id, slug),
   ]);
 
   const isPrincipal = session.role === "owner" || session.role === "manager";
@@ -56,6 +59,7 @@ export default async function PosHome({
         tenantId={session.tenant.id}
         initial={snapshotData}
         menu={menu}
+        portions={portions}
         cancelStaff={cancelStaff}
         canCancelWithoutPin={isPrincipal}
         canBackdatePayment={isPrincipal}

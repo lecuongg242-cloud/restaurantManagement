@@ -41,6 +41,7 @@ export function StaffMobileOrder({
   initial,
   menu,
   counter,
+  portions,
 }: {
   slug: string;
   staffName: string;
@@ -48,6 +49,7 @@ export function StaffMobileOrder({
   menu: CustomerMenu | null;
   /** Quán chế độ quầy: không có bàn nào để chọn → màn này không có việc gì làm. */
   counter: boolean;
+  portions?: Record<string, number>;
 }) {
   const router = useRouter();
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
@@ -229,6 +231,7 @@ export function StaffMobileOrder({
           <MenuPanel
             slug={slug}
             menu={menu}
+            portions={portions}
             canAdd
             onAddLine={addLine}
             modifierPresentation="sheet"
