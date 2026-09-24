@@ -50,7 +50,7 @@ Nếu tôi sửa tiêu chí cho khớp thay vì điều tra, cả bốn đã th�
 có 2 tuần dữ liệu production. Đây là con số quyết định có viết lại realtime (hướng C) hay không →
 `QD-014`.
 
-**Hướng C cố ý chưa làm.** Bỏ `router.refresh()` chạm sâu `PosBoard`/`KdsBoach` — hai bề mặt
+**Hướng C cố ý chưa làm.** Bỏ `router.refresh()` chạm sâu `PosBoard`/`KdsBoard` — hai bề mặt
 qt-food dùng thật hằng ngày. Quyết bằng số của PERF-04, không bằng cảm giác.
 
 **Rate limit endpoint ẩn danh cố ý chưa làm.** Chưa đo thì không biết đặt ngưỡng nào; ngưỡng sai
