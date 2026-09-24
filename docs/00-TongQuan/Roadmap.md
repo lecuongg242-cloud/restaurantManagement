@@ -144,6 +144,7 @@ Cùng ngày, database Mỹ bị xóa khi chưa có sao lưu tự động nào �
 - [x] 09-01 **Bịt khoảng cách local ↔ production** (OPS-08) — test chạy dưới `TZ=UTC` + khói hậu-deploy trên production thật.
 - [~] 09-02 **Sao lưu tự động + đường lui** (OPS-09) — sinh `QD-015` (nơi cất, vì bản dump chứa PII khách).
 - [~] 09-03 **Cầu in: biết khi nó chết, tự đi đường khác** (PRINT-06, PRINT-07, PRINT-08) — **122 phiếu bếp chưa từng tới bếp**.
+- [~] 09-05 **Màn "Máy in" trong admin** (PRINT-09) — thêm sau chốt: cầu in thử máy in mỗi nhịp tim; chuỗi thật trên production 3/3 trạng thái.
 - [ ] 09-04 **Kết luận PERF-04 → `QD-016`** — cổng thời gian, sớm nhất 08/10/2026.
 
 P9 kết thúc bằng **"không còn lớp lỗi nào chỉ xuất hiện trên production, và mất database không còn

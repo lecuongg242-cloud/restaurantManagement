@@ -11,6 +11,7 @@
 | 09-02 Sao lưu | OPS-09 | ◐ | `kiem` bắt bản sao lưu mất 1 hóa đơn (**6070/6071**) mà `verify` cũ báo "khớp". Lịch tự động **hoãn** (`QD-015`) |
 | 09-03 Cầu in | PRINT-06 ☑ · 07 ◐ · 08 ◐ | ◐ | Production: cầu in chết → `printed` (in trình duyệt), sống → `pending`. Còn kiểm tại quán |
 | 09-04 Kết luận realtime | PERF-04 | ☐ | Chưa bắt đầu — cần 2 tuần log, sớm nhất **08/10/2026** |
+| 09-05 Màn "Máy in" (thêm sau chốt) | PRINT-09 | ◐ | Chuỗi thật trên production: máy in bật → "phản hồi"; tắt → "KHÔNG phản hồi"; cầu in chết → "không biết". Thử máy in gửi **0 byte** |
 
 Toàn bộ: **457 unit · 174 RLS** xanh (cả hai dưới `TZ=UTC`) · E2E production `cau-in` **2/2** ·
 `tsc` · `lint` · `build` sạch · schema khớp snapshot. Migration **0043** đã áp production.
@@ -73,7 +74,7 @@ dùng giờ database.
 
 | # | Giới hạn | Hậu quả |
 |---|---|---|
-| 10 | **Nhịp tim đo cầu in sống, không đo máy in sống.** Máy in hỏng mà cầu in chạy → phiếu vẫn vào hàng đợi rồi `failed` | 1–2 lỗi chỉ hiện chip đỏ; từ 3 lỗi/5 phút mới có băng |
+| 10 | ~~Nhịp tim đo cầu in sống, không đo máy in sống~~ — **đã giải quyết ở 09-05**: cầu in thử máy in mỗi nhịp tim, màn `/admin/printers` hiện "KHÔNG phản hồi". Phiếu gửi tới lúc máy in chết vẫn đi vào hàng đợi rồi `failed` | Chủ quán thấy trước trên màn Máy in thay vì chờ phiếu lỗi |
 | 11 | Đường lui in ra **máy in cài trên máy POS** (thường là máy in hóa đơn ở quầy) | Nhân viên phải mang phiếu vào bếp. Máy POS không có máy in thì hiện hộp thoại in |
 | 12 | Khe `superseded`: cầu in đang gửi (~1 giây) đúng lúc bấm in lại | Vẫn có thể ra hai tờ |
 | 13 | Khóa một phiên chỉ trong **một máy** | Hai laptop cùng chạy cầu in cho một quán → vẫn in trùng |
@@ -90,6 +91,7 @@ dùng giờ database.
 | # | Thứ | Đã kiểm tới đâu |
 |---|---|---|
 | 21 | `print-setup.ps1` (bản đã sửa) chạy trọn trên Windows | Chỉ bộ phân tích cú pháp PowerShell. Logic `errorlevel` của `.bat` có thử trên cmd.exe thật |
+| 23 | Thử máy in kiểu "mở kết nối rồi đóng, không gửi byte" trên **máy in nhiệt thật** | Máy in giả nhận 0 byte qua 8 lần thử. Chưa có công tắc tắt việc thử nếu máy in thật hành xử lạ |
 | 22 | Chuỗi đầy đủ **cầu in thật → nhịp tim → POS đổi đường → giấy ra ở máy in thật** | Từng khúc riêng: cầu in báo sống thật (tenant demo); đổi đường thật trên production với nhịp tim giả lập. Chưa bao giờ cả chuỗi với máy in phần cứng |
 
 ### Ngoài phạm vi P9 nhưng vẫn treo
