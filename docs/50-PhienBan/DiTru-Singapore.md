@@ -1,7 +1,8 @@
 # Di trú sang Singapore — runbook
 
 > Lập 24/09/2026. Lý do: `15-QuyetDinh/QD-014` (chưa viết) · phân tích ở `40-KiemTra/BUG-ThanhToanCham.md`.
-> **Trạng thái: chuẩn bị xong, CHƯA thực hiện.** Cần tài khoản Supabase của chủ dự án.
+> **Trạng thái: ĐÃ DIỄN TẬP TRỌN VẸN trên project Singapore thật (24/09/2026).**
+> Production cũ **chưa bị đụng** — vẫn đang chạy bình thường.
 
 ## Vì sao
 
@@ -40,6 +41,37 @@ Ba kịch bản, tính cho một lần `payBill` (7 lượt khứ hồi DB sau k
 | Dòng dữ liệu | 6.648 đơn · 6.071 hóa đơn · 6.067 thanh toán |
 
 40MB dump/restore chỉ mất vài phút. Phần lâu nhất là kiểm tra, không phải chuyển.
+
+## Diễn tập đã làm — kết quả
+
+Project `wsbinfgagdanrfvrxxuz` (**ap-southeast-1 / Singapore**) đã được dựng đầy đủ từ đầu:
+
+| Bước | Kết quả |
+|---|---|
+| Độ trễ từ VN tới DB mới | **68 ms** (us-east-1: ~240 ms) |
+| Áp 41 migration | sạch, không lỗi |
+| `npm run schema:check` | bắt được **1 lệch** — index `idx_bill_items_order_item_bill` chỉ có trên production, `0040` bỏ sót index. Đã chụp thành `0042`, áp lại → **khớp** |
+| Nạp dữ liệu (27 bảng) | đủ, `verify` báo **mọi bảng khớp** |
+| **Doanh thu** | **693.415.000đ** — khớp tới từng đồng với production |
+| `auth.users` | 16 tài khoản, có hash mật khẩu (nhân viên đăng nhập lại được) |
+| Toàn vẹn khóa ngoại | **42/42** ràng buộc hợp lệ |
+| Ảnh món | **19/19** tệp |
+| **Bộ test RLS** | **159/159 xanh** trên database mới |
+| **`payBill` đo từ VN** | **638–783 ms** (khi DB ở Mỹ: 2.220 ms) |
+
+> Cổng chặn lệch schema (OPS-07) bắt lỗi thật ngay lần dùng đầu tiên. Không có nó, môi trường mới
+> sẽ thiếu một index mà `paidQtyMap` dùng mỗi lần thu tiền — chậm đi một cách khó hiểu, không ai
+> biết vì sao.
+
+### Hai cái bẫy đã vấp và đã xử lý
+
+1. **Cột sinh tự động** — `auth.users.confirmed_at`, `auth.identities.email`,
+   `storage.objects.path_tokens` không chèn thẳng được. Công cụ nay liệt kê cột tường minh, bỏ cột
+   `is_generated = 'ALWAYS'`.
+2. **Thứ tự khóa ngoại** — nạp `bill_items` trước `bills` là đổ. Nay tắt kiểm khóa ngoại trong
+   phiên nạp (`session_replication_role = replica`) rồi **bật lại trong `finally`**, và kiểm lại
+   toàn bộ ràng buộc sau khi nạp. Để sót chế độ replica là database im lặng bỏ qua mọi khóa ngoại
+   về sau.
 
 ## Chuẩn bị (làm trước, không downtime)
 

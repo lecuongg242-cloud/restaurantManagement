@@ -114,27 +114,66 @@ async function chepAnh(thuMuc) {
 async function restore(thuMuc, url) {
   const client = ketNoi(url);
   await client.connect();
-  const tep = fs.readdirSync(thuMuc).filter((f) => f.endsWith(".jsonl"));
+  const co = new Set(fs.readdirSync(thuMuc).filter((f) => f.endsWith(".jsonl")));
 
-  // public trước (không phụ thuộc auth), rồi auth/storage.
-  tep.sort((a, b) => (a.startsWith("public__") ? -1 : 1) - (b.startsWith("public__") ? -1 : 1));
+  /**
+   * Thứ tự nạp: `auth` trước vì `public.profiles` và `public.memberships` trỏ vào `auth.users`;
+   * `storage.buckets` trước `storage.objects`.
+   *
+   * Trong `public` thì các bảng trỏ chằng chịt vào nhau (bill_items → bills → table_sessions → …),
+   * nên thay vì tự xếp thứ tự — việc sẽ sai ngay khi ai đó thêm bảng — TẮT kiểm khóa ngoại trong
+   * phiên nạp rồi bật lại. Đây đúng là cách `pg_restore` làm.
+   */
+  const thuTu = [
+    "auth__users.jsonl",
+    "auth__identities.jsonl",
+    "storage__buckets.jsonl",
+    ...[...co].filter((f) => f.startsWith("public__")).sort(),
+    "storage__objects.jsonl",
+  ].filter((f) => co.has(f));
 
-  for (const f of tep) {
-    const [schema, bang] = f.replace(/\.jsonl$/, "").split("__");
-    const dong = fs.readFileSync(path.join(thuMuc, f), "utf8").split("\n").filter(Boolean);
-    if (dong.length === 0) continue;
-    const dl = "[" + dong.join(",") + "]";
-    try {
-      await client.query(
-        `insert into ${schema}."${bang}" select * from json_populate_recordset(null::${schema}."${bang}", $1::json) on conflict do nothing`,
-        [dl]
-      );
-      console.log(`  ${schema}.${bang}: ${dong.length} dòng`);
-    } catch (err) {
-      console.error(`  LỖI ${schema}.${bang}: ${err.message}`);
+  await client.query("set session_replication_role = replica");
+  let loi = 0;
+  try {
+    for (const f of thuTu) {
+      const [schema, bang] = f.replace(/\.jsonl$/, "").split("__");
+      const dong = fs.readFileSync(path.join(thuMuc, f), "utf8").split(String.fromCharCode(10)).filter(Boolean);
+      if (dong.length === 0) {
+        console.log(`  ${schema}.${bang}: 0 dòng (bỏ qua)`);
+        continue;
+      }
+      try {
+        // Bỏ cột SINH TỰ ĐỘNG (auth.users.confirmed_at, auth.identities.email,
+        // storage.objects.path_tokens…): Postgres từ chối chèn thẳng vào chúng. Liệt kê cột
+        // tường minh thay vì `select *`.
+        const { rows: cot } = await client.query(
+          `select column_name from information_schema.columns
+           where table_schema = $1 and table_name = $2 and is_generated <> 'ALWAYS'
+           order by ordinal_position`,
+          [schema, bang]
+        );
+        const ds = cot.map((c) => `"${c.column_name}"`).join(", ");
+        await client.query(
+          `insert into ${schema}."${bang}" (${ds})
+           select ${ds} from json_populate_recordset(null::${schema}."${bang}", $1::json)
+           on conflict do nothing`,
+          ["[" + dong.join(",") + "]"]
+        );
+        console.log(`  ${schema}.${bang}: ${dong.length} dòng`);
+      } catch (err) {
+        loi += 1;
+        console.error(`  LỖI ${schema}.${bang}: ${err.message}`);
+      }
     }
+  } finally {
+    // Bật lại DÙ CÓ LỖI: để chế độ replica sót lại là database im lặng bỏ qua mọi khóa ngoại về sau.
+    await client.query("set session_replication_role = DEFAULT");
   }
   await client.end();
+  if (loi > 0) {
+    console.error(`${loi} bảng nạp LỖI — đừng chuyển tiếp, xem lại trước.`);
+    process.exit(1);
+  }
 }
 
 /** Đối chiếu số đếm giữa bản sao lưu và database đích — thứ duy nhất chứng minh nạp đủ. */
