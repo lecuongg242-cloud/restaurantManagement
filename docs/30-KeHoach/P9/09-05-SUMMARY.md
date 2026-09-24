@@ -51,6 +51,7 @@ làm trình biên dịch của vitest báo lỗi cú pháp. Bỏ shebang (lệnh
 
 ## Còn lại
 
-- Thử kết nối-không-gửi-byte **chưa kiểm trên máy in nhiệt thật**. Phần lớn máy in mạng chịu được;
-  nếu máy in của quán hành xử lạ (ra giấy trắng, treo), tắt bằng cách… hiện chưa có công tắc — báo lại.
+- Thử kết nối-không-gửi-byte **chưa kiểm trên máy in nhiệt thật**. Phần lớn máy in mạng chịu được.
+  Nếu máy in của quán hành xử lạ (ra giấy trắng, treo) thì **hiện chưa có công tắc tắt việc thử** —
+  báo lại để thêm.
 - Không tách "in qua cầu in / qua trình duyệt", không hiện câu lỗi của cầu in — lý do trong plan.
