@@ -5,6 +5,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { KitchenTicketView } from "./adapter";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export async function buildKitchenTicket(
   orderId: string,
@@ -54,7 +55,7 @@ export async function buildKitchenTicket(
     orderId: order.id,
     kitchenNo: (order.kitchen_no as number) ?? null,
     tenantName: tenant?.name ?? "",
-    logoUrl: tenant?.logo_url ?? null,
+    logoUrl: urlAnh(tenant?.logo_url),
     tableName: ts?.tables?.name ?? "—",
     confirmedAt: order.confirmed_at,
     ticketNo: order.id.slice(-6).toUpperCase(),

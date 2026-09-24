@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveTable } from "@/lib/orders/customer-menu";
 import { CustomerLanding } from "@/components/customer/CustomerLanding";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +34,8 @@ export default async function CustomerHome({
     <CustomerLanding
       slug={slug}
       tenantName={tenant?.name ?? slug}
-      logoUrl={tenant?.logo_url ?? null}
-      coverUrl={tenant?.cover_url ?? null}
+      logoUrl={urlAnh(tenant?.logo_url)}
+      coverUrl={urlAnh(tenant?.cover_url)}
       tableName={resolved?.table.name ?? null}
       qrToken={resolved ? qrToken : null}
     />

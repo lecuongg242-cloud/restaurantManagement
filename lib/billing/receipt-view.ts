@@ -9,6 +9,7 @@ import { orderPlaceLabel } from "@/lib/orders/place-label";
 import type { OrderChannel, OrderSource } from "@/lib/orders/types";
 import { getBillView } from "./bill";
 import type { PaymentMethod } from "./types";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export type ReceiptView = {
   tenantName: string;
@@ -104,7 +105,7 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
 
   return {
     tenantName: tenant?.name ?? "Nhà hàng",
-    logoUrl: (tenant?.logo_url as string) ?? null,
+    logoUrl: urlAnh(tenant?.logo_url as string | null),
     billNo: bill.billNo,
     tableLabel,
     contactLine,

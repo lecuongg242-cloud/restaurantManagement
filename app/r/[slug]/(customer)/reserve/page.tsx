@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ReservationForm } from "@/components/reserve/ReservationForm";
 import { submitReservation } from "./actions";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function ReservePage({
     .maybeSingle();
 
   const name = tenant?.name ?? slug;
-  const logoUrl = tenant?.logo_url ?? null;
+  const logoUrl = urlAnh(tenant?.logo_url);
 
   const { data: areas } = tenant
     ? await admin

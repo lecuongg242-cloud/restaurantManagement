@@ -10,7 +10,7 @@ import {
   serializeSettings,
   type TenantSettings,
 } from "@/lib/tenant/settings";
-import { uploadImage, deleteMenuImage, pathFromPublicUrl } from "@/lib/storage/images";
+import { uploadImage, deleteMenuImage, duongDanAnh } from "@/lib/storage/images";
 import { setFlash } from "@/lib/flash";
 
 async function requireSettingsManager(slug: string) {
@@ -111,16 +111,16 @@ export async function updateIdentity(formData: FormData) {
 
   if (hasLogo) {
     try {
-      const { publicUrl } = await uploadImage(logoFile as File, session.tenant.id, "logo");
-      update.logo_url = publicUrl;
+      const { path } = await uploadImage(logoFile as File, session.tenant.id, "logo");
+      update.logo_url = path;
     } catch (e) {
       return setFlash("error", e instanceof Error ? e.message : "Upload logo lỗi.");
     }
   }
   if (hasCover) {
     try {
-      const { publicUrl } = await uploadImage(coverFile as File, session.tenant.id, "cover");
-      update.cover_url = publicUrl;
+      const { path } = await uploadImage(coverFile as File, session.tenant.id, "cover");
+      update.cover_url = path;
     } catch (e) {
       return setFlash("error", e instanceof Error ? e.message : "Upload ảnh bìa lỗi.");
     }
@@ -130,8 +130,8 @@ export async function updateIdentity(formData: FormData) {
   if (failed) return setFlash("error", failed);
 
   // Dọn ảnh cũ sau khi ghi DB thành công (không chặn luồng nếu xóa lỗi).
-  if (update.logo_url) await deleteMenuImage(pathFromPublicUrl(oldLogo));
-  if (update.cover_url) await deleteMenuImage(pathFromPublicUrl(oldCover));
+  if (update.logo_url) await deleteMenuImage(duongDanAnh(oldLogo));
+  if (update.cover_url) await deleteMenuImage(duongDanAnh(oldCover));
 
   revalidatePath(settingsPath(slug), "layout");
   await setFlash("ok", "Đã lưu nhận diện nhà hàng.");
@@ -190,13 +190,13 @@ export async function uploadLogo(formData: FormData) {
     .maybeSingle();
 
   try {
-    const { publicUrl } = await uploadImage(file as File, session.tenant.id, "logo");
+    const { path } = await uploadImage(file as File, session.tenant.id, "logo");
     const failed = await updateTenant(supabase, session.tenant.id, {
-      logo_url: publicUrl,
+      logo_url: path,
       updated_at: new Date().toISOString(),
     });
     if (failed) throw new Error(failed);
-    await deleteMenuImage(pathFromPublicUrl(tenant?.logo_url ?? null));
+    await deleteMenuImage(duongDanAnh(tenant?.logo_url ?? null));
   } catch (e) {
     redirect(`${back}${sep}error=${encodeURIComponent(e instanceof Error ? e.message : "Upload logo lỗi.")}`);
   }

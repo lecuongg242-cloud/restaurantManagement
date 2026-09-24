@@ -98,7 +98,7 @@ describe("không ai được quay lại gọi toLocale* để hiện giờ", () 
       const src = readFileSync(p, "utf8");
       if (/toLocaleTimeString/.test(src)) return true;
       // toLocaleString kèm tuỳ chọn giờ/ngày mà không nêu timeZone.
-      return /toLocaleString\([^)]*\{[^}]*\b(hour|day|month|year)\b/s.test(src)
+      return /toLocaleString\([\s\S]*?\{[\s\S]*?\b(hour|day|month|year)\b/.test(src)
         && !/timeZone/.test(src);
     });
 

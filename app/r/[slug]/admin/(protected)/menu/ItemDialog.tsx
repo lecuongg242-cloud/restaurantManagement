@@ -8,6 +8,7 @@ import { MoneyField } from "@/components/ui/money-input";
 import { ImageUpload } from "@/components/menu/ImageUpload";
 import { createItem, updateItem } from "./actions";
 import type { Category, Item } from "@/lib/menu/types";
+import { urlAnh } from "@/lib/storage/public-url";
 
 /**
  * Dialog thêm/sửa món. Form gửi FormData (kèm ảnh) tới createItem/updateItem
@@ -139,7 +140,7 @@ export function ItemDialog({
                 />
               </label>
 
-              <ImageUpload currentUrl={item?.image_url ?? null} />
+              <ImageUpload currentUrl={urlAnh(item?.image_url)} />
 
               {children}
 

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ImageUpload } from "@/components/menu/ImageUpload";
 import { updateIdentity, updateSettings } from "./actions";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export const dynamic = "force-dynamic";
 
@@ -51,13 +52,13 @@ export default async function SettingsPage({
               <Input name="name" required defaultValue={tenant?.name ?? ""} />
             </label>
             <ImageUpload
-              currentUrl={tenant?.logo_url ?? null}
+              currentUrl={urlAnh(tenant?.logo_url)}
               shape="circle"
               label="Logo / avatar (≤10MB, PNG/JPEG/WebP) — hiện tròn trên trang chào bàn"
             />
             <ImageUpload
               name="cover"
-              currentUrl={tenant?.cover_url ?? null}
+              currentUrl={urlAnh(tenant?.cover_url)}
               shape="cover"
               label="Ảnh bìa (≤10MB, PNG/JPEG/WebP) — ảnh ngang, để trống thì dùng dải gradient mặc định"
             />

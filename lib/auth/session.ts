@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export type Role =
   | "owner"
@@ -49,6 +50,8 @@ export async function getSessionMembership(
     .eq("slug", slug)
     .maybeSingle();
   if (!tenant) return null;
+  // Ảnh lưu đường dẫn tương đối trong DB; ghép host ngay tại biên đọc để phía trên không phải biết.
+  tenant.logo_url = urlAnh(tenant.logo_url);
 
   // Membership của chính user này trong tenant đó.
   const { data: membership } = await supabase

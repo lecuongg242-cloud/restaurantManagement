@@ -10,7 +10,7 @@ import {
   validateImage,
   uploadMenuImage,
   deleteMenuImage,
-  pathFromPublicUrl,
+  duongDanAnh,
 } from "@/lib/storage/images";
 import { setFlash } from "@/lib/flash";
 
@@ -226,10 +226,10 @@ export async function createItem(formData: FormData) {
   let imageError: string | null = null;
   if (image instanceof File && image.size > 0) {
     try {
-      const { publicUrl } = await uploadMenuImage(session.tenant.id, inserted.id, image);
+      const { path } = await uploadMenuImage(session.tenant.id, inserted.id, image);
       await supabase
         .from("menu_items")
-        .update({ image_url: publicUrl })
+        .update({ image_url: path })
         .eq("id", inserted.id)
         .eq("tenant_id", session.tenant.id);
     } catch (e) {
@@ -279,9 +279,9 @@ export async function updateItem(formData: FormData) {
       .eq("tenant_id", session.tenant.id)
       .maybeSingle();
     try {
-      const { publicUrl } = await uploadMenuImage(session.tenant.id, id, image);
-      image_url = publicUrl;
-      await deleteMenuImage(pathFromPublicUrl(current?.image_url ?? null));
+      const { path } = await uploadMenuImage(session.tenant.id, id, image);
+      image_url = path;
+      await deleteMenuImage(duongDanAnh(current?.image_url ?? null));
     } catch (e) {
       // Vẫn lưu các field khác, nhưng phải báo — im lặng ở đây là "lưu thành công" giả.
       imageError = e instanceof Error ? e.message : "Upload ảnh lỗi.";
@@ -338,7 +338,7 @@ export async function deleteItem(formData: FormData) {
     .eq("tenant_id", session.tenant.id);
   if (error) return setFlash("error", error.message);
 
-  await deleteMenuImage(pathFromPublicUrl(current?.image_url ?? null));
+  await deleteMenuImage(duongDanAnh(current?.image_url ?? null));
   revalidatePath(menuPath(slug));
   revalidateMenu(session.tenant.id);
   await setFlash("ok", "Đã xóa món.");

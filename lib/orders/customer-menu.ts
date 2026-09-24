@@ -9,6 +9,7 @@ import { timed } from "@/lib/observability/log";
 import { unstable_cache } from "next/cache";
 import { menuTag } from "@/lib/menu/cache";
 import { activeTenantBySlug } from "@/lib/tenant/active";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export type CustomerModifierOption = {
   id: string;
@@ -76,7 +77,7 @@ async function readCustomerMenu(slug: string): Promise<CustomerMenu | null> {
 
   const categories = await readMenuCategoriesCached(tenant.id);
   return {
-    tenant: { id: tenant.id, name: tenant.name, logo_url: tenant.logo_url },
+    tenant: { id: tenant.id, name: tenant.name, logo_url: urlAnh(tenant.logo_url) },
     categories,
   };
 }
@@ -178,7 +179,7 @@ async function readMenuCategories(tid: string): Promise<CustomerMenuCategory[]> 
       name: it.name,
       description: it.description,
       base_price: it.base_price,
-      image_url: it.image_url,
+      image_url: urlAnh(it.image_url),
       is_available: it.is_available,
       groups: groupsByItem.get(it.id) ?? [],
     });

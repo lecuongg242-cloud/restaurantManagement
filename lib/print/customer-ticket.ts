@@ -8,6 +8,7 @@ import { parseSettings } from "@/lib/tenant/settings";
 import { orderPlaceLabel } from "@/lib/orders/place-label";
 import type { OrderChannel, OrderSource } from "@/lib/orders/types";
 import type { CustomerTicketView } from "./adapter";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export async function buildCustomerTicket(
   orderId: string,
@@ -60,7 +61,7 @@ export async function buildCustomerTicket(
     orderId: order.id,
     kitchenNo: (order.kitchen_no as number) ?? null,
     tenantName: tenant?.name ?? "",
-    logoUrl: tenant?.logo_url ?? null,
+    logoUrl: urlAnh(tenant?.logo_url),
     place,
     contactName: contact?.name ?? null,
     createdAt: order.created_at as string,

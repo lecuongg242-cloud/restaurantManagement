@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { MENU_BUCKET } from "@/lib/storage/public-url";
 
 /**
  * Tiện ích ảnh (CHỈ server). Ghi/xóa Storage qua service role; đọc public.
@@ -8,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * QD-005 §4 / 00-TongQuan P2.
  */
 
-export const MENU_BUCKET = "menu-images";
+export { MENU_BUCKET, duongDanAnh } from "@/lib/storage/public-url";
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
 
 const MIME_EXT: Record<string, string> = {
@@ -34,14 +35,6 @@ export function validateImage(file: File): ImageValidation {
   return { ok: true, ext, type: file.type };
 }
 
-/** Lấy đường dẫn (key) trong bucket từ một public URL của bucket menu-images. */
-export function pathFromPublicUrl(url: string | null): string | null {
-  if (!url) return null;
-  const marker = `/storage/v1/object/public/${MENU_BUCKET}/`;
-  const idx = url.indexOf(marker);
-  if (idx === -1) return null;
-  return url.slice(idx + marker.length);
-}
 
 /**
  * Upload ảnh vào menu-images tại `dir` (vd tenantId hoặc `${tenantId}`),

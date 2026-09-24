@@ -4,6 +4,7 @@ import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { getOnboardingState } from "./actions";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export default async function OnboardingPage({
           initialStep={initialStep}
           state={state}
           tenantName={tenant?.name ?? ""}
-          logoUrl={tenant?.logo_url ?? null}
+          logoUrl={urlAnh(tenant?.logo_url)}
         />
       </div>
     </div>

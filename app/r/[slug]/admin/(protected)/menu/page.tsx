@@ -16,6 +16,7 @@ import { CategoryManager } from "./CategoryManager";
 import { ItemDialog } from "./ItemDialog";
 import { createCategory, deleteItem, reorderItem } from "./actions";
 import type { Category, Item, ModifierGroup } from "@/lib/menu/types";
+import { urlAnh } from "@/lib/storage/public-url";
 
 export const dynamic = "force-dynamic";
 
@@ -174,7 +175,7 @@ export default async function MenuPage({
                       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-surface">
                         {it.image_url ? (
                           <Image
-                            src={it.image_url}
+                            src={urlAnh(it.image_url)!}
                             alt={it.name}
                             fill
                             /* sizes = 2× bề rộng ô (64px): object-cover trên ảnh NGANG phải
