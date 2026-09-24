@@ -104,12 +104,16 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 
 Điều kiện để mở nhiều nhà hàng. Chi tiết: `30-KeHoach/P7/00-TongQuan.md`, quyết định `QD-012`.
 
-- [~] 07-01 **Ma trận RLS phủ 18 bảng** (TENANT-05) — lưới an toàn cho hai plan sau. *127 test ma trận + 3 fixture, chạy tuần tự; đối chứng âm bằng bảng canary xác nhận bắt được policy sai. Cổng CI chặn merge khi bộ test không chạy.*
+- [x] 07-01 **Ma trận RLS phủ 18 bảng** (TENANT-05) — lưới an toàn cho hai plan sau. *127 test ma trận + 3 fixture, chạy tuần tự; đối chứng âm bằng bảng canary xác nhận bắt được policy sai. Cổng CI chặn merge khi bộ test không chạy.*
 - [~] 07-02 **Cầu in bỏ service-role** (PRINT-05) — vai trò `printer`, tài khoản thiết bị riêng từng quán. *Đo thật: token cầu in thấy 1 nhà hàng, service-role thấy cả 3. Còn chờ in thử trên máy in phần cứng + chuyển đổi cầu in qt-food.*
-- [~] 07-03 **Khóa nhà hàng `suspended`** (TENANT-06) — thực thi tại `auth_tenant_ids()`. *Kiểm tương đương trước khi thay hàm (10/10 khớp). 5 bề mặt + API đều chặn; bật lại dữ liệu nguyên vẹn.*
+- [x] 07-03 **Khóa nhà hàng `suspended`** (TENANT-06) — thực thi tại `auth_tenant_ids()`. *Kiểm tương đương trước khi thay hàm (10/10 khớp). 5 bề mặt + API đều chặn; bật lại dữ liệu nguyên vẹn.*
 
 Đã hoãn khỏi P7 (xem `30-KeHoach/P7/00-TongQuan.md` §Không nằm trong P7): tối ưu tải realtime,
 rate limit endpoint ẩn danh, log theo tenant. Gói cước SaaS vẫn ở V3.
+
+**Nghiệm thu:** danh sách việc cụ thể để chuyển `◐` → `☑` nằm ở `40-KiemTra/00-DanhSachNghiemThu.md`
+— gom theo phiên (một bề mặt một lượt) thay vì theo mã yêu cầu. Bốn mục có tiêu chí hoàn toàn tự
+động (TENANT-05, TENANT-06, PRINT-05, REPORT-04) đã xác minh bằng máy và đánh ☑ ngày 24/09/2026.
 
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
