@@ -5,6 +5,7 @@ import { Printer, Receipt, Loader2, Check, AlertTriangle } from "lucide-react";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import type { OrderPrintState, TicketPrintState } from "@/lib/print/adapter";
 import { getOrderPrintStatus } from "@/app/r/[slug]/print/actions";
+import { gioVn } from "@/lib/time/vn";
 
 /**
  * Cặp nút in "Phiếu bếp" + "Phiếu khách" dùng chung cho OrderPanel (bàn) và TakeawayPanel (quầy),
@@ -32,7 +33,7 @@ const EMPTY: TicketPrintState = { status: "none", at: null, count: 0 };
 
 function hhmm(iso: string | null): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return gioVn(iso);
 }
 
 export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: string }) {

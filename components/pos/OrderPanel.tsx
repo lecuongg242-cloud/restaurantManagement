@@ -13,6 +13,7 @@ import { QtyStepper } from "@/components/customer/QtyStepper";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 import { TicketPrintButtons } from "./TicketPrintButtons";
+import { gioVn } from "@/lib/time/vn";
 
 /**
  * OrderPanel (POS cột giữa) — đơn của bàn đang chọn: món đã gọi (phục vụ/hủy) + giỏ "đang thêm"
@@ -149,10 +150,7 @@ export function OrderPanel({
           {session && (
             <p className="text-xs text-steel">
               Mở lúc{" "}
-              {new Date(session.opened_at).toLocaleTimeString("vi-VN", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              {gioVn(session.opened_at)}
             </p>
           )}
         </div>
@@ -191,10 +189,7 @@ export function OrderPanel({
                     <p className="text-sm font-medium text-ink">
                       Đơn {order.kitchen_no != null ? `#${order.kitchen_no}` : `#${order.id.slice(-6).toUpperCase()}`}
                       <span className="ml-xs text-xs font-normal text-steel">
-                        {new Date(order.created_at).toLocaleTimeString("vi-VN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {gioVn(order.created_at)}
                         {order.source === "qr" ? " · QR" : " · POS"}
                       </span>
                     </p>

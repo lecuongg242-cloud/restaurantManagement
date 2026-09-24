@@ -41,6 +41,7 @@ import { useActionKey } from "@/components/use-action-key";
 import { actionSignature } from "@/lib/idempotency";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
+import { gioVn } from "@/lib/time/vn";
 
 const STATUS_VN: Record<string, string> = {
   available: "Trống",
@@ -670,10 +671,7 @@ export function PosBoard({
             >
               <span className="shrink-0">{p.tableName}</span>
               <span className="font-normal tabular-nums text-steel">
-                {new Date(p.created_at).toLocaleTimeString("vi-VN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {gioVn(p.created_at)}
               </span>
               <span className="font-normal text-slate">
                 {p.items.reduce((n, i) => n + i.qty, 0)} món
@@ -720,10 +718,7 @@ export function PosBoard({
               )}
               <span className="font-normal text-slate">{u.itemCount} món</span>
               <span className="font-normal tabular-nums text-steel">
-                {new Date(u.created_at).toLocaleTimeString("vi-VN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {gioVn(u.created_at)}
               </span>
             </button>
           ))}

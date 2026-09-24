@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
+import { gioNgayNamVn } from "@/lib/time/vn";
 import { canAccess } from "@/lib/auth/rbac";
 import { buildReceiptView } from "@/lib/billing/receipt-view";
 import type { KitchenWidth } from "@/lib/print/adapter";
@@ -32,21 +33,7 @@ export default async function ReceiptPrintPage({
     return <div className="p-lg font-mono text-sm">Không tìm thấy hóa đơn để in.</div>;
   }
 
-  const time = receipt.dateTime
-    ? new Date(receipt.dateTime).toLocaleString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-    : new Date().toLocaleString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
+  const time = gioNgayNamVn(receipt.dateTime ?? new Date().toISOString());
 
   return <ReceiptDoc slug={slug} billId={billId} receipt={receipt} width={width} time={time} />;
 }

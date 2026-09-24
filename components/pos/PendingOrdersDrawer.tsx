@@ -9,6 +9,7 @@ import { formatVnd } from "@/lib/orders/cart";
 import { getPrintAdapter } from "@/lib/print/adapter";
 import { approveOrder, rejectOrder } from "@/app/r/[slug]/pos/actions";
 import { ACTION_OFFLINE_MSG } from "@/components/pos/offline-msg";
+import { gioVn } from "@/lib/time/vn";
 
 /**
  * PendingOrdersDrawer (§4.2) — danh sách order QR chờ duyệt (realtime qua refresh của PosBoard).
@@ -38,7 +39,7 @@ export function PendingOrdersDrawer({
   const [error, setError] = useState<string | null>(null);
 
   const time = (iso: string) =>
-    new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    gioVn(iso);
 
   const doApprove = async (id: string) => {
     setBusyId(id);

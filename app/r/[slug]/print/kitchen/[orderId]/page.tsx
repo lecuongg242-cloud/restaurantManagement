@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
+import { gioNgayVn } from "@/lib/time/vn";
 import { canAccess } from "@/lib/auth/rbac";
 import { buildKitchenTicket } from "@/lib/print/kitchen-ticket";
 import type { KitchenWidth } from "@/lib/print/adapter";
@@ -36,14 +37,7 @@ export default async function KitchenPrintPage({
     );
   }
 
-  const time = ticket.confirmedAt
-    ? new Date(ticket.confirmedAt).toLocaleString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        day: "2-digit",
-        month: "2-digit",
-      })
-    : "";
+  const time = gioNgayVn(ticket.confirmedAt);
 
   return <KitchenTicketDoc slug={slug} ticket={ticket} width={width} time={time} />;
 }

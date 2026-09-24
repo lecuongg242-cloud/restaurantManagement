@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
+import { gioNgayVn } from "@/lib/time/vn";
 import { canAccess } from "@/lib/auth/rbac";
 import { buildCustomerTicket } from "@/lib/print/customer-ticket";
 import type { KitchenWidth } from "@/lib/print/adapter";
@@ -34,14 +35,7 @@ export default async function CustomerPrintPage({
     return <div className="p-lg font-mono text-sm">Không tìm thấy đơn để in phiếu khách.</div>;
   }
 
-  const time = ticket.createdAt
-    ? new Date(ticket.createdAt).toLocaleString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        day: "2-digit",
-        month: "2-digit",
-      })
-    : "";
+  const time = gioNgayVn(ticket.createdAt);
 
   return <CustomerTicketDoc slug={slug} ticket={ticket} width={width} time={time} />;
 }

@@ -20,6 +20,7 @@ import { actionSignature } from "@/lib/idempotency";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 import { TicketPrintButtons } from "./TicketPrintButtons";
 import { TakeawayHistory } from "./TakeawayHistory";
+import { gioVn } from "@/lib/time/vn";
 import {
   createTakeawayOrderAction,
   openOnlineBillAction,
@@ -27,7 +28,7 @@ import {
 } from "@/app/r/[slug]/pos/actions";
 
 const hhmm = (iso: string) =>
-  new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  gioVn(iso);
 
 /** Ngày VIỆT NAM của một mốc ISO, dạng `YYYY-MM-DD` — so ngày phải theo giờ VN, không theo UTC. */
 const vnDayOf = (iso: string) =>
