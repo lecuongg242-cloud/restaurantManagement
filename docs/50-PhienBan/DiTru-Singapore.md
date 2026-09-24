@@ -144,6 +144,23 @@ curl -s -o /dev/null -w "%{time_starttransfer}s\n" https://<domain>/r/qt-food/me
 
 Trước: **510–535 ms**. Kỳ vọng sau: **~150–250 ms**.
 
+### Chạy khói trên production — BẮT BUỘC, sau khi Vercel deploy xong
+
+```bash
+npm run smoke:prod -- --slug qt-food     # chỉ ĐỌC trang menu công khai, không ghi gì
+```
+
+Phải thấy **0 hỏng**. Bước này thêm vào sau lần di trú 24/09/2026, khi **toàn bộ ảnh món vỡ** vì
+`image_url` còn trỏ project đã xóa — mọi phép kiểm phía trên đều xanh, vì chúng kiểm DATABASE, còn
+lỗi nằm ở thứ KHÁCH NHÌN THẤY. Lệnh khói kiểm đúng chỗ đó: trang trả 200, compute đúng vùng, mọi
+ảnh tải được, không còn host Supabase cũ trong trang.
+
+Hai giới hạn phải biết khi đọc kết quả:
+
+- Query ngẫu nhiên chỉ phá cache CDN, **không phá `unstable_cache`**. Trang menu có thể trả 200 với
+  dữ liệu đúng trong khi database đã chết — 24/09 đã xảy ra đúng như vậy.
+- Không kiểm được giờ hiển thị: không có trang công khai nào hiện giờ. Lớp lỗi đó chặn ở bộ test.
+
 ## Đường lui
 
 Giữ project cũ **nguyên vẹn, không xóa, ít nhất một tuần**. Quay lại = đổi env về project cũ + bỏ

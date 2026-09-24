@@ -13,6 +13,10 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // OPS-08: chạy như máy chủ production (Vercel = UTC). Máy dev ở UTC+7 thì code dựa vào múi giờ
+    // máy chạy vẫn cho kết quả đúng, và lỗi chỉ lộ ra trên hóa đơn của khách (24/09/2026).
+    // tests/env/mui-gio.test.ts khẳng định cấu hình này có hiệu lực.
+    env: { TZ: "UTC" },
     include: ["tests/**/*.test.ts"],
     // Test RLS gọi mạng thật tới Supabase → nới timeout.
     testTimeout: 20000,
