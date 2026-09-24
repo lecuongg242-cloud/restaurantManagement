@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { getServiceMode, setServiceMode, type ServiceMode } from "./tenant-mode";
 
 /**
  * E2E P3 — chuỗi giá trị cốt lõi: khách gọi món QR → POS duyệt → KDS làm món → phục vụ →
@@ -53,6 +54,21 @@ async function firstOrderableItem(page: Page) {
   await cards.first().waitFor({ timeout: 20000 });
   return cards.first();
 }
+
+/**
+ * Hai bộ test này thao tác trên SƠ ĐỒ BÀN ở POS — sơ đồ chỉ render khi quán ở chế độ bàn.
+ * Tự dựng điều kiện rồi trả lại nguyên trạng, thay vì phụ thuộc cài đặt sẵn có của tenant dùng chung.
+ */
+let modeCu: ServiceMode = "table";
+
+test.beforeAll(async () => {
+  modeCu = await getServiceMode(SLUG);
+  await setServiceMode(SLUG, "table");
+});
+
+test.afterAll(async () => {
+  await setServiceMode(SLUG, modeCu);
+});
 
 test("P3 chuỗi order đầu-cuối + realtime", async ({ browser }) => {
   const ctx = await browser.newContext({ reducedMotion: "reduce" });

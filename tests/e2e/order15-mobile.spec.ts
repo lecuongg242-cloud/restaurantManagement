@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { getServiceMode, setServiceMode, type ServiceMode } from "./tenant-mode";
 
 /**
  * E2E ORDER-15 + ORDER-16 — nhân viên cầm ĐIỆN THOẠI gõ đơn tại bàn (/pos/m) → đơn vào thẳng
@@ -24,6 +25,21 @@ async function loginStaff(page: Page) {
   }
   await page.goto(`/r/${SLUG}/pos/m`);
 }
+
+/**
+ * Hai bộ test này thao tác trên SƠ ĐỒ BÀN ở POS — sơ đồ chỉ render khi quán ở chế độ bàn.
+ * Tự dựng điều kiện rồi trả lại nguyên trạng, thay vì phụ thuộc cài đặt sẵn có của tenant dùng chung.
+ */
+let modeCu: ServiceMode = "table";
+
+test.beforeAll(async () => {
+  modeCu = await getServiceMode(SLUG);
+  await setServiceMode(SLUG, "table");
+});
+
+test.afterAll(async () => {
+  await setServiceMode(SLUG, modeCu);
+});
 
 test("ORDER-15: gõ đơn từ điện thoại ở 360px → ORDER-16: POS quầy nhắc in phiếu", async ({
   browser,
