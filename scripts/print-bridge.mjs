@@ -22,7 +22,7 @@
 import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 /**
  * Đọc .env.local cạnh file này, rồi tới thư mục cha (repo root khi chạy từ repo).
@@ -244,6 +244,34 @@ if (TEST_MODE) {
   }
 }
 
+// ── Nhịp poll thích ứng (PERF-03) ─────────────────────────────────────────────
+/**
+ * Nhịp poll kế tiếp theo số nhịp RỖNG liên tiếp (nhịp không tìm thấy phiếu nào).
+ *
+ * Quán đóng cửa mà vẫn hỏi 2 giây/lần là 1.800 request/giờ cho một câu trả lời "không có gì".
+ * Bậc thang: 0–4 → nhịp nền · 5–14 → ×2.5 · ≥15 → ×5 (trần).
+ *
+ * Trần cố ý thấp. Giãn tới 30–60 giây tiết kiệm thêm chẳng bao nhiêu nhưng đổi lấy việc bếp đứng
+ * nhìn máy in, và ở quán thì không ai đoán được nguyên nhân là nhịp poll.
+ *
+ * Nhân theo tỉ lệ `baseMs` để ai đặt POLL_MS khác vẫn giữ đúng tinh thần bậc thang.
+ */
+export function nextPollMs(emptyStreak, baseMs) {
+  const base = Number(baseMs) > 0 ? Number(baseMs) : 2000;
+  if (emptyStreak >= 15) return base * 5;
+  if (emptyStreak >= 5) return base * 2.5;
+  return base;
+}
+
+/**
+ * Tệp này vừa là script chạy tại quán, vừa là module để test import `nextPollMs`.
+ * Không có guard thì `import` từ vitest sẽ nối vào Supabase và poll thật — và vì thiếu biến môi
+ * trường, nó gọi luôn `process.exit(1)` giữa lúc chạy test.
+ */
+const laEntry = import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
+
+if (laEntry) {
+
 // ── Vòng lặp thật ──────────────────────────────────────────────────────────────
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -363,7 +391,8 @@ async function pollOnce() {
   // Quán có thể bị tạm ngưng rồi bật lại — thử tra lại thay vì chết hẳn.
   if (!tenantId) {
     tenantId = await resolveTenantId();
-    if (!tenantId) return;
+    // Quán đang tạm ngưng KHÔNG phải "vắng khách" — giữ nhịp nền vì có thể được bật lại bất cứ lúc nào.
+    if (!tenantId) return "khong-xac-dinh";
   }
 
   const since = new Date(Date.now() - MAX_JOB_AGE_MIN * 60_000).toISOString();
@@ -375,7 +404,9 @@ async function pollOnce() {
     );
   } catch (err) {
     log("Lỗi đọc print_jobs:", err.message);
-    return;
+    // Lỗi mạng KHÔNG phải "rỗng": mất mạng 2 phút rồi có phiếu ngay khi nối lại thì không được
+    // để nhịp đang nằm ở trần.
+    return "khong-xac-dinh";
   }
 
   for (const job of jobs ?? []) {
@@ -392,13 +423,22 @@ async function pollOnce() {
       inFlight.delete(job.id);
     }
   }
+
+  return (jobs ?? []).length > 0 ? "co-phieu" : "rong";
 }
 
 log(
   `Cầu in bếp: ${HOST}:${PORT}, khổ ${CHARS} ký tự, poll mỗi ${POLL_MS}ms, ` +
     `bỏ qua phiếu cũ hơn ${MAX_JOB_AGE_MIN} phút. Ctrl+C để dừng.`
 );
+let emptyStreak = 0;
 for (;;) {
-  await pollOnce();
-  await new Promise((r) => setTimeout(r, POLL_MS));
+  const ketQua = await pollOnce();
+  if (ketQua === "rong") emptyStreak += 1;
+  else if (ketQua === "co-phieu") emptyStreak = 0;
+  // "khong-xac-dinh" (lỗi mạng / quán tạm ngưng): giữ nguyên streak, không phạt cũng không thưởng.
+
+  await new Promise((r) => setTimeout(r, nextPollMs(emptyStreak, POLL_MS)));
 }
+
+} // hết khối `if (laEntry)` — xem ghi chú ở guard phía trên.

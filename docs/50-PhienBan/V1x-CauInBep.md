@@ -188,6 +188,13 @@ nhân viên **biết ngay** thay vì mất nhiều ngày mới phát hiện.
 
 ### Xử lý sự cố
 
+> **Cầu in "im" lúc quán vắng là bình thường, không phải treo.** Từ P8 (PERF-03) nhịp hỏi giãn
+> dần khi không có phiếu nào: 2 giây → 5 giây → 10 giây (trần). Có phiếu là về lại 2 giây ngay.
+> Phiếu đầu tiên sau một kỳ vắng dài ra chậm nhất khoảng 10 giây — đo thật ngày 24/09/2026 là
+> **4,5 giây**. Đừng khởi động lại cầu in vì thấy nó không gọi mạng liên tục.
+
+
+
 ```powershell
 schtasks /query /tn "CauInBep"     # cầu in có đăng ký chạy nền không
 schtasks /run   /tn "CauInBep"     # chạy lại
