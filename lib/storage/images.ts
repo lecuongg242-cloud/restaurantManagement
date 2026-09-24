@@ -38,7 +38,10 @@ export function validateImage(file: File): ImageValidation {
 
 /**
  * Upload ảnh vào menu-images tại `dir` (vd tenantId hoặc `${tenantId}`),
- * tên tệp `${prefix}-${rand}.${ext}`. Trả public URL. Ghi bằng service role.
+ * tên tệp `${prefix}-${rand}.${ext}`. Ghi bằng service role.
+ *
+ * Trả cả `path` (đường dẫn tương đối — thứ đem LƯU vào DB, xem QD-014) lẫn `publicUrl` (tiện khi
+ * cần dùng ngay, không lưu).
  */
 export async function uploadImage(
   file: File,

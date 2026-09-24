@@ -1,6 +1,7 @@
 /**
  * Kiểu dữ liệu menu (khớp cột DB migration 0004 + 0006).
- * Giá lưu integer VND (không phần lẻ). image_url là public URL Supabase Storage.
+ * Giá lưu integer VND (không phần lẻ). image_url là ĐƯỜNG DẪN TƯƠNG ĐỐI trong bucket Storage;
+ * host ghép ở biên đọc bằng `urlAnh` (QD-014) — đừng đưa thẳng vào `<Image src>`.
  */
 
 export type Category = {
