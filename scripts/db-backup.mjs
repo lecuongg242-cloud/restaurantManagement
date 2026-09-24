@@ -12,6 +12,10 @@
 //   node scripts/db-backup.mjs dump    <thu-muc>            # từ POSTGRES_URL_NON_POOLING
 //   node scripts/db-backup.mjs restore <thu-muc> <db-url>   # nạp vào database ĐÍCH
 //   node scripts/db-backup.mjs verify  <thu-muc> <db-url>   # đối chiếu số đếm
+//   node scripts/db-backup.mjs day-du  <thu-muc>            # dump + ảnh + tự kiểm — lệnh để ĐẶT LỊCH
+//   node scripts/db-backup.mjs kiem    <thu-muc>            # tự kiểm: đọc chính tệp dữ liệu
+//   node scripts/db-backup.mjs tuoi    <thu-muc-cha> [giờ]  # bản mới nhất bao giờ; quá hạn/không có → mã 1
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
@@ -69,8 +73,10 @@ async function dump(thuMuc, url) {
       continue;
     }
     const tep = path.join(thuMuc, `${schema}__${bang}.jsonl`);
-    fs.writeFileSync(tep, rows.map((x) => JSON.stringify(x.r)).join("\n") + (rows.length ? "\n" : ""));
-    tomTat[ten] = { so_dong: rows.length };
+    const noiDung = rows.map((x) => JSON.stringify(x.r)).join("\n") + (rows.length ? "\n" : "");
+    fs.writeFileSync(tep, noiDung);
+    // Mã băm để `kiem` bắt được tệp bị sửa mà vẫn đủ số dòng (OPS-09).
+    tomTat[ten] = { so_dong: rows.length, sha256: bam(noiDung) };
     console.log(`  ${ten}: ${rows.length} dòng`);
   }
 
@@ -196,6 +202,120 @@ async function verify(thuMuc, url) {
   if (lech > 0) process.exit(1);
 }
 
+function bam(noiDung) {
+  return crypto.createHash("sha256").update(noiDung).digest("hex");
+}
+
+/**
+ * Tự kiểm một bản sao lưu bằng cách đọc CHÍNH tệp dữ liệu (OPS-09). Không cần database.
+ *
+ * VÌ SAO: `verify` đối chiếu tệp TÓM TẮT với database đích, không đọc tệp dữ liệu — bản dump bị cắt
+ * cụt mà tóm tắt còn nguyên vẫn "Mọi bảng khớp". Và `chepAnh` gặp ảnh tải lỗi chỉ ghi log rồi đi
+ * tiếp. Bản sao lưu hỏng mà trông như lành còn tệ hơn không có: nó tạo cảm giác an toàn giả, và chỉ
+ * lộ ra đúng ngày cần khôi phục.
+ *
+ * Kiểm: mọi bảng dump được · đủ tệp · đúng số dòng · mọi dòng là JSON · mã băm khớp (bản cũ chưa có
+ * mã băm thì bỏ qua bước này) · số ảnh trên đĩa = số object trong bucket menu-images.
+ */
+export function kiemTep(thuMuc) {
+  const loi = [];
+  let tomTat;
+  try {
+    tomTat = JSON.parse(fs.readFileSync(path.join(thuMuc, "_tom-tat.json"), "utf8"));
+  } catch (err) {
+    return { dat: false, loi: [`không đọc được _tom-tat.json: ${err.message}`] };
+  }
+
+  let soAnhCanCo = 0;
+  for (const [ten, v] of Object.entries(tomTat.bang ?? {})) {
+    if (v.loi) {
+      loi.push(`${ten}: không dump được lúc sao lưu (${v.loi})`);
+      continue;
+    }
+    const [schema, bang] = ten.split(".");
+    const tep = path.join(thuMuc, `${schema}__${bang}.jsonl`);
+    if (!fs.existsSync(tep)) {
+      loi.push(`${ten}: thiếu tệp ${path.basename(tep)}`);
+      continue;
+    }
+    const noiDung = fs.readFileSync(tep, "utf8");
+    const dong = noiDung.split("\n").filter((d) => d.length > 0);
+    if (dong.length !== v.so_dong) {
+      loi.push(`${ten}: có ${dong.length} dòng, tóm tắt ghi ${v.so_dong}`);
+      continue;
+    }
+    const hong = dong.findIndex((d) => {
+      try {
+        JSON.parse(d);
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    if (hong > -1) {
+      loi.push(`${ten}: dòng ${hong + 1} không phải JSON hợp lệ`);
+      continue;
+    }
+    if (v.sha256 && bam(noiDung) !== v.sha256) {
+      loi.push(`${ten}: mã băm lệch — nội dung đã bị sửa`);
+      continue;
+    }
+    if (ten === "storage.objects") {
+      soAnhCanCo = dong.filter((d) => JSON.parse(d).bucket_id === "menu-images").length;
+    }
+  }
+
+  if (soAnhCanCo > 0) {
+    const thuMucAnh = path.join(thuMuc, "storage-menu-images");
+    if (!fs.existsSync(thuMucAnh)) {
+      loi.push(`ảnh: chưa chép (cần ${soAnhCanCo} tệp) — chạy lệnh "anh" hoặc dùng "day-du"`);
+    } else {
+      const coAnh = fs.readdirSync(thuMucAnh).length;
+      if (coAnh !== soAnhCanCo) loi.push(`ảnh: có ${coAnh} tệp, cần ${soAnhCanCo}`);
+    }
+  }
+
+  return { dat: loi.length === 0, loi };
+}
+
+/**
+ * Bản sao lưu MỚI NHẤT trong một thư mục cha, theo mốc ghi trong tệp tóm tắt — không theo giờ sửa
+ * thư mục, vì chép thư mục sang ổ khác là đổi giờ sửa. Không có bản nào → null: đó là chế độ hỏng
+ * im lặng nhất và phải được báo đỏ, không phải xanh.
+ */
+export function tuoiBanMoiNhat(thuMucCha, now = Date.now()) {
+  if (!fs.existsSync(thuMucCha)) return null;
+  let moiNhat = null;
+  for (const ten of fs.readdirSync(thuMucCha)) {
+    const thuMuc = path.join(thuMucCha, ten);
+    let luc;
+    try {
+      luc = JSON.parse(fs.readFileSync(path.join(thuMuc, "_tom-tat.json"), "utf8")).luc;
+    } catch {
+      continue; // thư mục rác, không phải bản sao lưu
+    }
+    const t = Date.parse(luc);
+    if (!Number.isFinite(t)) continue;
+    if (!moiNhat || t > moiNhat.t) moiNhat = { thuMuc, luc, t };
+  }
+  if (!moiNhat) return null;
+  return { thuMuc: moiNhat.thuMuc, luc: moiNhat.luc, gio: Math.floor((now - moiNhat.t) / 3_600_000) };
+}
+
+function baoKiem(thuMuc) {
+  const { dat, loi } = kiemTep(thuMuc);
+  if (dat) {
+    const tomTat = JSON.parse(fs.readFileSync(path.join(thuMuc, "_tom-tat.json"), "utf8"));
+    const coBam = Object.values(tomTat.bang).some((v) => v.sha256);
+    console.log(
+      `Tự kiểm ${thuMuc}: ĐẠT — mọi tệp đủ dòng, đúng JSON, đủ ảnh` +
+        (coBam ? ", đúng mã băm." : ". (Bản cũ, chưa có mã băm — không kiểm được nội dung bị sửa.)")
+    );
+  }
+  else console.error(`Tự kiểm ${thuMuc}: HỎNG\n  ${loi.join("\n  ")}`);
+  return dat;
+}
+
 const laEntry = import.meta.url === pathToFileURL(process.argv[1] ?? "").href;
 if (laEntry) {
   const [lenh, thuMuc, dbUrl] = process.argv.slice(2);
@@ -204,8 +324,25 @@ if (laEntry) {
   else if (lenh === "anh") await chepAnh(thuMuc);
   else if (lenh === "restore") await restore(thuMuc, dbUrl);
   else if (lenh === "verify") await verify(thuMuc, dbUrl);
-  else {
-    console.error("Dùng: node scripts/db-backup.mjs dump|anh|restore|verify <thư-mục> [db-url]");
+  else if (lenh === "kiem") process.exit(baoKiem(thuMuc) ? 0 : 1);
+  else if (lenh === "day-du") {
+    // Lệnh để ĐẶT LỊCH: một bản sao lưu = dữ liệu + ảnh + tự kiểm. Thiếu một trong ba là chưa xong.
+    await dump(thuMuc, nguon);
+    await chepAnh(thuMuc);
+    process.exit(baoKiem(thuMuc) ? 0 : 1);
+  } else if (lenh === "tuoi") {
+    const nguong = Number(dbUrl ?? 24);
+    const ban = tuoiBanMoiNhat(thuMuc);
+    if (!ban) {
+      console.error(`KHÔNG có bản sao lưu nào trong ${thuMuc}.`);
+      process.exit(1);
+    }
+    console.log(`Bản mới nhất: ${ban.thuMuc} — ${ban.luc} (${ban.gio} giờ trước, ngưỡng ${nguong} giờ)`);
+    const lanh = baoKiem(ban.thuMuc);
+    if (ban.gio >= nguong) console.error(`QUÁ HẠN: bản mới nhất đã ${ban.gio} giờ.`);
+    process.exit(lanh && ban.gio < nguong ? 0 : 1);
+  } else {
+    console.error("Dùng: node scripts/db-backup.mjs dump|anh|day-du|kiem|tuoi|restore|verify <thư-mục> [db-url|giờ]");
     process.exit(1);
   }
 }

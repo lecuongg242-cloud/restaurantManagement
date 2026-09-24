@@ -22,7 +22,10 @@
     "smoke:prod": "node scripts/smoke-prod.mjs",
     "test:all": "npm run test && npm run test:rls",
     "db:backup": "node scripts/db-backup.mjs dump",
-    "db:backup:anh": "node scripts/db-backup.mjs anh"
+    "db:backup:anh": "node scripts/db-backup.mjs anh",
+    "db:backup:day-du": "node scripts/db-backup.mjs day-du",
+    "db:backup:kiem": "node scripts/db-backup.mjs kiem",
+    "db:backup:tuoi": "node scripts/db-backup.mjs tuoi"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
