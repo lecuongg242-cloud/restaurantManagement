@@ -34,6 +34,46 @@ ngày 23–24/09/2026.
 
 ---
 
+## Phần A+ — đã TỰ ĐỘNG hóa bằng trình duyệt (24/09/2026)
+
+`tests/e2e/nghiem-thu.spec.ts` chạy bằng Chromium trên localhost. Chạy lại:
+
+```bash
+npm run build && PORT=3005 npm run start     # cửa sổ khác
+npx playwright test tests/e2e/nghiem-thu.spec.ts
+```
+
+10/10 xanh. Mỗi dòng dưới đây **thay thế** phần tương ứng trong danh sách thủ công:
+
+| Mã | Phần đã tự động | Phần CÒN phải xem bằng mắt |
+|---|---|---|
+| ORDER-07 | Link thiếu token → ẩn hành động cần bàn | Thẻ nhận diện: tên quán, tên bàn, tên khách sửa được, 2 lối hỗ trợ |
+| ORDER-10 | Tên trống → không gửi được · SĐT sai định dạng → không gửi được · bỏ SĐT → gửi được | Modal ở GIỮA màn, nền che + blur |
+| MENU-02 / MENU-04 | Tắt "hết món" ở admin → khách thấy "Hết" ở lần tải kế tiếp | Tắt từ **POS** bằng tài khoản cashier; tắt **option** trong nhóm tùy chọn |
+| MKT-01 | Không tràn ngang ở 360px · không còn link `/style-guide` hay `/r/pho-viet` | Đủ 7 khối, ảnh chụp từ tenant demo |
+| MKT-02 | SĐT sai → **không** ghi vào `leads` | Lời cảm ơn khi gửi đúng; gửi 2 lần trong 60s → 1 bản ghi |
+| REPORT-05 | `from > to`, kỳ > 400 ngày, ngày rác → **không** lỗi 500 | 43 cột ngày với khoảng cụ thể; 6 preset |
+| AUTH-05 | Owner **thấy** mục Cài đặt (đối chứng dương) | Manager **không** thấy; gõ thẳng `/admin/settings` bị đá về |
+| TENANT-06 | 3 bề mặt của quán bị ngưng đều chặn | — (đã ☑) |
+
+> **Vì sao vẫn còn cột phải xem bằng mắt:** những thứ như "modal ở giữa màn", "nền che + blur",
+> "đủ 7 khối" là cam kết về **cảm nhận thị giác**. Máy khẳng định được phần tử tồn tại, không
+> khẳng định được nó trông đúng. Tự động hóa phần đó chỉ tạo cảm giác an toàn giả.
+
+### Ba lần đỏ đầu tiên đều là test sai, không phải sản phẩm sai
+
+Ghi lại vì đây là cái bẫy dễ mắc khi đọc kết quả nghiệm thu:
+
+1. **MENU-02** — tôi tắt món **thẳng trong DB**, cache không bị xóa (đúng thiết kế), nên khách vẫn
+   thấy món còn bán. Test ghi thẳng DB là **test sai**. Sửa: đi đúng đường nhân viên dùng (bấm nút
+   ở `/admin/menu`).
+2. **ORDER-10** — nút "Bắt đầu" bị **vô hiệu hóa** khi SĐT sai; tôi lại đi bấm nó rồi chờ báo lỗi.
+   Sản phẩm chặn **tốt hơn** cách tôi giả định.
+3. **MKT-02 / ORDER-10** — selector sai (`placeholder` thật là "Nguyễn Văn A", "VD: Anh Nam").
+
+Không lần nào là lỗi sản phẩm. Nhưng nếu tôi sửa tiêu chí cho khớp thay vì điều tra, cả ba đã
+thành "đã nghiệm thu" mà chẳng kiểm được gì.
+
 ## Phiên 1 — Khu admin, đăng nhập owner (~30 phút)
 
 Mở `/r/pho-viet/admin`.
