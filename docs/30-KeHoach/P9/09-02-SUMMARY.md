@@ -53,8 +53,8 @@ gian tới lúc app chạy lại. Diễn tập lại cần một project trống
 
 ## Chờ chủ dự án
 
-`QD-015`: nơi cất (A/B/C), ngưỡng chịu mất (đề xuất 24 giờ), ai giữ khóa. Chưa chốt thì **chưa đặt
-lịch** — plan ghi rõ "chọn sai không lộ ra cho tới ngày mất dữ liệu".
+`QD-015` **hoãn** theo quyết định chủ dự án (24/09/2026): chưa cần sao lưu tự động. Công cụ đã
+sẵn; khi cần chỉ còn chọn nơi cất và đặt lịch cho lệnh `day-du`.
 
 **Không xóa SG1** cho tới khi diễn tập bằng công cụ mới xong.
 
