@@ -5,7 +5,7 @@
 > **Trong lúc hoãn:** không có lịch sao lưu tự động. Bản sao lưu chỉ có khi ai đó chạy tay
 > `npm run db:backup:day-du <thư-mục>` — nên chạy trước mọi thao tác rủi ro trên database (đổi
 > project, migration lớn, xóa dữ liệu). Kiểm bản gần nhất: `npm run db:backup:tuoi <thư-mục-cha>`.
-> Bản đầy đủ gần nhất: `D:\externalProject\sao-luu6-09-24-p9` (tự kiểm ĐẠT).
+> Bản đầy đủ gần nhất: `D:\externalProject\sao-luu\2026-09-24-p9` (tự kiểm ĐẠT).
 > Giữ nguyên project SG1 làm đường lui.
 
 ## Vì sao phải quyết
