@@ -16,7 +16,9 @@
     "check:unsplit": "node scripts/check-unsplit-rpc.mjs",
     "test": "vitest run",
     "test:rls": "vitest run tests/rls --no-file-parallelism",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "schema:check": "node scripts/schema-snapshot.mjs",
+    "schema:snapshot": "node scripts/schema-snapshot.mjs --write"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
