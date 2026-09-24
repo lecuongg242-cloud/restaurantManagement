@@ -12,6 +12,7 @@
 | OPS-05 | Biến thể bề mặt | POS/KDS render biến thể dày đặc (Inter, nút ≥44px, màu status); app khách render editorial (Fraunces hero, thẻ kem) — cùng 1 bộ token | P1 | ☑ (checkpoint 01-01/03) |
 | OPS-06 | Logo tenant | Logo+tên tenant hiện ở header khách, header admin, đầu hóa đơn/phiếu bếp; chrome giữ theme sản phẩm cố định | P2 | ◐ code (header admin+khách); đầu hóa đơn/phiếu bếp → P3/P4 |
 | OPS-04 | PWA cài được | POS/KDS/khách cài lên màn hình chính; chạy online-only | P6 | ☐ |
+| OPS-07 | Chốt chặn lệch schema trong CI | CI dựng shadow DB từ `supabase/migrations/` rồi `supabase db diff` với production (schema `public`,`storage`); khác nhau → **CI đỏ** kèm nội dung diff. Đối chứng âm: tạo tay một object trên DB test mà không viết migration → CI phải đỏ; xoá đi → CI xanh lại. Thiếu secrets thì bước này **skip**, không đỏ giả | P8 | ☐ |
 
 ## TENANT — Đa tenant & SaaS
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
@@ -117,6 +118,14 @@
 | MKT-01 | Trang `/` giới thiệu sản phẩm | 7 khối: hero · 3 nỗi đau · ảnh báo cáo · 4 bề mặt · lưới 10 tính năng · vì sao tin được · CTA cuối. Ảnh chụp màn thật từ tenant demo (không dùng dữ liệu tenant thật). Mọi luận điểm truy được về tính năng đã chạy. KHÔNG còn liên kết `/style-guide` hay `/r/pho-viet` trên trang. Không vỡ ở 360px | P6 | ◐ code+kiểm xong (14 unit + 4 e2e; ảnh chụp từ tenant demo); chờ checkpoint |
 | MKT-02 | Form nhận khách quan tâm | Gửi tên (≥2 ký tự) + SĐT VN hợp lệ → ghi bảng `leads`, form hiện lời cảm ơn. SĐT sai → báo lỗi tại ô nhập, không ghi DB. Gửi 2 lần cùng số trong 60s → chỉ 1 bản ghi. Dùng lại `normalizePhone`/`isValidPhone` của `guest-contact.ts` | P6 | ◐ code+kiểm xong (14 unit + 4 e2e; ảnh chụp từ tenant demo); chờ checkpoint |
 | MKT-03 | Lead khóa kín + màn quản lý | `leads` bật RLS và KHÔNG có policy nào → anon key `select * from leads` trả 0 dòng và insert bị từ chối; ghi/đọc chỉ qua service role sau khi xác thực. `/super/leads` liệt kê tên · SĐT (`tel:`) · ghi chú · thời điểm, nút "Đã gọi" đổi `status` | P6 | ◐ code+kiểm xong (14 unit + 4 e2e; ảnh chụp từ tenant demo); chờ checkpoint |
+
+## PERF — Tải & chi phí
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| PERF-01 | Đóng bill gộp không bị WebSocket làm chậm | Đóng một bill gộp **5 đơn**: đo thời gian server action từ lúc gọi tới lúc trả. Phải **≤ 5s** (BILL-04) và giảm rõ so với số đo trước khi sửa. `broadcastOrderStatus` không còn mở/đóng WebSocket mỗi lần: `grep -c "\.channel(" lib/orders/broadcast.ts` = 0. Hai lối gọi vòng lặp (`pos/actions.ts`, `lib/billing/bill.ts`) gộp thành **một** request nhiều message. Khách đang mở trang theo dõi vẫn nhận được đổi trạng thái ≤ 2s | P8 | ☐ |
+| PERF-02 | POS không nạp lại thực đơn mỗi lần refresh | Số truy vấn DB mỗi lần render `/pos` giảm đúng phần của `getCustomerMenu`; đo bằng log P8-04 trước/sau. **Không được cũ dữ liệu**: sau MỖI lối ghi thực đơn (admin menu, modifiers, `setItemAvailable` ở POS, onboarding seed) thì `/pos` và `/menu` phải thấy thay đổi ở **lần tải kế tiếp**. Test phủ **từng** lối ghi, không chỉ lối phổ biến | P8 | ☐ |
+| PERF-03 | Cầu in giãn nhịp khi quán vắng | Bậc thang cố định: 0–4 nhịp rỗng → 2s · 5–14 → 5s · ≥15 → 10s (trần). Có phiếu → về ngay 2s. Đo: quán không có phiếu trong 10 phút → request/giờ giảm từ 1.800 xuống ≤ 400. Phiếu đầu tiên sau kỳ vắng ra giấy trong **≤ 10s** | P8 | ☐ |
+| PERF-04 | Đo được tải theo từng nhà hàng | Mỗi request vào `/r/*` ghi một dòng log JSON: `tenant_slug`, `path`, `ms`, `status`. `getPosSnapshot` và `getCustomerMenu` ghi thời lượng. Không ghi PII, không ghi nội dung đơn. Sau 2 tuần chạy thật, trả lời được bằng log: (a) quán nào nhiều request nhất, (b) đường nào chậm nhất, (c) **POS render bao nhiêu lần mỗi giờ cao điểm** — con số để quyết có viết lại realtime hay không | P8 | ☐ |
 
 ## Tiêu chí phát hành V1 (map từ `00-TongThe.md` §7)
 Onboard ≤15' (TENANT-03) · KDS ≤3s (ORDER-04) · đóng bill ≤5s (BILL-04) · doanh thu khớp 100% (BILL-05) · RLS test (TENANT-02) · 2 tenant demo prod (P6) · mobile 360px ≤6 chạm (ORDER-01) · hóa đơn 80mm đủ (PRINT-03) · phiếu bếp (PRINT-02; nghiệm thu "tự in ≤5s" hoãn tới khi có cầu in cục bộ + phần cứng — V1 nghiệm thu bấm-in + PDF preview).
