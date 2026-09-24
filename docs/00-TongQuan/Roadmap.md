@@ -14,7 +14,7 @@ Nền móng multi-tenant an toàn (P1) → dữ liệu nhà hàng (P2) → lõi 
 - [~] **P4 — Dòng tiền**: Bill gộp/tách, điều chỉnh (giảm giá/phí/VAT), thanh toán, in hóa đơn, dashboard — *code 5/5 plan hoàn tất (04-01..05), migration 0012–0013 áp dev, tsc/lint/test xanh; chờ 5 checkpoint human-verify*
 - [~] **P5 — Kênh online** (3 plan): Đặt bàn (duyệt tay + danh sách theo ngày), đặt món mang về/giao (vòng đời + thu tiền qua bill P4) — *05-01 & 05-02 code xong + **approved**; 05-03 code xong (tsc/lint xanh), migration 0014–0015 áp dev; chờ checkpoint 05-03*
 - [ ] **P6 — Phát hành**: PWA, E2E, 2 tenant demo prod, tài liệu V1.0
-- [x] **P7 — Cứng hóa đa tenant**, [~] **P8 — Tối ưu tải & chi phí**, [ ] **P9 — Vận hành không còn chỗ mù**
+- [x] **P7 — Cứng hóa đa tenant**, [~] **P8 — Tối ưu tải & chi phí**, [~] **P9 — Vận hành không còn chỗ mù**
 
 ---
 
@@ -141,13 +141,17 @@ tiếng, và toàn bộ ảnh món vỡ sau khi đổi database. Cả hai đều
 E2E. Không phải hai lỗi rời rạc mà **một lớp lỗi**: thứ chỉ sai khi môi trường chạy khác máy dev.
 Cùng ngày, database Mỹ bị xóa khi chưa có sao lưu tự động nào — khôi phục được là nhờ may.
 
-- [ ] 09-01 **Bịt khoảng cách local ↔ production** (OPS-08) — test chạy dưới `TZ=UTC` + khói hậu-deploy trên production thật.
-- [ ] 09-02 **Sao lưu tự động + đường lui** (OPS-09) — sinh `QD-015` (nơi cất, vì bản dump chứa PII khách).
-- [ ] 09-03 **Cầu in đóng nốt ba việc tồn** (PRINT-06, PRINT-07) — **122 phiếu bếp chưa từng tới bếp**.
+- [x] 09-01 **Bịt khoảng cách local ↔ production** (OPS-08) — test chạy dưới `TZ=UTC` + khói hậu-deploy trên production thật.
+- [~] 09-02 **Sao lưu tự động + đường lui** (OPS-09) — sinh `QD-015` (nơi cất, vì bản dump chứa PII khách).
+- [~] 09-03 **Cầu in: biết khi nó chết, tự đi đường khác** (PRINT-06, PRINT-07, PRINT-08) — **122 phiếu bếp chưa từng tới bếp**.
 - [ ] 09-04 **Kết luận PERF-04 → `QD-016`** — cổng thời gian, sớm nhất 08/10/2026.
 
 P9 kết thúc bằng **"không còn lớp lỗi nào chỉ xuất hiện trên production, và mất database không còn
 là sự cố"** — không phải bằng một tính năng mới.
+
+**Chốt P9: `30-KeHoach/P9/99-CHOT.md`** (24/09/2026, chốt khi còn dở dang) — 09-01 xong; 09-02 có
+công cụ, lịch tự động hoãn (`QD-015`); 09-03 chạy trên production, còn kiểm tại quán; 09-04 chờ
+08/10. Toàn bộ thiếu sót liệt kê trong tệp chốt.
 
 Không nằm trong P9: 42 yêu cầu `◐` chờ nghiệm thu người thật (là 7 phiên bấm tay ở
 `40-KiemTra/00-DanhSachNghiemThu.md`, không phải việc code) · viết lại realtime (chờ số 09-04) ·
