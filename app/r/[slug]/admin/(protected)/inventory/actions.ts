@@ -449,3 +449,120 @@ export async function recordBatch(fd: FormData) {
     error ? `Ghi phiếu chế biến lỗi: ${error.message}` : `Đã ghi ${batchCount} mẻ ${prepared.name}.`
   );
 }
+
+// ── 10-03: kiểm kê cuối ngày + xuất hủy ────────────────────────────────────────────────────
+
+/**
+ * Kiểm kê (INV-08). Độ lệch = số đếm − tồn lý thuyết TẠI LÚC GỬI, tính lại ở server (không tin số
+ * client đưa lên — giữa lúc mở màn và lúc gửi có thể đã bán thêm). Ghi cả độ lệch 0: "đã kiểm, khớp"
+ * khác "không kiểm".
+ */
+export async function recordCounts(fd: FormData) {
+  const slug = String(fd.get("slug") ?? "");
+  const session = await requireInventoryManager(slug);
+  const tenantId = session.tenant.id;
+
+  let parsed: { ingredient_id: string; counted: string }[];
+  try {
+    parsed = JSON.parse(String(fd.get("rows") ?? "[]"));
+    if (!Array.isArray(parsed)) throw new Error();
+  } catch {
+    await setFlash("error", "Dữ liệu kiểm kê không hợp lệ.");
+    return;
+  }
+
+  const supabase = await createClient();
+  const [{ data: ingRows }, { data: onHand, error: ohErr }] = await Promise.all([
+    supabase.from("ingredients").select("id, name, must_count, purchase_factor").eq("tenant_id", tenantId),
+    supabase.rpc("inventory_on_hand", { p_tenant: tenantId }),
+  ]);
+  if (ohErr) {
+    await setFlash("error", ohErr.message);
+    return;
+  }
+  const ingById = new Map((ingRows ?? []).map((r) => [r.id as string, r]));
+  const theoretical = new Map(
+    ((onHand ?? []) as { ingredient_id: string; on_hand: number }[]).map((r) => [r.ingredient_id, Number(r.on_hand)])
+  );
+
+  const day = businessDate();
+  const entries: Record<string, unknown>[] = [];
+  for (const r of parsed) {
+    const raw = String(r.counted ?? "").trim();
+    if (!raw) continue; // không đếm nguyên liệu này
+    const ing = ingById.get(r.ingredient_id);
+    if (!ing || !ing.must_count) continue;
+    const counted = raw === "0" ? 0 : parseQty(raw);
+    if (counted === null) {
+      await setFlash("error", `Số đếm của "${ing.name}" không hợp lệ.`);
+      return;
+    }
+    const countedBase = toBaseQty(counted, Number(ing.purchase_factor ?? 1));
+    const diff = Math.round((countedBase - (theoretical.get(ing.id as string) ?? 0)) * 1000) / 1000;
+    entries.push({
+      tenant_id: tenantId,
+      business_date: day,
+      ingredient_id: ing.id,
+      kind: "count_adjust",
+      qty: diff,
+      note: `đếm ${countedBase}`,
+      created_by: session.membershipId,
+    });
+  }
+  if (entries.length === 0) {
+    await setFlash("error", "Chưa nhập số đếm nào.");
+    return;
+  }
+  const { error } = await supabase.from("stock_entries").insert(entries);
+  revalidatePath(invPath(slug), "layout");
+  await setFlash(error ? "error" : "ok", error ? error.message : `Đã ghi kiểm kê ${entries.length} nguyên liệu.`);
+}
+
+const WASTE_REASONS = ["hong", "do_bo", "com_nhan_vien", "khac"] as const;
+
+/** Xuất hủy có lý do (INV-08). Lý do bắt buộc; "khác" phải có ghi chú. */
+export async function recordWaste(fd: FormData) {
+  const slug = String(fd.get("slug") ?? "");
+  const session = await requireInventoryManager(slug);
+  const tenantId = session.tenant.id;
+  const ingredientId = String(fd.get("ingredient_id") ?? "");
+  const reason = String(fd.get("reason") ?? "") as (typeof WASTE_REASONS)[number];
+  const note = String(fd.get("note") ?? "").trim() || null;
+  const qty = parseQty(String(fd.get("qty") ?? ""));
+  if (!ingredientId || qty === null) {
+    await setFlash("error", "Chọn nguyên liệu và nhập lượng hủy.");
+    return;
+  }
+  if (!WASTE_REASONS.includes(reason)) {
+    await setFlash("error", "Chọn lý do hủy.");
+    return;
+  }
+  if (reason === "khac" && !note) {
+    await setFlash("error", "Lý do \"Khác\" cần ghi chú.");
+    return;
+  }
+
+  const supabase = await createClient();
+  const { data: ing } = await supabase
+    .from("ingredients")
+    .select("id, name, purchase_factor")
+    .eq("tenant_id", tenantId)
+    .eq("id", ingredientId)
+    .maybeSingle();
+  if (!ing) {
+    await setFlash("error", "Không tìm thấy nguyên liệu.");
+    return;
+  }
+  const { error } = await supabase.from("stock_entries").insert({
+    tenant_id: tenantId,
+    business_date: businessDate(),
+    ingredient_id: ingredientId,
+    kind: "waste",
+    qty: -toBaseQty(qty, Number(ing.purchase_factor ?? 1)),
+    reason,
+    note,
+    created_by: session.membershipId,
+  });
+  revalidatePath(invPath(slug), "layout");
+  await setFlash(error ? "error" : "ok", error ? error.message : `Đã ghi hủy ${ing.name}.`);
+}

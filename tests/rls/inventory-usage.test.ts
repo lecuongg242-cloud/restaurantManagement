@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { signInAs, OWNER_A, OWNER_B, tenantIdBySlug } from "./setup";
 import { adminClient } from "./fixtures";
+import { businessDate } from "@/lib/inventory/day";
 
 /**
  * INV-06 — tồn lý thuyết & số phần tính từ đơn hàng thật trên DB (QD-017 D2, D4). Dựng một thực
@@ -126,7 +127,7 @@ beforeAll(async () => {
       { ...t, modifier_option_id: ids.opt, ingredient_id: ids.trung, qty: 1 },
     ])
   );
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessDate();
   await must(
     db.from("production_batches").insert({
       id: ids.ndBatch, ...t, business_date: today, ingredient_id: ids.nd, batch_count: 1, expected_qty: 1000, actual_qty: 1000,
@@ -227,7 +228,7 @@ describe("số phần dự đoán (INV-06, QD-017 D4)", () => {
   it("muối chưa từng nhập không kéo số phần về 0 (không tham gia)", async () => {
     // Nếu muối tham gia, M2 không đổi nhưng M sẽ bị muối kéo xuống — kiểm trực tiếp: đổi nước dùng
     // thành đủ dùng thì M phải ra theo bò, không phải 0 vì muối.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessDate();
     await must(db.from("stock_entries").insert({
       tenant_id: tenant, business_date: today, ingredient_id: ids.nd, kind: "receipt", qty: 10_000,
     }));

@@ -170,6 +170,13 @@ export const CASES: Case[] = [
     }),
     updatePatch: { note: MARK },
   },
+  {
+    // Không có policy update/delete nào (bất biến) → phép ghi chéo ra 0 dòng là đương nhiên; phần
+    // "chính A cũng không sửa được" nằm ở daily-close.test.ts.
+    table: "daily_closes",
+    insertRow: (t, id) => ({ id, tenant_id: t, business_date: "2000-01-02", payload: { marker: MARK } }),
+    updatePatch: { payload: { marker: MARK } },
+  },
 ];
 
 /** Dòng fixture của tenant B ứng với một bảng. */
@@ -195,8 +202,8 @@ afterAll(async () => {
 }, 120_000);
 
 describe("RLS đọc: tenant A ⊥ tenant B", () => {
-  it("ma trận phủ đủ 22 bảng có tenant_id", () => {
-    expect(CASES).toHaveLength(22);
+  it("ma trận phủ đủ 23 bảng có tenant_id", () => {
+    expect(CASES).toHaveLength(23);
   });
 
   it.each(CASES)("$table — đối chứng dương: A đọc dữ liệu của chính A", async (c) => {

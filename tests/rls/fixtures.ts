@@ -73,6 +73,7 @@ export const IDX = {
   recipe_lines: 20,
   production_batches: 21,
   stock_entries: 22,
+  daily_closes: 23,
   // Khóa chính là (item_id, group_id) → trỏ theo menu_items.
   menu_item_modifier_groups: 2,
 } as const;
@@ -238,6 +239,11 @@ function stepsFor(key: TenantKey, tenantId: string): SeedStep[] {
         kind: "receipt", qty: 1000, note: label,
       },
     },
+    {
+      // Năm 2000: không bao giờ là "bản chốt gần nhất trước hôm nay" của một test chốt sổ đang chạy.
+      table: "daily_closes",
+      row: { id: id(23), ...t, business_date: "2000-01-01", payload: { marker: label } },
+    },
   ];
 }
 
@@ -256,6 +262,7 @@ async function seedTenant(admin: SupabaseClient, key: TenantKey, tenantId: strin
  */
 const TEARDOWN: { table: string; column: string; n: number }[] = [
   // recipe_lines → ingredients là ON DELETE RESTRICT: định lượng chết trước nguyên liệu.
+  { table: "daily_closes", column: "id", n: 23 },
   { table: "stock_entries", column: "id", n: 22 },
   { table: "production_batches", column: "id", n: 21 },
   { table: "recipe_lines", column: "id", n: 20 },

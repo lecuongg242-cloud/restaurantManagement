@@ -123,7 +123,7 @@ test("công thức vòng bị chặn, không lưu (INV-03)", async ({ page }) =>
 
 test("360px không cuộn ngang", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
-  for (const path of [BASE, `${BASE}/recipes`, `${BASE}/today`]) {
+  for (const path of [BASE, `${BASE}/recipes`, `${BASE}/today`, `${BASE}/count`]) {
     await page.goto(path);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth
@@ -213,4 +213,51 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
   await page.reload();
   await expect(page.getByText("Có thể đã hết — hãy hỏi bếp")).toHaveCount(0);
   await expect(page.getByText(/^còn ~\d+$/)).toHaveCount(0);
+});
+
+test("kiểm kê lệch 200 g + phiếu hủy có lý do (INV-08)", async ({ page }) => {
+  const db = admin();
+  const { data: t } = await db.from("tenants").select("id").eq("slug", SLUG).single();
+  const tenant = t!.id as string;
+  const name = `${TAG} Tôm`;
+  const { data: ing } = await db
+    .from("ingredients")
+    .insert({ tenant_id: tenant, name, base_unit: "g", purchase_unit: "kg", purchase_factor: 1000, must_count: true })
+    .select("id")
+    .single();
+  const { businessDate } = await import("@/lib/inventory/day");
+  await db.from("stock_entries").insert({
+    tenant_id: tenant, business_date: businessDate(), ingredient_id: ing!.id, kind: "receipt", qty: 1000,
+  });
+
+  try {
+    await page.goto(`${BASE}/count`);
+    await expect(page.getByText(/tính cho ngày \d{2}\/\d{2}\/\d{4}/)).toBeVisible();
+    const row = page.locator("li").filter({ hasText: name });
+    await expect(row.getByText("Sổ: 1 kg")).toBeVisible();
+    await row.getByRole("textbox").fill("0,8");
+    await page.getByRole("button", { name: "Ghi kiểm kê" }).click();
+    await expect(page.getByText(/Đã ghi kiểm kê/)).toBeVisible();
+    const { data: adj } = await db.from("stock_entries").select("qty").eq("ingredient_id", ing!.id).eq("kind", "count_adjust");
+    expect(adj!.map((r) => Number(r.qty))).toEqual([-200]);
+
+    // "Khác" mà không ghi chú → bị từ chối, không ghi
+    const waste = page.locator("form").filter({ has: page.getByRole("button", { name: "Ghi phiếu hủy" }) });
+    await waste.locator('select[name="ingredient_id"]').selectOption({ label: `${name} (kg)` });
+    await waste.locator('input[name="qty"]').fill("0,1");
+    await waste.locator('select[name="reason"]').selectOption("khac");
+    await waste.getByRole("button", { name: "Ghi phiếu hủy" }).click();
+    await expect(page.getByText(/cần ghi chú/)).toBeVisible();
+
+    await waste.locator('select[name="ingredient_id"]').selectOption({ label: `${name} (kg)` });
+    await waste.locator('input[name="qty"]').fill("0,1");
+    await waste.locator('select[name="reason"]').selectOption("hong");
+    await waste.getByRole("button", { name: "Ghi phiếu hủy" }).click();
+    await expect(page.getByText(`Đã ghi hủy ${name}.`)).toBeVisible();
+    const { data: w } = await db.from("stock_entries").select("qty, reason").eq("ingredient_id", ing!.id).eq("kind", "waste");
+    expect(w).toEqual([{ qty: -100, reason: "hong" }]);
+  } finally {
+    await db.from("stock_entries").delete().eq("ingredient_id", ing!.id);
+    await db.from("ingredients").delete().eq("id", ing!.id);
+  }
 });
