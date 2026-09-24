@@ -261,3 +261,64 @@ test("kiểm kê lệch 200 g + phiếu hủy có lý do (INV-08)", async ({ pag
     await db.from("ingredients").delete().eq("id", ing!.id);
   }
 });
+
+test("báo cáo: chưa khai nguyên liệu thì không có khối P10; khai rồi thì có, dòng nối khớp KPI (REPORT-13, INV-10)", async ({ page }) => {
+  const REPORTS = `/r/${SLUG}/admin/reports?preset=30d`;
+  // Các test trước chỉ dọn ở afterAll — dọn ngay để quán demo thật sự "chưa khai nguyên liệu".
+  await cleanup();
+  await page.goto(REPORTS);
+  await expect(page.getByRole("heading", { name: "Báo cáo dòng tiền" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lãi gộp theo món" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Hao hụt" })).toHaveCount(0);
+
+  // Dựng một hóa đơn đã thanh toán HÔM NAY: món có định lượng 100 g × 200đ/g = 20.000đ giá vốn,
+  // bán 50.000đ → khối lãi gộp phải có dòng "tạm tính" và dòng nối phải khớp KPI trên cùng trang.
+  const db = admin();
+  const { data: t } = await db.from("tenants").select("id").eq("slug", SLUG).single();
+  const tenant = t!.id as string;
+  const { data: items } = await db.from("menu_items").select("id, name").eq("tenant_id", tenant).eq("active", true).limit(1);
+  const item = items![0];
+  const { data: ing } = await db
+    .from("ingredients")
+    .insert({ tenant_id: tenant, name: `${TAG} Báo cáo`, base_unit: "g", last_unit_cost: 200, last_cost_at: new Date().toISOString() })
+    .select("id")
+    .single();
+  await db.from("recipe_lines").insert({ tenant_id: tenant, ingredient_id: ing!.id, menu_item_id: item.id, qty: 100 });
+  const { data: o } = await db
+    .from("orders")
+    .insert({ tenant_id: tenant, channel: "takeaway", source: "staff", status: "completed", confirmed_at: new Date().toISOString(), note: TAG })
+    .select("id")
+    .single();
+  const { data: oi } = await db
+    .from("order_items")
+    .insert({ tenant_id: tenant, order_id: o!.id, menu_item_id: item.id, name_snapshot: item.name, unit_price_snapshot: 50_000, qty: 1, status: "served" })
+    .select("id")
+    .single();
+  const { data: b } = await db
+    .from("bills")
+    .insert({ tenant_id: tenant, status: "paid", subtotal: 50_000, total: 50_000, paid_at: new Date().toISOString(), note: TAG })
+    .select("id")
+    .single();
+  await db.from("bill_items").insert({ tenant_id: tenant, bill_id: b!.id, order_item_id: oi!.id, qty_allocated: 1, unit_price_snapshot: 50_000, amount: 50_000 });
+
+  try {
+    await page.goto(REPORTS);
+    await expect(page.getByRole("heading", { name: "Lãi gộp theo món" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Hao hụt" })).toBeVisible();
+
+    const row = page.locator("tr", { hasText: item.name });
+    await expect(row.getByText("20.000₫").first()).toBeVisible(); // giá vốn/phần
+    await expect(row.getByText("30.000₫").first()).toBeVisible(); // lãi/phần
+    await expect(page.getByText(/phần của hôm nay — tạm tính/)).toBeVisible();
+
+    const kpi = (await page.locator("p", { hasText: /^Doanh thu$/ }).locator("xpath=following-sibling::p[1]").first().innerText()).trim();
+    const line = await page.getByText(/^Doanh thu .* = món \(đã trừ giảm giá\)/).innerText();
+    expect(line.startsWith(`Doanh thu ${kpi} =`), `${line} ≠ KPI ${kpi}`).toBe(true);
+  } finally {
+    await db.from("bill_items").delete().eq("bill_id", b!.id);
+    await db.from("bills").delete().eq("id", b!.id);
+    await db.from("orders").delete().eq("id", o!.id);
+    await db.from("recipe_lines").delete().eq("ingredient_id", ing!.id);
+    await db.from("ingredients").delete().eq("id", ing!.id);
+  }
+});

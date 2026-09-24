@@ -30,7 +30,7 @@ Chạy tuần tự: mỗi plan dựng trên dữ liệu của plan trước.
 | `10-01-PLAN.md` | `0045_ingredients` | `ingredients`, `recipe_lines` | 18 → 20 |
 | `10-02-PLAN.md` | `0046_stock_ledger` | `stock_entries`, `production_batches` + RPC tồn/số phần | → 22 |
 | `10-03-PLAN.md` | `0047_daily_close` | `daily_closes` (chỉ select + insert) | → 23 |
-| `10-04-PLAN.md` | `0048_margin_waste_rpcs` | — (3 RPC báo cáo) | 23 |
+| `10-04-PLAN.md` | `0048_margin_waste_rpcs` + `0049_margin_costed_revenue` | — (RPC báo cáo) | 23 |
 
 ## Phát hiện khi rà code (24/09/2026)
 

@@ -15,6 +15,9 @@ import { AreaBreakdown } from "@/components/admin/reports/AreaBreakdown";
 import { HourHeatmap } from "@/components/admin/reports/HourHeatmap";
 import { CancellationPanel } from "@/components/admin/reports/CancellationPanel";
 import { DiscountPanel } from "@/components/admin/reports/DiscountPanel";
+import { MarginPanel } from "@/components/admin/reports/MarginPanel";
+import { WastePanel } from "@/components/admin/reports/WastePanel";
+import { getInventoryReportBlock, type InventoryReportBlock } from "@/lib/inventory/report-server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +50,14 @@ export default async function ReportsPage({
   // Khối "Món bị hủy" tự nuốt lỗi của riêng nó (xem getCancellationBlock) — REPORT-10 hỏng thì
   // REPORT-01..09 vẫn phải hiện. Nhờ vậy cũng không còn ràng buộc thứ tự triển khai code ↔ 0029.
   let cancellations: CancellationBlock;
+  // P10 (REPORT-13/14): tự nuốt lỗi như khối hủy; null = quán chưa khai nguyên liệu → không render.
+  let inventory: InventoryReportBlock;
   try {
-    [data, prev, cancellations] = await Promise.all([
+    [data, prev, cancellations, inventory] = await Promise.all([
       getReportData(session.tenant.id, range),
       getComparison(session.tenant.id, prevRange),
       getCancellationBlock(session.tenant.id, range, prevRange),
+      getInventoryReportBlock(session.tenant.id, range),
     ]);
   } catch (err) {
     return (
@@ -155,6 +161,17 @@ export default async function ReportsPage({
           <CancelBlockError message={cancellations.message} />
         )}
       </Panel>
+
+      {inventory !== null && (
+        <>
+          <Panel title="Lãi gộp theo món" className="mt-lg">
+            {inventory.ok ? <MarginPanel data={inventory.data} /> : <InventoryBlockError message={inventory.message} />}
+          </Panel>
+          <Panel title="Hao hụt" className="mt-lg">
+            {inventory.ok ? <WastePanel data={inventory.data} /> : <InventoryBlockError message={inventory.message} />}
+          </Panel>
+        </>
+      )}
     </ReportShell>
   );
 }
@@ -174,6 +191,19 @@ function CancelBlockError({ message }: { message: string }) {
         <code className="font-mono text-xs">0029_cancel_report_rpcs.sql</code> và{" "}
         <code className="font-mono text-xs">0037_cancel_after_print_rpcs.sql</code> đã chạy chưa. Các
         khối còn lại của báo cáo không bị ảnh hưởng.
+      </p>
+    </div>
+  );
+}
+
+/** Lỗi của hai khối P10 — các khối cũ của báo cáo không bị kéo theo. */
+function InventoryBlockError({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-status-late bg-canvas p-md">
+      <p className="text-sm font-medium text-status-late">Không tải được số liệu nguyên liệu.</p>
+      <p className="mt-xs text-sm text-steel">
+        {message} Kiểm tra migration <code className="font-mono text-xs">0045</code>–
+        <code className="font-mono text-xs">0049</code> đã chạy chưa.
       </p>
     </div>
   );
