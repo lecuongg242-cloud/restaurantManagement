@@ -144,6 +144,17 @@ export const CASES: Case[] = [
     insertRow: (t, id) => ({ id, tenant_id: t, table_id: B(6), table_name: MARK }),
     updatePatch: { table_name: MARK },
   },
+  {
+    table: "ingredients",
+    insertRow: (t, id) => ({ id, tenant_id: t, name: MARK, base_unit: "g" }),
+    updatePatch: { name: MARK },
+  },
+  {
+    table: "recipe_lines",
+    // Nguyên liệu + option của B, cặp chưa tồn tại → lý do duy nhất bị từ chối là RLS, không phải trùng.
+    insertRow: (t, id) => ({ id, tenant_id: t, ingredient_id: B(19), modifier_option_id: B(4), qty: 1 }),
+    updatePatch: { qty: 99 },
+  },
 ];
 
 /** Dòng fixture của tenant B ứng với một bảng. */
@@ -169,8 +180,8 @@ afterAll(async () => {
 }, 120_000);
 
 describe("RLS đọc: tenant A ⊥ tenant B", () => {
-  it("ma trận phủ đủ 18 bảng có tenant_id", () => {
-    expect(CASES).toHaveLength(18);
+  it("ma trận phủ đủ 20 bảng có tenant_id", () => {
+    expect(CASES).toHaveLength(20);
   });
 
   it.each(CASES)("$table — đối chứng dương: A đọc dữ liệu của chính A", async (c) => {

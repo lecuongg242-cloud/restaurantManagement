@@ -71,7 +71,8 @@ export type ManageSection =
   | "settings"
   | "onboarding"
   | "reports"
-  | "printers";
+  | "printers"
+  | "inventory";
 
 /**
  * Vai trò `role` có quyền quản lý `section` cấu hình không — ma trận QD-010 §2.
@@ -80,6 +81,8 @@ export type ManageSection =
  *   số là đổi tiền in trên mọi hóa đơn kể từ lúc đó — quyết định thương mại của chủ, không phải
  *   thao tác vận hành. Nhận diện (logo/tên) và footer hóa đơn cùng lý do.
  * - `reports` CÓ manager: quản lý ca cần đối soát tiền mặt cuối ca (REPORT-03 sinh ra vì việc này).
+ * - `inventory` CÓ manager: nhập nguyên liệu buổi sáng, kiểm kê cuối ngày là việc của quản lý ca
+ *   (QD-017 C4). Nhân viên trạm chỉ THẤY số phần trên POS, không sửa định lượng hay tồn.
  * - `printers` CÓ manager: chỉ XEM sức khỏe cầu in / máy in (PRINT-09) — quản lý ca phải biết máy
  *   in bếp chết giữa ca, không cần đợi chủ.
  *
@@ -96,6 +99,7 @@ export function canManage(role: Role, section: ManageSection): boolean {
     case "onboarding":
     case "reports":
     case "printers":
+    case "inventory":
       return role === "owner" || role === "manager";
   }
 }

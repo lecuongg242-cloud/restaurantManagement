@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, LayoutDashboard, QrCode, Settings, UtensilsCrossed, Users, type LucideIcon, Printer } from "lucide-react";
+import { BarChart3, LayoutDashboard, Package, QrCode, Settings, UtensilsCrossed, Users, type LucideIcon, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canManage, type ManageSection } from "@/lib/auth/rbac";
 import type { Role } from "@/lib/auth/session";
@@ -37,6 +37,7 @@ export function AdminNav({
     { key: "dashboard", label: "Tổng quan", icon: LayoutDashboard, href: base },
     { key: "staff", label: "Nhân viên", icon: Users, href: `${base}/staff`, section: "staff" },
     { key: "menu", label: "Thực đơn", icon: UtensilsCrossed, href: `${base}/menu`, section: "menu" },
+    { key: "inventory", label: "Nguyên liệu", icon: Package, href: `${base}/inventory`, section: "inventory" },
     { key: "tables", label: "Bàn & QR", icon: QrCode, href: `${base}/tables`, section: "tables" },
     { key: "reports", label: "Báo cáo", icon: BarChart3, href: `${base}/reports`, section: "reports" },
     { key: "printers", label: "Máy in", icon: Printer, href: `${base}/printers`, section: "printers" },

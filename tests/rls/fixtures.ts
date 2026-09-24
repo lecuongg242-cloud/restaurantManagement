@@ -69,6 +69,8 @@ export const IDX = {
   staff_calls: 15,
   print_jobs: 16,
   memberships: 17,
+  ingredients: 19,
+  recipe_lines: 20,
   // Khóa chính là (item_id, group_id) → trỏ theo menu_items.
   menu_item_modifier_groups: 2,
 } as const;
@@ -212,6 +214,14 @@ function stepsFor(key: TenantKey, tenantId: string): SeedStep[] {
       table: "memberships",
       row: { id: id(17), ...t, user_id: null, role: "cashier", display_name: label, active: true },
     },
+    {
+      table: "ingredients",
+      row: { id: id(19), ...t, name: label, base_unit: "g", last_unit_cost: 280 },
+    },
+    {
+      table: "recipe_lines",
+      row: { id: id(20), ...t, ingredient_id: id(19), menu_item_id: id(2), qty: 80 },
+    },
   ];
 }
 
@@ -229,6 +239,9 @@ async function seedTenant(admin: SupabaseClient, key: TenantKey, tenantId: strin
  * nên bill phải chết trước đơn, nếu không Postgres từ chối.
  */
 const TEARDOWN: { table: string; column: string; n: number }[] = [
+  // recipe_lines → ingredients là ON DELETE RESTRICT: định lượng chết trước nguyên liệu.
+  { table: "recipe_lines", column: "id", n: 20 },
+  { table: "ingredients", column: "id", n: 19 },
   { table: "payments", column: "id", n: 13 },
   { table: "bill_items", column: "id", n: 12 },
   { table: "bills", column: "id", n: 11 },
