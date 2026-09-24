@@ -53,3 +53,19 @@ export function gioNgayNamVn(iso: string | null | undefined): string {
   const p = phan(iso, ["hour", "minute", "day", "month", "year"]);
   return p ? `${p.hour}:${p.minute} ${p.day}/${p.month}/${p.year}` : "";
 }
+
+/**
+ * "8 giây trước" / "3 phút trước" — cho màn Máy in (PRINT-09). `now` truyền vào để server tính,
+ * không dùng đồng hồ máy người xem. Lệch đồng hồ ra mốc ở tương lai → "vừa xong", không ra số âm.
+ */
+export function cachDay(iso: string | null | undefined, now: number): string {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  const giay = Math.floor((now - t) / 1000);
+  if (giay < 1) return "vừa xong";
+  if (giay < 60) return `${giay} giây trước`;
+  if (giay < 3600) return `${Math.floor(giay / 60)} phút trước`;
+  if (giay < 86_400) return `${Math.floor(giay / 3600)} giờ trước`;
+  return `${Math.floor(giay / 86_400)} ngày trước`;
+}

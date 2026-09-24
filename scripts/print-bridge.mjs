@@ -329,6 +329,29 @@ export const CONG_KHOA = 47291;
 /** Mã thoát khi đã có cầu in khác chạy. Khác 1 để print-bridge.bat không coi là "chết, chạy lại". */
 export const MA_THOAT_DA_CHAY = 3;
 
+// ── Thử máy in (PRINT-09) ──────────────────────────────────────────────────────
+/**
+ * Máy in có phản hồi không: mở kết nối TCP rồi đóng NGAY, KHÔNG gửi byte nào — máy in không ra
+ * giấy. Nhịp tim chỉ biết cầu in còn sống; máy in rút dây mà cầu in vẫn chạy thì trước đây chỉ lộ
+ * ra khi có phiếu `failed`.
+ */
+export function thuMayIn(host, port, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    let xong = false;
+    const ket = (ok) => {
+      if (xong) return;
+      xong = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    const socket = net.connect({ host, port });
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => ket(true));
+    socket.once("timeout", () => ket(false));
+    socket.once("error", () => ket(false));
+  });
+}
+
 /** Giữ khóa một phiên. Trả về `{ thaRa }` nếu giữ được, `null` nếu đã có cầu in khác giữ. */
 export function giuMotPhien(cong = CONG_KHOA) {
   return new Promise((resolve) => {
@@ -450,9 +473,24 @@ async function resolveTenantId() {
  * là 120 dòng giống hệt nhau, và người xem log bỏ qua luôn dòng quan trọng.
  */
 let nhipTimDangLoi = false;
+
+const inFlight = new Set(); // chống lấy lại job đang in trong cùng tiến trình
+
+/**
+ * Kết quả gần nhất về máy in (PRINT-09): cập nhật bởi lần THỬ máy in lúc rảnh, và bởi KẾT QUẢ IN
+ * THẬT. Đang in liên tục thì không thử (máy in rẻ chỉ nhận một kết nối một lúc — thử đúng lúc in là
+ * làm hỏng lượt in), nhưng lượt in vừa xong đã là câu trả lời, nên màn admin không rơi vào "không
+ * biết" giữa giờ cao điểm.
+ */
+let mayInPhanHoi = null;
+
 async function baoSong() {
+  if (inFlight.size === 0) mayInPhanHoi = await thuMayIn(HOST, PORT);
   try {
-    await rest(`/rpc/printer_heartbeat`, { method: "POST", body: "{}" });
+    await rest(`/rpc/printer_heartbeat`, {
+      method: "POST",
+      body: JSON.stringify({ p_printer_ok: mayInPhanHoi, p_printer_host: `${HOST}:${PORT}` }),
+    });
     if (nhipTimDangLoi) log("Nhịp tim đã nối lại — POS quay về gửi phiếu bếp qua cầu in.");
     nhipTimDangLoi = false;
     return true;
@@ -482,6 +520,12 @@ if (process.argv.includes("--test-auth")) {
     process.exit(1);
   }
   log("Nhịp tim OK. POS sẽ gửi phiếu bếp qua cầu in này.");
+  // Chỉ báo, không làm lệnh thất bại: lúc cài có thể chưa biết IP máy in bếp.
+  log(
+    mayInPhanHoi
+      ? `Máy in ${HOST}:${PORT}: phản hồi.`
+      : `Máy in ${HOST}:${PORT}: KHÔNG phản hồi — kiểm tra nguồn, dây mạng, địa chỉ PRINTER_HOST.`
+  );
   process.exit(0);
 }
 
@@ -500,7 +544,6 @@ baoSong();
 setInterval(baoSong, NHIP_TIM_MS);
 
 let tenantId = await resolveTenantId();
-const inFlight = new Set(); // chống lấy lại job đang in trong cùng tiến trình
 
 /** Đánh dấu kết quả in. Lỗi mạng ở bước này chỉ ghi log — phiếu đã ra giấy rồi, không in lại. */
 async function markJob(id, patch) {
@@ -538,9 +581,11 @@ async function pollOnce() {
     inFlight.add(job.id);
     try {
       await thuLaiGui(() => sendToPrinter(buildKitchenTicket(job.payload ?? {})), SO_LAN_THU_LAI);
+      mayInPhanHoi = true;
       await markJob(job.id, { status: "printed", printed_at: new Date().toISOString() });
       log(`Đã in phiếu ${job.payload?.ticketNo ?? job.id} (đơn #${job.payload?.kitchenNo ?? "?"})`);
     } catch (err) {
+      mayInPhanHoi = false;
       await markJob(job.id, { status: "failed" }).catch(() => {});
       log(`IN LỖI phiếu ${job.id} (đã thử ${SO_LAN_THU_LAI + 1} lần): ${err.message} — bấm in lại ở POS sau khi sửa máy in.`);
     } finally {

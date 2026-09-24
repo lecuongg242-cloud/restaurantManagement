@@ -106,3 +106,17 @@ describe("không ai được quay lại gọi toLocale* để hiện giờ", () 
       .toEqual([]);
   });
 });
+
+describe("cachDay — màn Máy in (PRINT-09)", async () => {
+  const { cachDay } = await import("@/lib/time/vn");
+  const now = Date.parse("2026-09-24T07:00:00.000Z");
+  const truoc = (ms: number) => new Date(now - ms).toISOString();
+
+  it("dưới 1 phút → giây", () => expect(cachDay(truoc(8_000), now)).toBe("8 giây trước"));
+  it("dưới 1 giờ → phút", () => expect(cachDay(truoc(3 * 60_000 + 20_000), now)).toBe("3 phút trước"));
+  it("dưới 1 ngày → giờ", () => expect(cachDay(truoc(5 * 3_600_000), now)).toBe("5 giờ trước"));
+  it("từ 1 ngày → ngày", () => expect(cachDay(truoc(2 * 86_400_000), now)).toBe("2 ngày trước"));
+  it("tương lai gần (lệch đồng hồ) → vừa xong, không ra số âm", () =>
+    expect(cachDay(new Date(now + 3_000).toISOString(), now)).toBe("vừa xong"));
+  it("không có mốc → rỗng", () => expect(cachDay(null, now)).toBe(""));
+});

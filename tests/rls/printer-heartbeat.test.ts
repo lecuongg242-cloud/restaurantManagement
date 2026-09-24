@@ -133,3 +133,58 @@ describe("Trạng thái superseded (PRINT-06)", () => {
     expect(data ?? []).toHaveLength(0);
   });
 });
+
+/**
+ * PRINT-09 — cầu in báo kèm trạng thái máy in.
+ *
+ * Cầu in bản cũ ở quán gọi hàm KHÔNG tham số. Nó phải vẫn chạy (không được làm chết cầu in đang in
+ * phiếu thật) và không được xóa kết quả thử máy in do bản mới ghi.
+ */
+describe("Trạng thái máy in trong nhịp tim", () => {
+  async function dong() {
+    const { data } = await adminClient()
+      .from("printer_heartbeats")
+      .select("seen_at, printer_ok, printer_host, printer_checked_at")
+      .eq("tenant_id", tenantA)
+      .single();
+    return data!;
+  }
+
+  it("cầu in báo máy in KHÔNG phản hồi → ghi lại, kèm địa chỉ và mốc giờ database", async () => {
+    const { error } = await printer.rpc("printer_heartbeat", {
+      p_printer_ok: false,
+      p_printer_host: "192.168.1.87:9100",
+    });
+    expect(error).toBeNull();
+    const d = await dong();
+    expect(d.printer_ok).toBe(false);
+    expect(d.printer_host).toBe("192.168.1.87:9100");
+    expect(d.printer_checked_at).toBe(d.seen_at);
+  });
+
+  it("cầu in BẢN CŨ gọi không tham số → vẫn chạy, và KHÔNG xóa kết quả máy in", async () => {
+    await printer.rpc("printer_heartbeat", { p_printer_ok: true, p_printer_host: "192.168.1.87:9100" });
+    const truoc = await dong();
+    await new Promise((r) => setTimeout(r, 1100));
+
+    const { error } = await printer.rpc("printer_heartbeat");
+    expect(error, "cầu in bản cũ ở quán bị gãy").toBeNull();
+
+    const sau = await dong();
+    expect(sau.printer_ok).toBe(true);
+    expect(sau.printer_host).toBe("192.168.1.87:9100");
+    expect(sau.printer_checked_at, "mốc thử máy in bị đổi dù không thử").toBe(truoc.printer_checked_at);
+    expect(Date.parse(sau.seen_at)).toBeGreaterThan(Date.parse(truoc.seen_at));
+  });
+
+  it("địa chỉ quá dài bị cắt — cột này do máy ở quán ghi, không tin độ dài", async () => {
+    await printer.rpc("printer_heartbeat", { p_printer_ok: true, p_printer_host: "x".repeat(500) });
+    expect((await dong()).printer_host!.length).toBeLessThanOrEqual(100);
+  });
+
+  it("chủ quán kèm tham số vẫn KHÔNG giả được", async () => {
+    const { error } = await chuA.rpc("printer_heartbeat", { p_printer_ok: true, p_printer_host: "h" });
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("chi tai khoan cau in");
+  });
+});

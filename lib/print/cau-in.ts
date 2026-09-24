@@ -80,3 +80,29 @@ export function loiDonDap(
   }
   return { canhBao: soLoi >= NGUONG_LOI_DON_DAP, soLoi };
 }
+
+export type NhipTim = {
+  seen_at: string | null;
+  printer_ok: boolean | null;
+  printer_checked_at: string | null;
+};
+
+/**
+ * Trạng thái cho màn "Máy in" (PRINT-09).
+ *
+ * Máy in là "không biết" trong ba trường hợp, và KHÔNG BAO GIỜ hiện "phản hồi" từ dữ liệu cũ:
+ *  - cầu in đã chết — kết quả thử lần cuối không còn nói gì về lúc này;
+ *  - cầu in bản cũ, chưa từng báo máy in;
+ *  - kết quả thử cũ hơn ngưỡng mất kết nối.
+ */
+export function trangThaiMayIn(
+  nhip: NhipTim | null,
+  now: number
+): { cauIn: "song" | "chet" | "chua-co"; mayIn: "ok" | "loi" | "khong-biet" } {
+  if (!nhip?.seen_at) return { cauIn: "chua-co", mayIn: "khong-biet" };
+  if (!cauInConSong(nhip.seen_at, now)) return { cauIn: "chet", mayIn: "khong-biet" };
+  if (nhip.printer_ok === null || !cauInConSong(nhip.printer_checked_at, now)) {
+    return { cauIn: "song", mayIn: "khong-biet" };
+  }
+  return { cauIn: "song", mayIn: nhip.printer_ok ? "ok" : "loi" };
+}

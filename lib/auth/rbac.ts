@@ -64,7 +64,14 @@ export function canAccess(role: Role, section: Section): boolean {
 }
 
 /** Khu vực cấu hình dữ liệu nhà hàng owner/manager quản lý (P2). */
-export type ManageSection = "menu" | "tables" | "staff" | "settings" | "onboarding" | "reports";
+export type ManageSection =
+  | "menu"
+  | "tables"
+  | "staff"
+  | "settings"
+  | "onboarding"
+  | "reports"
+  | "printers";
 
 /**
  * Vai trò `role` có quyền quản lý `section` cấu hình không — ma trận QD-010 §2.
@@ -73,6 +80,8 @@ export type ManageSection = "menu" | "tables" | "staff" | "settings" | "onboardi
  *   số là đổi tiền in trên mọi hóa đơn kể từ lúc đó — quyết định thương mại của chủ, không phải
  *   thao tác vận hành. Nhận diện (logo/tên) và footer hóa đơn cùng lý do.
  * - `reports` CÓ manager: quản lý ca cần đối soát tiền mặt cuối ca (REPORT-03 sinh ra vì việc này).
+ * - `printers` CÓ manager: chỉ XEM sức khỏe cầu in / máy in (PRINT-09) — quản lý ca phải biết máy
+ *   in bếp chết giữa ca, không cần đợi chủ.
  *
  * Viết dạng `switch` để mục mới thêm vào `ManageSection` bắt buộc phải khai quyền — TS báo
  * thiếu nhánh thay vì im lặng rơi vào mặc định.
@@ -86,6 +95,7 @@ export function canManage(role: Role, section: ManageSection): boolean {
     case "staff":
     case "onboarding":
     case "reports":
+    case "printers":
       return role === "owner" || role === "manager";
   }
 }

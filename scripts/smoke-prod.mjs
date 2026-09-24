@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Khói hậu-deploy (OPS-08) — kiểm trên PRODUCTION THẬT những điều mà không môi trường local nào trả
  * lời được. Chạy sau mỗi lần deploy, và bắt buộc sau mỗi lần đổi hạ tầng.
