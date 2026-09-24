@@ -210,6 +210,15 @@ if ($printers.Count -eq 0) {
 Step 6 "Dang ky chay nen va chong laptop ngu"
 $bat = Join-Path $InstallDir "print-bridge.bat"
 
+# Tat cau in DANG CHAY truoc khi dang ky lai. Cai de (nang cap) ma khong tat thi ban cu van
+# chay song song ban moi. Ban cu chua co khoa mot phien (PRINT-08) nen khong nhuong -> neu ca hai
+# cung in duoc thi MOI PHIEU BEP RA HAI TO.
+schtasks /end /tn "CauInBep" 2>$null | Out-Null
+$cu = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -like '*print-bridge.mjs*' })
+foreach ($p in $cu) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+if ($cu.Count -gt 0) { Ok ("Da tat " + $cu.Count + " cau in cu dang chay") }
+
 # Chay bang SYSTEM luc khoi dong: khong co cua so de nhan vien tat nham, va chay
 # ngay ca khi chua ai dang nhap Windows.
 schtasks /create /tn "CauInBep" /tr "`"$bat`"" /sc onstart /ru SYSTEM /rl HIGHEST /f | Out-Null

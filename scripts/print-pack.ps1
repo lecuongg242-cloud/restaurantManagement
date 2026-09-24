@@ -25,7 +25,9 @@ param(
   [int]$Chars = 48,
   [string]$OutDir,
   [string]$BridgeEmail,
-  [string]$BridgePassword
+  [string]$BridgePassword,
+  # Khong mo Explorer, khong cho Enter o cuoi - de chay tu dong (khong co nguoi ngoi truoc may).
+  [switch]$NoPause
 )
 
 $ErrorActionPreference = "Stop"
@@ -193,9 +195,12 @@ Write-Host "  1. Chep thu muc (hoac giai nen file zip) vao Desktop laptop quan"
 Write-Host "  2. Double-click CAI-DAT.bat -> bam Yes khi Windows xin quyen"
 Write-Host "  3. Chi phai tra loi 2 cau: giay thu ra o BEP hay QUAY, va may in quay la cai nao"
 Write-Host ""
-Write-Host " CANH BAO: bo nay chua khoa may chu (bo qua RLS toan project)." -ForegroundColor Yellow
+Write-Host " CANH BAO: bo nay chua MAT KHAU TAI KHOAN CAU IN cua quan $Slug." -ForegroundColor Yellow
+Write-Host " Lo ra ngoai thi ai cung doc/sua duoc phieu in cua quan nay (chi quan nay - QD-012)." -ForegroundColor Yellow
 Write-Host " Dung gui qua Zalo/email cho nguoi ngoai, dung commit len git." -ForegroundColor Yellow
 Write-Host ""
 
-explorer.exe $OutDir
-Read-Host "Nhan Enter de dong"
+if (-not $NoPause) {
+  explorer.exe $OutDir
+  Read-Host "Nhan Enter de dong"
+}
