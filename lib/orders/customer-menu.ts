@@ -5,6 +5,7 @@
  */
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { timed } from "@/lib/observability/log";
 import { activeTenantBySlug } from "@/lib/tenant/active";
 
 export type CustomerModifierOption = {
@@ -62,6 +63,11 @@ async function getPublicTenant(slug: string) {
  * để hiện nhãn "Hết") + nhóm tùy chọn gắn theo món. Chỉ cột công khai.
  */
 export async function getCustomerMenu(slug: string): Promise<CustomerMenu | null> {
+  return timed("getCustomerMenu", slug, () => readCustomerMenu(slug));
+}
+
+/** Thân thật. Tách ra để `timed` bọc được mà không đổi chữ ký công khai (PERF-04). */
+async function readCustomerMenu(slug: string): Promise<CustomerMenu | null> {
   const tenant = await getPublicTenant(slug);
   if (!tenant) return null;
 

@@ -27,7 +27,7 @@ export default async function PosHome({
 
   const supabase = await createClient();
   const [{ data: snapshotData }, menu, { data: cancelStaffData }, { data: tenantRow }] = await Promise.all([
-    getPosSnapshot(session.tenant.id).then((s) => ({ data: s })),
+    getPosSnapshot(session.tenant.id, slug).then((s) => ({ data: s })),
     getCustomerMenu(slug),
     // Nhân viên được quyền duyệt hủy món/giảm giá (manager/cashier) — cho CancelItemDialog + PinPrompt.
     supabase

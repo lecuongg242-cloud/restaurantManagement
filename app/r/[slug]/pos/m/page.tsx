@@ -30,7 +30,7 @@ export default async function StaffMobileOrderPage({
 
   const supabase = await createClient();
   const [snapshot, menu, { data: tenantRow }] = await Promise.all([
-    getPosSnapshot(session.tenant.id),
+    getPosSnapshot(session.tenant.id, slug),
     getCustomerMenu(slug),
     supabase.from("tenants").select("settings").eq("id", session.tenant.id).maybeSingle(),
   ]);

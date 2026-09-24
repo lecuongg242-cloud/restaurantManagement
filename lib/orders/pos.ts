@@ -5,6 +5,7 @@
  */
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { timed } from "@/lib/observability/log";
 import { listTakeawayOrders, type OnlineOrderView } from "./online";
 import { getPendingCalls, type PosCall } from "./staff-calls";
 import type { OrderStatus, OrderItemStatus } from "./types";
@@ -131,7 +132,12 @@ function mapItems(rows: unknown[]): PosItem[] {
 
 const VN_OFFSET = 7 * 3600 * 1000;
 
-export async function getPosSnapshot(tenantId: string): Promise<PosSnapshot> {
+export async function getPosSnapshot(tenantId: string, slug?: string): Promise<PosSnapshot> {
+  return timed("getPosSnapshot", slug ?? null, () => readPosSnapshot(tenantId));
+}
+
+/** Thân thật của snapshot. Tách ra để `timed` bọc được mà không đổi chữ ký công khai (PERF-04). */
+async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
   const supabase = await createClient();
 
   // Khoảng [đầu, cuối) NGÀY VN hôm nay (UTC) để lọc đặt bàn trong ngày.

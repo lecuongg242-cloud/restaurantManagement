@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { logRequest } from "@/lib/observability/log";
 
 /**
  * Middleware:
@@ -21,6 +22,7 @@ function tenantFromSubdomain(host: string): string | null {
 }
 
 export async function middleware(request: NextRequest) {
+  const t0 = Date.now();
   const { pathname } = request.nextUrl;
 
   // --- slug tenant ---
@@ -65,6 +67,10 @@ export async function middleware(request: NextRequest) {
 
   // Refresh token nếu cần (không tự redirect ở đây — guard nằm ở layout/page).
   await supabase.auth.getUser();
+
+  // PERF-04: một dòng/request. `pathname` không mang query nên token bàn không lọt vào đây;
+  // logRequest vẫn cắt query lần nữa để chỗ gọi khác cũng an toàn.
+  logRequest({ evt: "req", tenant: slug, path: pathname, ms: Date.now() - t0, status: response.status });
 
   return response;
 }
