@@ -315,6 +315,33 @@ export function nextPollMs(emptyStreak, baseMs) {
  */
 export const NHIP_TIM_MS = 30_000;
 
+// ── Một cầu in mỗi máy (PRINT-08) ─────────────────────────────────────────────
+/**
+ * Bộ cài chạy cầu in bằng tác vụ SYSTEM lúc bật máy — KHÔNG có cửa sổ. Nhân viên tưởng nó tắt,
+ * double-click print-bridge.bat → hai cầu in cùng thấy một phiếu `pending` → bếp nhận HAI tờ.
+ *
+ * Khóa bằng cổng TCP trên 127.0.0.1 thay vì tệp .lock: hệ điều hành tự nhả cổng khi tiến trình
+ * chết, kể cả chết đột ngột — không bao giờ kẹt khóa mồ côi bắt ai đó ra quán xóa tay. Cổng là
+ * toàn máy nên chặn được cả bản chạy dưới SYSTEM lẫn bản chạy dưới người dùng.
+ */
+export const CONG_KHOA = 47291;
+
+/** Mã thoát khi đã có cầu in khác chạy. Khác 1 để print-bridge.bat không coi là "chết, chạy lại". */
+export const MA_THOAT_DA_CHAY = 3;
+
+/** Giữ khóa một phiên. Trả về `{ thaRa }` nếu giữ được, `null` nếu đã có cầu in khác giữ. */
+export function giuMotPhien(cong = CONG_KHOA) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(null));
+    server.listen(cong, "127.0.0.1", () => {
+      // Không để riêng cổng khóa giữ tiến trình sống — vòng poll mới là thứ giữ.
+      server.unref();
+      resolve({ thaRa: () => new Promise((r) => server.close(() => r())) });
+    });
+  });
+}
+
 /**
  * Tệp này vừa là script chạy tại quán, vừa là module để test import `nextPollMs`.
  * Không có guard thì `import` từ vitest sẽ nối vào Supabase và poll thật — và vì thiếu biến môi
@@ -416,7 +443,30 @@ async function resolveTenantId() {
   return rows[0].tenant_id;
 }
 
+/**
+ * Báo "còn sống" cho server (PRINT-08). Mốc giờ do database ghi — hàm không nhận tham số giờ.
+ *
+ * Chỉ ghi log khi TRẠNG THÁI đổi (hỏng → lành, lành → hỏng). Mất mạng một tiếng mà ghi mỗi 30 giây
+ * là 120 dòng giống hệt nhau, và người xem log bỏ qua luôn dòng quan trọng.
+ */
+let nhipTimDangLoi = false;
+async function baoSong() {
+  try {
+    await rest(`/rpc/printer_heartbeat`, { method: "POST", body: "{}" });
+    if (nhipTimDangLoi) log("Nhịp tim đã nối lại — POS quay về gửi phiếu bếp qua cầu in.");
+    nhipTimDangLoi = false;
+    return true;
+  } catch (err) {
+    if (!nhipTimDangLoi) {
+      log(`KHÔNG báo sống được (${err.message}). Sau 90 giây POS sẽ tự in phiếu bếp bằng trình duyệt.`);
+    }
+    nhipTimDangLoi = true;
+    return false;
+  }
+}
+
 // Xác minh thông tin đăng nhập LÚC LẮP ĐẶT, không phải chờ tới phiếu in đầu tiên mới biết sai.
+// Không giữ khóa một phiên: bộ cài chạy lệnh này trong lúc tác vụ nền có thể đang chạy.
 if (process.argv.includes("--test-auth")) {
   const id = await resolveTenantId();
   if (!id) {
@@ -424,8 +474,30 @@ if (process.argv.includes("--test-auth")) {
     process.exit(1);
   }
   log(`Đăng nhập OK. Cầu in phục vụ tenant ${id}.`);
+  if (!(await baoSong())) {
+    console.error(
+      "Đăng nhập được nhưng KHÔNG báo sống được. POS sẽ không gửi phiếu bếp qua cầu in này.\n" +
+        "Máy chủ có thể chưa cập nhật (thiếu migration 0043) — báo người phụ trách kỹ thuật."
+    );
+    process.exit(1);
+  }
+  log("Nhịp tim OK. POS sẽ gửi phiếu bếp qua cầu in này.");
   process.exit(0);
 }
+
+const khoa = await giuMotPhien();
+if (!khoa) {
+  log(
+    "Đã có một cầu in khác đang chạy trên máy này (có thể đang chạy nền, không có cửa sổ). " +
+      "Không chạy thêm — hai cầu in là mỗi phiếu bếp ra hai tờ."
+  );
+  process.exit(MA_THOAT_DA_CHAY);
+}
+
+// Timer riêng, không nằm trong vòng poll: đang kẹt gửi máy in mà ngừng báo sống thì POS tưởng cầu
+// in chết, chuyển sang in trình duyệt, rồi cầu in gửi xong → bếp nhận hai tờ.
+baoSong();
+setInterval(baoSong, NHIP_TIM_MS);
 
 let tenantId = await resolveTenantId();
 const inFlight = new Set(); // chống lấy lại job đang in trong cùng tiến trình
