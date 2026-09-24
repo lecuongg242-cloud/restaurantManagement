@@ -46,3 +46,38 @@ jobs:
             echo "::error::Chỉ $COUNT test RLS chạy — ma trận cách ly tenant không được phép bỏ qua."
             exit 1
           fi
+
+  # ── Lệch schema: production có thứ mà supabase/migrations/ không mô tả? ────────
+  # QD-013: ngày 23–24/09/2026 mất nửa ngày vì view `bills_revenue`, 9 hàm báo cáo và một trigger
+  # chỉ tồn tại trên production. Quy tắc "chạy tay xong phải chép thành migration" không có chốt
+  # chặn thì chỉ là lời hứa — và lời hứa đó đã bị quên ít nhất 12 lần (0027, 0029–0039).
+  #
+  # GIAI ĐOẠN 1 (hiện tại): chỉ BÁO CÁO, chưa chặn merge. Lần chạy đầu gần như chắc chắn có diff
+  # nhiễu (quyền, search_path, thứ tự cột, extension). Bật chặn khi còn nhiễu thì cả đội sẽ học
+  # cách bỏ qua job đỏ — tệ hơn là không có job. Lọc hết nhiễu rồi mới đổi sang `exit 1`
+  # (xem 30-KeHoach/P8/08-05-PLAN.md).
+  schema-drift:
+    runs-on: ubuntu-latest
+    # `secrets` KHÔNG dùng được trong `if` của step — map sang env ở cấp job rồi mới kiểm,
+    # đúng mẫu mà bước RLS phía trên đang dùng. Thiếu secret thì bước này SKIP, không đỏ giả.
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: So schema production với supabase/migrations
+        if: ${{ env.DB_URL != '' }}
+        run: |
+          # db diff dựng shadow DB từ supabase/migrations/ (cần Docker — runner có sẵn) rồi so với
+          # DB thật. CHỈ ĐỌC production: không push, không repair.
+          npx supabase db diff --db-url "$DB_URL" --schema public,storage > drift.sql || true
+          if [ -s drift.sql ]; then
+            echo "::warning::Production có thứ repo không mô tả (hoặc ngược lại). Nội dung lệch:"
+            cat drift.sql
+            echo "::warning::Chép thành migration mới (QD-013), hoặc áp migration còn thiếu lên production."
+          else
+            echo "Schema khớp: repo mô tả đúng production."
+          fi
