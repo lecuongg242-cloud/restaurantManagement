@@ -303,6 +303,18 @@ export function nextPollMs(emptyStreak, baseMs) {
   return base;
 }
 
+// ── Nhịp tim (PRINT-08) ───────────────────────────────────────────────────────
+/**
+ * Cầu in báo "còn sống" mỗi 30 giây. Server coi là chết sau 90 giây không nghe (3 nhịp) và
+ * chuyển POS sang in trình duyệt — xem lib/print/cau-in.ts. Hai con số dính nhau; test khẳng định
+ * ngưỡng ≥ 3 × nhịp.
+ *
+ * Chạy bằng timer RIÊNG, không nằm trong vòng poll: đang kẹt gửi máy in (8 giây timeout × 3 lần
+ * thử × 10 phiếu) mà ngừng báo sống thì POS tưởng cầu in chết, chuyển sang in trình duyệt, rồi cầu
+ * in gửi xong → bếp nhận hai tờ.
+ */
+export const NHIP_TIM_MS = 30_000;
+
 /**
  * Tệp này vừa là script chạy tại quán, vừa là module để test import `nextPollMs`.
  * Không có guard thì `import` từ vitest sẽ nối vào Supabase và poll thật — và vì thiếu biến môi
