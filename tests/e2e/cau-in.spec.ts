@@ -54,7 +54,7 @@ async function vaoPos(page: Page) {
 
 test.beforeAll(async () => {
   const { data: t } = await admin.from("tenants").select("id").eq("slug", SLUG).single();
-  tenantId = t.id as string;
+  tenantId = t!.id as string;
 });
 
 test.beforeEach(() => {
