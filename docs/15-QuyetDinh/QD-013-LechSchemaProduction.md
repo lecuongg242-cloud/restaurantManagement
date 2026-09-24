@@ -49,7 +49,7 @@ Dọn kèm 3 hàm chết: `current_tenant_ids`, `accept_invitation`, `resolve_ta
 trong app. Chữ ký lấy từ `pg_get_function_identity_arguments` chứ không đoán — cả ba nhận `uuid`
 chứ không phải `text`, đoán sai thì `drop if exists` im lặng bỏ qua và lệch vẫn còn.
 
-## §2. `has_role` đang hỏng — CHƯA xử lý, cần quyết
+## §2. `has_role` đang hỏng — ĐÃ XỬ LÝ (`0041`)
 
 `has_role(p_tenant_id uuid, p_roles text[])` đọc `memberships.status`. Bảng `memberships` **không
 có** cột đó (chỉ có `active`). Gọi hàm là lỗi ngay:
@@ -75,9 +75,14 @@ Ba hướng, chưa chốt:
 | **Bỏ hẳn** hàm + 3 policy, giữ mô hình service-role như `0005` | Repo và production về đúng một mô hình; bớt thứ gây hiểu nhầm | Mất đường mở cho upload bằng phiên người dùng sau này |
 | **Để nguyên** | Không rủi ro tức thời | Để lại một quả mìn: ai chuyển upload sang phiên người dùng sẽ gặp lỗi khó hiểu |
 
-Khuyến nghị: **bỏ hẳn**. V1 đã chọn mô hình upload qua service-role (`0005`), ba policy kia là tàn
-dư của một thiết kế không đi tiếp. Giữ một hàm hỏng và ba policy chết chỉ để "phòng khi cần" là
-giữ đúng thứ sẽ làm người sau mất buổi chiều.
+**Đã chốt: bỏ hẳn** (chủ dự án duyệt 24/09/2026) — `0041_drop_broken_has_role.sql`. V1 đã chọn mô
+hình upload qua service-role (`0005`), ba policy kia là tàn dư của một thiết kế không đi tiếp. Giữ
+một hàm hỏng và ba policy chết chỉ để "phòng khi cần" là giữ đúng thứ sẽ làm người sau mất buổi
+chiều.
+
+Hai policy gánh luồng thật không bị đụng: `menu_images_public_read` (SELECT, PUBLIC) và
+`menu_images_service_write` (ALL, `service_role`). Kiểm chạy thật sau khi áp — upload bằng
+service-role **OK**, khách đọc ảnh **HTTP 200**, xoá **OK**, `storage.objects` còn đúng 2 policy.
 
 ## §3. Quy tắc từ nay
 
