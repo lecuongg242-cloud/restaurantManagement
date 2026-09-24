@@ -38,9 +38,10 @@ export type CustomerTicketView = {
  * Trạng thái in MỘT loại phiếu của MỘT đơn — lấy từ print_jobs, để POS hiện thường trực (nhân
  * viên không phải nhớ đã in chưa; toast bay mất là bỏ sót).
  * none = chưa in lần nào · pending = đã gửi, chờ cầu in · printed/failed = kết quả thật từ máy in.
+ * stuck = chờ quá hạn (PRINT-06) — cầu in không nhận, chip phải đỏ và bấm được để in lại.
  */
 export type TicketPrintState = {
-  status: "none" | "pending" | "printed" | "failed";
+  status: "none" | "pending" | "stuck" | "printed" | "failed";
   /** printed_at của lần GẦN NHẤT nếu đã in, ngược lại created_at. */
   at: string | null;
   /** SỐ LẦN đã in thành công. Phiếu in lại nhiều lần là chuyện thường, nhân viên cần đối chiếu. */

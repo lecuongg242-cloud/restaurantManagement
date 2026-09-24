@@ -6,6 +6,7 @@ import { getPrintAdapter } from "@/lib/print/adapter";
 import type { OrderPrintState, TicketPrintState } from "@/lib/print/adapter";
 import { getOrderPrintStatus } from "@/app/r/[slug]/print/actions";
 import { gioVn } from "@/lib/time/vn";
+import { CHIP_HOI_LAI_MS, CHIP_SO_LAN_HOI } from "@/lib/print/cau-in";
 
 /**
  * Cặp nút in "Phiếu bếp" + "Phiếu khách" dùng chung cho OrderPanel (bàn) và TakeawayPanel (quầy),
@@ -26,8 +27,10 @@ const BTN =
 /** Cầu in ESC/POS: phiếu bếp in tự động ở bếp → chữ trên chip nói theo "gửi bếp", không phải "in". */
 const BRIDGE = process.env.NEXT_PUBLIC_PRINT_MODE === "bridge";
 
-const POLL_MS = 2500;
-const MAX_POLLS = 40; // ~100s rồi thôi, tránh gọi mãi khi cầu in tắt
+// Cửa sổ hỏi lại PHẢI dài hơn ngưỡng quá hạn (PRINT-06), nếu không chip không bao giờ kịp đổi sang
+// đỏ. Hằng số nằm ở lib/print/cau-in.ts để test khẳng định được quan hệ đó.
+const POLL_MS = CHIP_HOI_LAI_MS;
+const MAX_POLLS = CHIP_SO_LAN_HOI;
 
 const EMPTY: TicketPrintState = { status: "none", at: null, count: 0 };
 
@@ -139,7 +142,10 @@ function PrintChip({
   /** Phiếu bếp qua cầu in ESC/POS: chữ nói theo "gửi bếp", không phải "in". */
   bridgeKitchen?: boolean;
 }) {
-  if (state.status === "failed") {
+  // Kẹt quá hạn (PRINT-06): cầu in không nhận. Đỏ đặc và bấm được như "in lỗi" — với nhân viên thì
+  // hai việc giống nhau: bếp CHƯA có phiếu, phải in lại. In lại khi cầu in đã chết thì server tự
+  // chuyển sang in trình duyệt.
+  if (state.status === "failed" || state.status === "stuck") {
     return (
       <button
         type="button"
@@ -148,7 +154,7 @@ function PrintChip({
         className={`${CHIP} bg-status-late text-status-late-fg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-late focus-visible:ring-offset-2`}
       >
         <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-        Lỗi — in lại
+        {state.status === "stuck" ? "Bếp chưa nhận — in lại" : "Lỗi — in lại"}
       </button>
     );
   }

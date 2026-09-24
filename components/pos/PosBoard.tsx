@@ -42,6 +42,7 @@ import { actionSignature } from "@/lib/idempotency";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
 import { gioVn } from "@/lib/time/vn";
+import { CauInBanner } from "@/components/pos/CauInBanner";
 
 const STATUS_VN: Record<string, string> = {
   available: "Trống",
@@ -649,6 +650,10 @@ export function PosBoard({
           </button>
         </div>
       </div>
+
+      {/* Sức khỏe cầu in bếp (PRINT-07/08) — đặt TRÊN CÙNG: cầu in chết là MỌI phiếu bếp đổi đường,
+          nhân viên phải biết trước khi xử lý bất kỳ đơn nào bên dưới. */}
+      <CauInBanner slug={slug} />
 
       {/* Banner ĐƠN KHÁCH CHỜ DUYỆT — ưu tiên cao nhất nên đặt trên banner gọi nhân viên.
           Bấm chip mở drawer để XEM món rồi mới duyệt (D8: duyệt để chặn order giỡn/nhầm bàn),
