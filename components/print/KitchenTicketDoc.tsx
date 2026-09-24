@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { KitchenTicketView, KitchenWidth } from "@/lib/print/adapter";
 import { logKitchenTicketPrint } from "@/app/r/[slug]/print/actions";
 
@@ -28,6 +28,10 @@ export function KitchenTicketDoc({
   width: KitchenWidth;
   time: string;
 }) {
+  // Khổ giấy là trạng thái HIỂN THỊ, không phải lệnh in. Trước đây nó là link `?w=` — bấm vào là
+  // điều hướng, component remount, useEffect chạy lại và in thêm một tờ. Đổi khổ giấy không bao
+  // giờ có nghĩa là "in cho tôi thêm bản nữa".
+  const [kho, setKho] = useState(width);
   const ran = useRef(false);
 
   useEffect(() => {
@@ -38,7 +42,7 @@ export function KitchenTicketDoc({
     return () => clearTimeout(t);
   }, [slug, ticket.orderId]);
 
-  const s = SIZE[width];
+  const s = SIZE[kho];
 
   return (
     <div className="kt-wrap">
@@ -52,9 +56,13 @@ export function KitchenTicketDoc({
         <span className="kt-sizes">
           Khổ:
           {(Object.keys(SIZE) as KitchenWidth[]).map((k) => (
-            <a key={k} href={`?w=${k}`} className={`kt-btn kt-size ${k === width ? "kt-active" : ""}`}>
+            <button
+              key={k}
+              type="button"
+              data-kho={k}
+              onClick={() => setKho(k)} className={`kt-btn kt-size ${k === kho ? "kt-active" : ""}`}>
               {SIZE[k].label}
-            </a>
+            </button>
           ))}
         </span>
       </div>

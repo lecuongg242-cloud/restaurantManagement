@@ -63,7 +63,23 @@ export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: s
     return () => clearInterval(id);
   }, [print.kitchen.status, refresh]);
 
+  /**
+   * Khóa nút trong lúc đang gửi. Trước đây nút không bị vô hiệu hóa, nên bấm đúp là hai lượt in —
+   * và ở đường cầu in thì đó là HAI TỜ GIẤY thật ra ở bếp. Dữ liệu qt-food (24/09/2026) có 20 cặp
+   * phiếu bếp cách nhau dưới 2 giây, khoảng cách nhỏ nhất 0,63 giây.
+   *
+   * Khóa 2 giây rồi tự mở: đủ để nuốt cú bấm đúp, và không giữ nút chết nếu mạng chậm — nhân viên
+   * cần in lại thật thì vẫn bấm được ngay sau đó.
+   */
+  const [dangGui, setDangGui] = useState<null | "kitchen" | "customer">(null);
+  const khoaNut = (loai: "kitchen" | "customer") => {
+    setDangGui(loai);
+    setTimeout(() => setDangGui(null), 2000);
+  };
+
   const printKitchen = () => {
+    if (dangGui) return;
+    khoaNut("kitchen");
     polls.current = 0;
     // Phản hồi ngay (giữ nguyên số lần đã in); poll sẽ xác nhận bằng dữ liệu thật.
     setPrint((p) => ({ ...p, kitchen: { ...p.kitchen, status: "pending" } }));
@@ -71,6 +87,8 @@ export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: s
     setTimeout(refresh, 1200); // in trình duyệt ghi 'printed' gần như tức thì
   };
   const printCustomer = () => {
+    if (dangGui) return;
+    khoaNut("customer");
     getPrintAdapter().printCustomerTicket({ slug, orderId });
     setTimeout(refresh, 1200); // route in ghi log khi mở → đọc lại để cập nhật số lần
   };
@@ -81,10 +99,10 @@ export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: s
     // rộng hẹp khác nhau nhìn lệch. grid-cols-2 ép hai cột bằng nhau cho cân.
     // Khối tự co theo nội dung (inline-grid) — lề trái/phải để chỗ gọi quyết định.
     <div className="inline-grid grid-cols-2 gap-x-xs gap-y-xxs">
-      <button type="button" onClick={printKitchen} className={BTN}>
+      <button type="button" onClick={printKitchen} disabled={dangGui !== null} className={BTN}>
         <Printer className="h-3.5 w-3.5" aria-hidden /> Phiếu bếp
       </button>
-      <button type="button" onClick={printCustomer} className={BTN}>
+      <button type="button" onClick={printCustomer} disabled={dangGui !== null} className={BTN}>
         <Receipt className="h-3.5 w-3.5" aria-hidden /> Phiếu khách
       </button>
       <PrintChip state={print.kitchen} onRetry={printKitchen} bridgeKitchen={BRIDGE} />

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
 import { buildReceiptView } from "@/lib/billing/receipt-view";
+import { daInGanDay } from "@/lib/print/dedupe";
 
 /**
  * Ghi log 1 lần in hóa đơn vào print_jobs (type=receipt, status=printed). Gọi từ route in khi
@@ -18,6 +19,12 @@ export async function logReceiptPrint(slug: string, billId: string): Promise<{ o
   if (!receipt) return { ok: false };
 
   const supabase = await createClient();
+
+  // Xem ghi chú ở lib/print/dedupe.ts — hóa đơn định danh bằng billId.
+  if (await daInGanDay(supabase, session.tenant.id, "receipt", "billId", billId)) {
+    return { ok: true };
+  }
+
   const { error } = await supabase.from("print_jobs").insert({
     tenant_id: session.tenant.id,
     type: "receipt",

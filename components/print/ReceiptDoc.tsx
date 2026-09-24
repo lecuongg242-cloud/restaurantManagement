@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { KitchenWidth } from "@/lib/print/adapter";
 import type { ReceiptView } from "@/lib/billing/receipt-view";
 import { formatVnd } from "@/lib/orders/cart";
@@ -30,6 +30,10 @@ export function ReceiptDoc({
   width: KitchenWidth;
   time: string;
 }) {
+  // Khổ giấy là trạng thái HIỂN THỊ, không phải lệnh in. Trước đây nó là link `?w=` — bấm vào là
+  // điều hướng, component remount, useEffect chạy lại và in thêm một tờ. Đổi khổ giấy không bao
+  // giờ có nghĩa là "in cho tôi thêm bản nữa".
+  const [kho, setKho] = useState(width);
   const ran = useRef(false);
   useEffect(() => {
     if (ran.current) return;
@@ -39,7 +43,7 @@ export function ReceiptDoc({
     return () => clearTimeout(t);
   }, [slug, billId]);
 
-  const s = SIZE[width === "58" ? "58" : "80"];
+  const s = SIZE[kho === "58" ? "58" : "80"];
   const change =
     receipt.payment && receipt.payment.method === "cash"
       ? Math.max(0, receipt.payment.amount - receipt.total)
@@ -57,9 +61,13 @@ export function ReceiptDoc({
         <span className="rc-sizes">
           Khổ:
           {(["58", "80"] as const).map((k) => (
-            <a key={k} href={`?w=${k}`} className={`rc-btn rc-size ${k === (width === "58" ? "58" : "80") ? "rc-active" : ""}`}>
+            <button
+              key={k}
+              type="button"
+              data-kho={k}
+              onClick={() => setKho(k)} className={`rc-btn rc-size ${k === (width === "58" ? "58" : "80") ? "rc-active" : ""}`}>
               {SIZE[k].label}
-            </a>
+            </button>
           ))}
         </span>
       </div>

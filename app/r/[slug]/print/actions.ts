@@ -6,6 +6,7 @@ import { canAccess } from "@/lib/auth/rbac";
 import { buildKitchenTicket } from "@/lib/print/kitchen-ticket";
 import { buildCustomerTicket } from "@/lib/print/customer-ticket";
 import type { OrderPrintState, TicketPrintState } from "@/lib/print/adapter";
+import { daInGanDay } from "@/lib/print/dedupe";
 
 type TicketType = "kitchen_ticket" | "customer_ticket";
 
@@ -27,6 +28,13 @@ async function insertPrintJob(
   if (!ticket) return { ok: false };
 
   const supabase = await createClient();
+
+  // Lượt in y hệt vừa được ghi trong 3 giây ⇒ đây là remount/bấm đúp, không phải ý định in lại.
+  // Trả ok để giao diện không báo lỗi — người dùng chỉ định in MỘT lần, và họ đã được in.
+  if (await daInGanDay(supabase, session.tenant.id, type, "orderId", orderId)) {
+    return { ok: true };
+  }
+
   const { error } = await supabase.from("print_jobs").insert({
     tenant_id: session.tenant.id,
     type,
