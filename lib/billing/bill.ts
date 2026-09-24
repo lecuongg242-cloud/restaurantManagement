@@ -408,20 +408,59 @@ async function paidQtyMap(
   return m;
 }
 
-async function closeSessionIfSettled(client: SupabaseClient, tenantId: string, sessionId: string): Promise<void> {
-  const { data: sess } = await client
-    .from("table_sessions")
-    .select("id, table_id, status")
-    .eq("id", sessionId)
+/**
+ * Con chia đều: mọi con 'paid' → cha 'paid'.
+ *
+ * Bỏ con 'void' (tàn dư của một lượt chia ĐÃ GỠ, vẫn giữ `split_parent_id` — 0031) khỏi phép kiểm:
+ * sau chuỗi chia → gỡ → chia lại, tập con là [void cũ…, paid mới…] nên `every(paid)` không bao giờ
+ * đúng, vỏ mãi 'open', món không lên 'served' và phiên bàn kẹt "đang phục vụ" vĩnh viễn.
+ * KÈM kiểm tập KHÔNG RỖNG: `[].every(...)` trả true, sẽ đánh 'paid' cho vỏ không có con nào.
+ *
+ * Đọc hỏng thì KHÔNG chốt vỏ: để vỏ 'open' chỉ làm chậm việc đóng phiên (thu lại lần nữa là xong),
+ * còn chốt nhầm là mất dấu phần chưa thu.
+ *
+ * `paid_at` của vỏ lấy `paidAt` (mốc TIỀN VỀ của con cuối cùng), không lấy `now` (mốc bấm nút) —
+ * cùng một gốc thời gian với con, để vỏ và con không kể hai câu chuyện khác nhau khi thu bù.
+ */
+async function chotVoChiaDeu(
+  client: SupabaseClient,
+  tenantId: string,
+  parentId: string | null,
+  paidAt: string,
+  now: string
+): Promise<void> {
+  if (!parentId) return;
+  const { data: sib, error: sibErr } = await client
+    .from("bills")
+    .select("status")
     .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (!sess || sess.status !== "open") return;
+    .eq("split_parent_id", parentId)
+    .neq("status", "void");
+  if (!sibErr && (sib?.length ?? 0) > 0 && (sib ?? []).every((s) => s.status === "paid"))
+    await client
+      .from("bills")
+      .update({ status: "paid", paid_at: paidAt, updated_at: now })
+      .eq("id", parentId)
+      .eq("tenant_id", tenantId);
+}
 
-  const { data: orders } = await client
-    .from("orders")
-    .select("id, order_items(status)")
-    .eq("tenant_id", tenantId)
-    .eq("table_session_id", sessionId);
+async function closeSessionIfSettled(client: SupabaseClient, tenantId: string, sessionId: string): Promise<void> {
+  // Hai phép đọc chỉ cần `sessionId`, không phụ thuộc nhau → đi cùng một lượt. Mỗi lượt khứ hồi
+  // tiết kiệm được ở đây nhân lên theo số phiên bàn của hóa đơn.
+  const [{ data: sess }, { data: orders }] = await Promise.all([
+    client
+      .from("table_sessions")
+      .select("id, table_id, status")
+      .eq("id", sessionId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle(),
+    client
+      .from("orders")
+      .select("id, order_items(status)")
+      .eq("tenant_id", tenantId)
+      .eq("table_session_id", sessionId),
+  ]);
+  if (!sess || sess.status !== "open") return;
   // Món 'served' = đã thu đủ (payBill đánh dấu). Còn món chưa 'served' (chưa thu) → không đóng.
   const statuses: string[] = [];
   for (const o of orders ?? [])
@@ -431,8 +470,11 @@ async function closeSessionIfSettled(client: SupabaseClient, tenantId: string, s
   if (!statuses.every((s) => s === "served")) return;
 
   const now = new Date().toISOString();
-  await client.from("table_sessions").update({ status: "closed", closed_at: now }).eq("id", sessionId).eq("tenant_id", tenantId);
-  await client.from("tables").update({ status: "available" }).eq("id", sess.table_id).eq("tenant_id", tenantId);
+  // Đóng phiên và trả bàn về trống là hai bản ghi độc lập — không việc gì phải chờ nhau.
+  await Promise.all([
+    client.from("table_sessions").update({ status: "closed", closed_at: now }).eq("id", sessionId).eq("tenant_id", tenantId),
+    client.from("tables").update({ status: "available" }).eq("id", sess.table_id).eq("tenant_id", tenantId),
+  ]);
 }
 
 /**
@@ -471,21 +513,16 @@ export async function payBill(
     idempotencyKey?: string | null;
   },
   actorMembershipId: string | null,
-  opts: { canBackdate?: boolean } = {}
+  opts: { canBackdate?: boolean } = {},
+  /** Tiêm client cho test tích hợp — mặc định là phiên RLS của người bấm nút. Đường tiền là chỗ
+   *  cần lưới an toàn nhất, mà `createClient()` cần request context nên không gọi thẳng từ test được. */
+  injectedClient?: SupabaseClient
 ): Promise<{ ok: true; change: number } | { error: string }> {
-  const client = await createClient();
+  const client = injectedClient ?? (await createClient());
   const idemKey = normalizeIdempotencyKey(input.idempotencyKey);
 
   // Đọc bill CHỈ để lấy dữ liệu phần đuôi cần (phiên bàn, đơn online, vỏ chia đều). Mọi QUYẾT ĐỊNH
   // về việc có được thu hay không đều do RPC kiểm lại dưới khóa — số đọc ở đây có thể đã cũ.
-  const { data: bill } = await client
-    .from("bills")
-    .select("id, table_session_id, online_order_id, split_parent_id")
-    .eq("id", billId)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (!bill) return { error: "Không tìm thấy hóa đơn." };
-
   const now = new Date().toISOString();
   // `paidAt` = lúc TIỀN VỀ (nguồn sự thật của báo cáo); `now` = lúc BẤM NÚT, giữ ở `updated_at`
   // để vẫn truy được ai thu bù lúc nào. Quyền ghi lùi là luật của app (vai trò người bấm) nên ở lại
@@ -494,15 +531,28 @@ export async function payBill(
   if ("error" in received) return { error: received.error };
   const paidAt = received.at;
 
-  const { data: rpcRaw, error: rpcErr } = await client.rpc("pay_bill", {
-    p_tenant: tenantId,
-    p_bill: billId,
-    p_method: input.method,
-    p_paid_at: paidAt,
-    p_note: input.note?.trim() ? input.note.trim().slice(0, 200) : null,
-    p_actor: actorMembershipId,
-    p_idem: idemKey,
-  });
+  // Đọc bill CHỈ để phần đuôi dùng (phiên bàn, đơn online, vỏ chia đều) — nó KHÔNG quyết định
+  // được phép thu hay không, việc đó RPC kiểm lại dưới khóa. Nên hai lượt này đi cùng nhau thay vì
+  // xếp hàng: bớt một lượt khứ hồi khỏi đường tiền.
+  const [{ data: bill }, { data: rpcRaw, error: rpcErr }] = await Promise.all([
+    client
+      .from("bills")
+      .select("id, table_session_id, online_order_id, split_parent_id")
+      .eq("id", billId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle(),
+    client.rpc("pay_bill", {
+      p_tenant: tenantId,
+      p_bill: billId,
+      p_method: input.method,
+      p_paid_at: paidAt,
+      p_note: input.note?.trim() ? input.note.trim().slice(0, 200) : null,
+      p_actor: actorMembershipId,
+      p_idem: idemKey,
+    }),
+  ]);
+  // Bill không tồn tại: RPC cũng đã từ chối (nó lọc theo tenant+bill), nên không có gì bị ghi.
+  if (!bill) return { error: "Không tìm thấy hóa đơn." };
   // Lỗi transport (mạng/RLS) khác hẳn "RPC chạy xong và từ chối": cái sau đã có mã lỗi riêng.
   if (rpcErr) return { error: "Ghi nhận thanh toán thất bại. Vui lòng thử lại." };
   const paid = parsePayBillResult(rpcRaw);
@@ -516,39 +566,33 @@ export async function payBill(
   // bao giờ đúng, vỏ mãi 'open', món không lên 'served' và phiên bàn kẹt "đang phục vụ" vĩnh viễn.
   // KÈM kiểm tập KHÔNG RỖNG: `[].every(...)` trả true, sẽ đánh 'paid' cho vỏ không có con nào.
   const parentId = (bill.split_parent_id as string) ?? null;
-  if (parentId) {
-    const { data: sib, error: sibErr } = await client
-      .from("bills")
-      .select("status")
-      .eq("tenant_id", tenantId)
-      .eq("split_parent_id", parentId)
-      .neq("status", "void");
-    // Đọc hỏng thì KHÔNG chốt vỏ: để vỏ 'open' chỉ làm chậm việc đóng phiên (thu lại lần nữa là
-    // xong), còn chốt nhầm là mất dấu phần chưa thu.
-    // `paid_at` của vỏ lấy `paidAt` (mốc TIỀN VỀ của con cuối cùng), không lấy `now` (mốc bấm nút)
-    // — cùng một gốc thời gian với con, để vỏ và con không kể hai câu chuyện khác nhau khi thu bù.
-    if (!sibErr && (sib?.length ?? 0) > 0 && (sib ?? []).every((s) => s.status === "paid"))
-      await client.from("bills").update({ status: "paid", paid_at: paidAt, updated_at: now }).eq("id", parentId).eq("tenant_id", tenantId);
-  }
 
-  // Đánh dấu món ĐÃ THU ĐỦ = 'served' (rời KDS — "vé tự xóa khi thanh toán") + gom phiên để đóng.
-  // bill giữ món = cha nếu là con chia đều, else bill này.
+  // Việc chốt vỏ chia đều và việc đọc món của hóa đơn giữ món là hai nhánh độc lập — chạy cùng
+  // lượt thay vì nối đuôi.
   const sessions = new Set<string>();
   if (bill.table_session_id) sessions.add(bill.table_session_id as string);
   const holderId = parentId ?? billId;
-  const { data: hItems } = await client
-    .from("bill_items")
-    .select("order_item_id")
-    .eq("bill_id", holderId)
-    .eq("tenant_id", tenantId);
+
+  const [, { data: hItems }] = await Promise.all([
+    chotVoChiaDeu(client, tenantId, parentId, paidAt, now),
+    client
+      .from("bill_items")
+      .select("order_item_id")
+      .eq("bill_id", holderId)
+      .eq("tenant_id", tenantId),
+  ]);
+
   const holderOiIds = [...new Set((hItems ?? []).map((r) => r.order_item_id as string))];
   if (holderOiIds.length > 0) {
-    const { data: oiRows } = await client
-      .from("order_items")
-      .select("id, order_id, qty, status")
-      .in("id", holderOiIds)
-      .eq("tenant_id", tenantId);
-    const paidQty = await paidQtyMap(client, tenantId, holderOiIds);
+    // Hai phép đọc cùng dựa trên `holderOiIds`, không phụ thuộc nhau → đi cùng một lượt.
+    const [{ data: oiRows }, paidQty] = await Promise.all([
+      client
+        .from("order_items")
+        .select("id, order_id, qty, status")
+        .in("id", holderOiIds)
+        .eq("tenant_id", tenantId),
+      paidQtyMap(client, tenantId, holderOiIds),
+    ]);
     const nowServed = (oiRows ?? []).filter(
       (r) =>
         r.status !== "served" &&
@@ -562,24 +606,56 @@ export async function payBill(
         .in("id", nowServed.map((r) => r.id as string))
         .eq("tenant_id", tenantId);
       // Roll-up order → served khi mọi món của order đã served/cancelled (rời KDS cả vé).
-      for (const oid of [...new Set(nowServed.map((r) => r.order_id as string))]) {
-        const { data: sib } = await client
+      //
+      // Trước đây đoạn này là N+1: mỗi đơn một lượt đọc + một lượt ghi. Hóa đơn gộp 5 đơn = 10 lượt
+      // khứ hồi nối tiếp. Nay: MỘT lượt đọc cho mọi đơn, gom trong bộ nhớ, rồi MỘT lượt ghi.
+      const donCanXet = [...new Set(nowServed.map((r) => r.order_id as string))];
+      // Đọc lại món của các đơn (để roll-up) đi CÙNG lượt với đọc phiên bàn của chúng — hai việc
+      // khác bảng, không phụ thuộc nhau.
+      const [{ data: moiMon }, { data: donCuaPhien }] = await Promise.all([
+        client
           .from("order_items")
-          .select("status")
-          .eq("order_id", oid)
-          .eq("tenant_id", tenantId);
-        if ((sib ?? []).every((s) => s.status === "served" || s.status === "cancelled"))
-          await client.from("orders").update({ status: "served", updated_at: now }).eq("id", oid).eq("tenant_id", tenantId);
+          .select("order_id, status")
+          .in("order_id", donCanXet)
+          .eq("tenant_id", tenantId),
+        client
+          .from("orders")
+          .select("table_session_id")
+          .in("id", donCanXet)
+          .eq("tenant_id", tenantId),
+      ]);
+      for (const o of donCuaPhien ?? [])
+        if (o.table_session_id) sessions.add(o.table_session_id as string);
+
+      const theoDon = new Map<string, string[]>();
+      for (const r of moiMon ?? []) {
+        const oid = r.order_id as string;
+        const arr = theoDon.get(oid) ?? [];
+        arr.push(r.status as string);
+        theoDon.set(oid, arr);
       }
+      // `[].every(...)` trả true — giữ chốt không-rỗng cho khỏi đánh 'served' một đơn không món.
+      // Với đầu vào ở đây mọi đơn đều có ít nhất một món, nên chốt này chỉ là dây an toàn.
+      const donXong = donCanXet.filter((oid) => {
+        const st = theoDon.get(oid) ?? [];
+        return st.length > 0 && st.every((x) => x === "served" || x === "cancelled");
+      });
+      if (donXong.length > 0)
+        await client.from("orders").update({ status: "served", updated_at: now }).in("id", donXong).eq("tenant_id", tenantId);
     }
-    // Phiên bàn của các món (kể cả gộp nhiều bàn).
-    const orderIds = [...new Set((oiRows ?? []).map((r) => r.order_id as string))];
+    // Phiên bàn của các món (kể cả gộp nhiều bàn). Đơn nào đã được đọc trong nhánh roll-up ở trên
+    // thì bỏ qua — chỉ còn những đơn không có món nào vừa chuyển 'served'.
+    const daDoc = new Set(nowServed.map((r) => r.order_id as string));
+    const orderIds = [...new Set((oiRows ?? []).map((r) => r.order_id as string))].filter(
+      (id) => !daDoc.has(id)
+    );
     if (orderIds.length > 0) {
       const { data: ords } = await client.from("orders").select("table_session_id").in("id", orderIds).eq("tenant_id", tenantId);
       for (const o of ords ?? []) if (o.table_session_id) sessions.add(o.table_session_id as string);
     }
   }
-  for (const s of sessions) await closeSessionIfSettled(client, tenantId, s);
+  // Các phiên bàn độc lập nhau (hóa đơn gộp nhiều bàn) → xử song song thay vì xếp hàng.
+  await Promise.all([...sessions].map((s) => closeSessionIfSettled(client, tenantId, s)));
 
   // Đơn không gắn bàn: thu đủ = HOÀN TẤT. Roll-up ở trên đã đặt món 'served'; ở đây nâng đơn lên
   // 'completed' (trạng thái cuối cho theo dõi khách) + broadcast.

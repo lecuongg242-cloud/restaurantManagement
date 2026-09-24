@@ -264,6 +264,10 @@ export const CHO_GIUA_LAN_MS = [1000, 3000];
  * cũng hỏng — và lúc đó đánh `failed` mới đúng, chip đỏ vẫn hiện.
  *
  * Ném lỗi của LẦN CUỐI để log nói đúng nguyên nhân thật, không phải lỗi của lần đầu.
+ *
+ * @param {() => Promise<unknown>} gui
+ * @param {number} [soLanThuLai]
+ * @param {number|null} [choMs] Ép khoảng chờ (test dùng 0); bỏ trống = dùng CHO_GIUA_LAN_MS.
  */
 export async function thuLaiGui(gui, soLanThuLai = 2, choMs = null) {
   let loiCuoi;
