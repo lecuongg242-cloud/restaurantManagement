@@ -42,7 +42,7 @@ import { actionSignature } from "@/lib/idempotency";
 import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
 import { gioVn } from "@/lib/time/vn";
-import { CauInBanner } from "@/components/pos/CauInBanner";
+import { CauInBanner, ThietBiInChip, useCauIn } from "@/components/pos/CauInBanner";
 
 const STATUS_VN: Record<string, string> = {
   available: "Trống",
@@ -81,6 +81,8 @@ export function PosBoard({
   const router = useRouter();
   // Chế độ quầy (quán không dùng bàn): ẩn sơ đồ bàn, POS mở thẳng màn bán quầy.
   const counter = serviceMode === "counter";
+  // Một lần hỏi server cho cả chip thiết bị in trên thanh công cụ lẫn băng sự cố (PRINT-07/08/09).
+  const cauIn = useCauIn(slug);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
   const [takeawayMode, setTakeawayMode] = useState(counter);
@@ -607,6 +609,8 @@ export function PosBoard({
           </span>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-sm">
+          {/* Thiết bị in thường trực — nhân viên đứng quầy phải thấy máy in bếp có chạy không. */}
+          <ThietBiInChip st={cauIn.st} />
           {!counter && (
             <Link
               href={`/r/${slug}/pos/reservations`}
@@ -653,7 +657,7 @@ export function PosBoard({
 
       {/* Sức khỏe cầu in bếp (PRINT-07/08) — đặt TRÊN CÙNG: cầu in chết là MỌI phiếu bếp đổi đường,
           nhân viên phải biết trước khi xử lý bất kỳ đơn nào bên dưới. */}
-      <CauInBanner slug={slug} />
+      <CauInBanner st={cauIn.st} onDaXuLy={cauIn.daXuLy} />
 
       {/* Banner ĐƠN KHÁCH CHỜ DUYỆT — ưu tiên cao nhất nên đặt trên banner gọi nhân viên.
           Bấm chip mở drawer để XEM món rồi mới duyệt (D8: duyệt để chặn order giỡn/nhầm bàn),

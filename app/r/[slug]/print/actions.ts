@@ -9,7 +9,7 @@ import type { OrderPrintState } from "@/lib/print/adapter";
 import { daInGanDay } from "@/lib/print/dedupe";
 import { cauInConSongCua, thayTheLuotDangCho } from "@/lib/print/cau-in-db";
 import { toState, CHUA_IN, type JobRow } from "@/lib/print/trang-thai";
-import { cauInConSong, loiDonDap, CUA_SO_LOI_MS } from "@/lib/print/cau-in";
+import { cauInConSong, loiDonDap, trangThaiMayIn, CUA_SO_LOI_MS, type NhipTim } from "@/lib/print/cau-in";
 
 type TicketType = "kitchen_ticket" | "customer_ticket";
 
@@ -134,6 +134,10 @@ export type CauInStatus = {
   canhBao: boolean;
   /** Mốc của lỗi mới nhất — POS lưu làm mốc "đã xử lý" khi nhân viên bấm tắt. */
   loiMoiNhat: string | null;
+  /** Trạng thái đầy đủ cho chip thiết bị in trên thanh công cụ POS (PRINT-09). */
+  thietBi: ReturnType<typeof trangThaiMayIn>;
+  printerHost: string | null;
+  printerCheckedAt: string | null;
 };
 
 /**
@@ -154,7 +158,11 @@ export async function getCauInStatus(
   const supabase = await createClient();
   const now = Date.now();
   const [{ data: nhip }, { data: loi }] = await Promise.all([
-    supabase.from("printer_heartbeats").select("seen_at").eq("tenant_id", session.tenant.id).maybeSingle(),
+    supabase
+      .from("printer_heartbeats")
+      .select("seen_at, printer_ok, printer_host, printer_checked_at")
+      .eq("tenant_id", session.tenant.id)
+      .maybeSingle(),
     supabase
       .from("print_jobs")
       .select("created_at")
@@ -168,5 +176,15 @@ export async function getCauInStatus(
   const seenAt = (nhip?.seen_at as string | undefined) ?? null;
   const moc = (loi ?? []).map((r) => r.created_at as string);
   const { canhBao, soLoi } = loiDonDap(moc, now, daXuLyLuc);
-  return { conSong: cauInConSong(seenAt, now), seenAt, soLoi, canhBao, loiMoiNhat: moc[0] ?? null };
+  const n = (nhip as (NhipTim & { printer_host: string | null }) | null) ?? null;
+  return {
+    conSong: cauInConSong(seenAt, now),
+    seenAt,
+    soLoi,
+    canhBao,
+    loiMoiNhat: moc[0] ?? null,
+    thietBi: trangThaiMayIn(n, now),
+    printerHost: n?.printer_host ?? null,
+    printerCheckedAt: n?.printer_checked_at ?? null,
+  };
 }

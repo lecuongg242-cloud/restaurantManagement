@@ -26,9 +26,17 @@ const admin = createClient(
 let tenantId = "";
 let batDau = "";
 
-async function datNhipTim(seenAt: string | null) {
+async function datNhipTim(seenAt: string | null, mayIn: boolean | null = null) {
   await admin.from("printer_heartbeats").delete().eq("tenant_id", tenantId);
-  if (seenAt) await admin.from("printer_heartbeats").insert({ tenant_id: tenantId, seen_at: seenAt });
+  if (seenAt) {
+    await admin.from("printer_heartbeats").insert({
+      tenant_id: tenantId,
+      seen_at: seenAt,
+      printer_ok: mayIn,
+      printer_host: mayIn === null ? null : "192.168.1.234:9100",
+      printer_checked_at: mayIn === null ? null : seenAt,
+    });
+  }
 }
 
 /** Lượt phiếu bếp mới nhất được ghi kể từ lúc test bắt đầu. */
@@ -99,4 +107,30 @@ test("cầu in SỐNG → phiếu bếp vào hàng đợi cho cầu in", async (
   await expect
     .poll(async () => (await luotMoiNhat())?.status ?? "chua-co", { timeout: 20_000 })
     .toBe("pending");
+});
+
+/**
+ * PRINT-09 — chip thiết bị in thường trực trên thanh công cụ POS. Nhân viên đứng quầy mới là người
+ * cần biết máy in bếp có chạy không; trước đây chỉ chủ quán thấy, trong /admin/printers.
+ */
+test.describe("Chip thiết bị in trên POS", () => {
+  test("cầu in sống + máy in phản hồi → 'Máy in bếp sẵn sàng', không có băng đỏ", async ({ page }) => {
+    await datNhipTim(new Date().toISOString(), true);
+    await vaoPos(page);
+    await expect(page.getByRole("status", { name: /Máy in bếp sẵn sàng/ })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByText(/không phản hồi|mất kết nối/i)).toHaveCount(0);
+  });
+
+  test("máy in KHÔNG phản hồi → chip đỏ + băng cảnh báo kèm IP", async ({ page }) => {
+    await datNhipTim(new Date().toISOString(), false);
+    await vaoPos(page);
+    await expect(page.getByRole("status", { name: /Máy in bếp không phản hồi/ })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole("alert").filter({ hasText: "192.168.1.234:9100" })).toBeVisible();
+  });
+
+  test("cầu in chết → chip nói về CẦU IN", async ({ page }) => {
+    await datNhipTim(new Date(Date.now() - 10 * 60_000).toISOString(), true);
+    await vaoPos(page);
+    await expect(page.getByRole("status", { name: /Cầu in mất kết nối/ })).toBeVisible({ timeout: 45_000 });
+  });
 });
