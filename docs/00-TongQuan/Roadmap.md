@@ -119,11 +119,11 @@ rate limit endpoint ẩn danh, log theo tenant. Gói cước SaaS vẫn ở V3.
 
 Chi tiết: `30-KeHoach/P8/00-TongQuan.md`, spec `superpowers/specs/2026-09-24-p8-toi-uu-tai-chi-phi-design.md`.
 
-- [ ] 08-04 **Đo lường theo tenant** (PERF-04) — **wave 1**, làm trước để có số nền mà so.
-- [ ] 08-05 **Chốt chặn lệch schema trong CI** (OPS-07) — wave 1, độc lập.
-- [ ] 08-01 **Gỡ WebSocket churn trong `broadcastOrderStatus`** (PERF-01) — đóng bill gộp 5 đơn đang có thể mất 15s, phá BILL-04.
-- [ ] 08-02 **POS thôi nạp lại thực đơn mỗi lần refresh** (PERF-02).
-- [ ] 08-03 **Cầu in nhịp thích ứng** (PERF-03) — độc lập.
+- [~] 08-04 **Đo lường theo tenant** (PERF-04) — **wave 1**, làm trước để có số nền mà so.
+- [~] 08-05 **Chốt chặn lệch schema trong CI** (OPS-07) — wave 1, độc lập.
+- [x] 08-01 **Gỡ WebSocket churn trong `broadcastOrderStatus`** (PERF-01) — đóng bill gộp 5 đơn đang có thể mất 15s, phá BILL-04.
+- [x] 08-02 **POS thôi nạp lại thực đơn mỗi lần refresh** (PERF-02).
+- [x] 08-03 **Cầu in nhịp thích ứng** (PERF-03) — độc lập.
 
 P8 kết thúc bằng **"đã biết cái gì đáng tối ưu tiếp"** (QD-014), không phải "đã tối ưu". Viết lại
 realtime (bỏ `router.refresh()`) chờ số từ 08-04 rồi mới quyết.
