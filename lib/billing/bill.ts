@@ -19,7 +19,7 @@ import {
   pickSessionOpenBill,
   planSessionItemAllocation,
 } from "./session-bill";
-import { broadcastOrderStatus } from "@/lib/orders/broadcast";
+import { broadcastOrderStatus, broadcastOrderStatuses } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
 import { normalizeIdempotencyKey } from "@/lib/idempotency";
 import type { BillView, BillLineView, DiscountType } from "./types";
@@ -594,7 +594,7 @@ export async function payBill(
       .in("id", groupIds)
       .eq("tenant_id", tenantId)
       .neq("status", "cancelled");
-    for (const oid of groupIds) await broadcastOrderStatus(oid);
+    await broadcastOrderStatuses(groupIds);
   }
 
   return { ok: true, change: changeToReturn(input.amountReceived, total) };

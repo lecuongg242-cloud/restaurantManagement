@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
 import { canTransition } from "@/lib/orders/status";
-import { broadcastOrderStatus } from "@/lib/orders/broadcast";
+import { broadcastOrderStatus, broadcastOrderStatuses } from "@/lib/orders/broadcast";
 import { createStaffOrder, createStaffTakeawayOrder, nextKitchenNo } from "@/lib/orders/create-order";
 import {
   createStaffReservation,
@@ -1073,7 +1073,7 @@ export async function cancelOrder(
     (cancelledItems ?? []).map((r) => r.id as string)
   );
 
-  for (const oid of targetIds) await broadcastOrderStatus(oid);
+  await broadcastOrderStatuses(targetIds);
   revalidatePath(`/r/${slug}/pos`);
   revalidatePath(`/r/${slug}/pos/online`);
   return { ok: true, orderId: input.orderId };
