@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 /** Các tab trong khu Nguyên liệu (P10). Thêm tab mới ở đây, một chỗ. */
 const TABS = [
+  { href: "/today", label: "Nhập hôm nay" },
   { href: "", label: "Nguyên liệu" },
   { href: "/recipes", label: "Định lượng món" },
 ] as const;

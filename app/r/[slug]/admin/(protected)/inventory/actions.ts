@@ -6,7 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/rbac";
 import { setFlash } from "@/lib/flash";
-import { parseQty, unitCostFromPurchase } from "@/lib/inventory/units";
+import { parseQty, toBaseQty, unitCostFromPurchase } from "@/lib/inventory/units";
+import { businessDate } from "@/lib/inventory/day";
+import { planBatch } from "@/lib/inventory/batch";
+import { loadInventory, costContext } from "@/lib/inventory/data";
 import { checkRecipeChange, MAX_DEPTH } from "@/lib/inventory/recipe-graph";
 import type { BaseUnit, IngredientKind } from "@/lib/inventory/types";
 
@@ -323,4 +326,126 @@ export async function saveRecipe(fd: FormData) {
 
   revalidatePath(invPath(slug), "layout");
   await setFlash("ok", lines.length > 0 ? "Đã lưu định lượng." : "Đã xóa định lượng.");
+}
+
+// ── 10-02: nhập buổi sáng + chế biến mẻ ──────────────────────────────────────────────────────
+
+/**
+ * Nhập nguyên liệu (INV-04). Mỗi lần gửi = các dòng `receipt` MỚI — nhập lần hai trong ngày là cộng
+ * dồn, không sửa dòng cũ. Có giá thì cập nhật giá gần nhất của nguyên liệu.
+ */
+export async function recordReceipts(fd: FormData) {
+  const slug = String(fd.get("slug") ?? "");
+  const session = await requireInventoryManager(slug);
+  const tenantId = session.tenant.id;
+
+  let parsed: { ingredient_id: string; qty: string; price: string }[];
+  try {
+    parsed = JSON.parse(String(fd.get("rows") ?? "[]"));
+    if (!Array.isArray(parsed)) throw new Error();
+  } catch {
+    await setFlash("error", "Dữ liệu nhập không hợp lệ.");
+    return;
+  }
+
+  const supabase = await createClient();
+  const { data: ingRows } = await supabase
+    .from("ingredients")
+    .select("id, name, kind, purchase_factor, purchase_unit")
+    .eq("tenant_id", tenantId)
+    .eq("active", true);
+  const ingById = new Map((ingRows ?? []).map((r) => [r.id as string, r]));
+
+  const day = businessDate();
+  const now = new Date().toISOString();
+  const entries: Record<string, unknown>[] = [];
+  const prices: { id: string; cost: number }[] = [];
+  for (const r of parsed) {
+    if (!r.ingredient_id || !String(r.qty ?? "").trim()) continue; // dòng để trống = hôm nay không nhập
+    const ing = ingById.get(r.ingredient_id);
+    if (!ing || ing.kind !== "purchased") {
+      await setFlash("error", "Chỉ nhập được nguyên liệu mua vào; bán thành phẩm ghi ở phần Chế biến.");
+      return;
+    }
+    const qty = parseQty(String(r.qty));
+    if (qty === null) {
+      await setFlash("error", `Số lượng của "${ing.name}" phải là số lớn hơn 0.`);
+      return;
+    }
+    const factor = Number(ing.purchase_factor ?? 1);
+    const priceRaw = String(r.price ?? "").replace(/[^\d]/g, "");
+    const unit_cost = priceRaw ? unitCostFromPurchase(parseInt(priceRaw, 10), factor) : null;
+    entries.push({
+      tenant_id: tenantId,
+      business_date: day,
+      ingredient_id: ing.id,
+      kind: "receipt",
+      qty: toBaseQty(qty, factor),
+      unit_cost,
+      created_by: session.membershipId,
+    });
+    if (unit_cost !== null) prices.push({ id: ing.id as string, cost: unit_cost });
+  }
+
+  if (entries.length === 0) {
+    await setFlash("error", "Chưa nhập số lượng nào.");
+    return;
+  }
+  const { error } = await supabase.from("stock_entries").insert(entries);
+  if (error) {
+    await setFlash("error", error.message);
+    return;
+  }
+  for (const p of prices) {
+    await supabase
+      .from("ingredients")
+      .update({ last_unit_cost: p.cost, last_cost_at: now, updated_at: now })
+      .eq("id", p.id)
+      .eq("tenant_id", tenantId);
+  }
+  revalidatePath(invPath(slug), "layout");
+  await setFlash("ok", `Đã nhập ${entries.length} nguyên liệu.`);
+}
+
+/** Phiếu chế biến mẻ (INV-05): tính ở server bằng `planBatch`, ghi qua RPC một giao dịch. */
+export async function recordBatch(fd: FormData) {
+  const slug = String(fd.get("slug") ?? "");
+  const session = await requireInventoryManager(slug);
+  const tenantId = session.tenant.id;
+  const ingredientId = String(fd.get("ingredient_id") ?? "");
+  const batchCount = parseQty(String(fd.get("batch_count") ?? ""));
+  const actualRaw = String(fd.get("actual_qty") ?? "").trim();
+  const actual = actualRaw === "0" ? 0 : parseQty(actualRaw);
+  if (!ingredientId || batchCount === null || actual === null) {
+    await setFlash("error", "Chọn bán thành phẩm, nhập số mẻ và sản lượng thực.");
+    return;
+  }
+
+  const supabase = await createClient();
+  const data = await loadInventory(supabase, tenantId);
+  const prepared = data.ingredients.find((i) => i.id === ingredientId && i.kind === "prepared");
+  const recipe = data.byParent.get(ingredientId) ?? [];
+  if (!prepared || recipe.length === 0) {
+    await setFlash("error", "Bán thành phẩm này chưa có công thức mẻ — khai ở tab Nguyên liệu trước.");
+    return;
+  }
+  const plan = planBatch(prepared, recipe, batchCount, actual, costContext(data));
+
+  const { error } = await supabase.rpc("record_batch", {
+    p_tenant: tenantId,
+    p_business_date: businessDate(),
+    p_ingredient: ingredientId,
+    p_batch_count: batchCount,
+    p_expected: plan.expectedQty,
+    p_actual: actual,
+    p_cost_total: plan.costTotal,
+    p_unit_cost: plan.unitCost,
+    p_created_by: session.membershipId,
+    p_consume: plan.consume,
+  });
+  revalidatePath(invPath(slug), "layout");
+  await setFlash(
+    error ? "error" : "ok",
+    error ? `Ghi phiếu chế biến lỗi: ${error.message}` : `Đã ghi ${batchCount} mẻ ${prepared.name}.`
+  );
 }

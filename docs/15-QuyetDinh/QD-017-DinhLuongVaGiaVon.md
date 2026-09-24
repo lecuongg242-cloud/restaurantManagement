@@ -74,6 +74,11 @@ trứng" được cảnh báo.
 
 Món **không khai định lượng** → không tính, không hiện gì — POS như hôm nay.
 
+**Chỉ nguyên liệu đã từng có dòng sổ (nhập / chế biến) mới tham gia số phần.** *(Thêm 24/09/2026
+khi làm 10-02.)* Gia vị như muối, nước mắm được khai trong định lượng để tính giá vốn, nhưng không
+ai nhập muối mỗi sáng. Nếu tính cả chúng thì tồn luôn ≤ 0 và **món nào cũng "có thể đã hết"** —
+cảnh báo kêu suốt ngày là cảnh báo không ai đọc. Nguyên liệu vẫn tính giá vốn bình thường.
+
 ### D5. Hiển thị trên POS (theo C2 + C4)
 - Số phần ≤ 5 → nhãn trung tính "còn ~N" trên thẻ món.
 - Số phần ≤ 0 → **nhãn vàng** "Có thể đã hết — hãy hỏi bếp". Món **vẫn bấm được, vẫn thêm vào

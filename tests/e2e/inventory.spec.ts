@@ -123,11 +123,94 @@ test("công thức vòng bị chặn, không lưu (INV-03)", async ({ page }) =>
 
 test("360px không cuộn ngang", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
-  for (const path of [BASE, `${BASE}/recipes`]) {
+  for (const path of [BASE, `${BASE}/recipes`, `${BASE}/today`]) {
     await page.goto(path);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth
     );
     expect(overflow, path).toBeLessThanOrEqual(0);
   }
+});
+
+test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm được; khách không thấy (INV-04, INV-07)", async ({ page }) => {
+  const db = admin();
+  const { data: t } = await db.from("tenants").select("id").eq("slug", SLUG).single();
+  const tenant = t!.id as string;
+
+  // Món demo KHÔNG có nhóm tùy chọn → bấm là vào giỏ ngay.
+  const { data: links } = await db.from("menu_item_modifier_groups").select("item_id").eq("tenant_id", tenant);
+  const withGroups = new Set((links ?? []).map((l) => l.item_id));
+  const { data: items } = await db
+    .from("menu_items")
+    .select("id, name")
+    .eq("tenant_id", tenant)
+    .eq("active", true)
+    .eq("is_available", true)
+    .order("sort_order");
+  const item = (items ?? []).find((i) => !withGroups.has(i.id))!;
+  expect(item, "cần một món demo không có tùy chọn").toBeTruthy();
+
+  const ingName = `${TAG} Bò POS`;
+  const { data: ing } = await db
+    .from("ingredients")
+    .insert({ tenant_id: tenant, name: ingName, base_unit: "g", purchase_unit: "kg", purchase_factor: 1000 })
+    .select("id")
+    .single();
+  await db.from("recipe_lines").insert({ tenant_id: tenant, ingredient_id: ing!.id, menu_item_id: item.id, qty: 200 });
+  const orderIds: string[] = [];
+
+  try {
+    // Nhập 1 kg qua màn thật → sổ lưu 1000 g (INV-04)
+    await page.goto(`${BASE}/today`);
+    await page.getByRole("button", { name: "+ Thêm nguyên liệu khác" }).click();
+    await page.getByRole("combobox", { name: "Nguyên liệu" }).last().selectOption({ label: ingName });
+    await page.getByRole("textbox", { name: /Số lượng/ }).last().fill("1");
+    await page.getByRole("button", { name: "Ghi phiếu nhập" }).click();
+    await expect(page.getByText(/Đã nhập 1 nguyên liệu/)).toBeVisible();
+    const { data: se } = await db.from("stock_entries").select("qty").eq("ingredient_id", ing!.id);
+    expect(se!.map((r) => Number(r.qty))).toEqual([1000]);
+
+    const card = () => page.locator("li").filter({ has: page.getByRole("button", { name: `Thêm ${item.name}` }) });
+    await page.goto(`/r/${SLUG}/pos`);
+    await expect(card().getByText("còn ~5")).toBeVisible();
+
+    // Bán 5 phần (1.000 g ÷ 200 g) — mốc sau phiếu nhập, trước now().
+    await page.waitForTimeout(1500);
+    const { data: o } = await db
+      .from("orders")
+      .insert({ tenant_id: tenant, channel: "takeaway", source: "staff", status: "confirmed", confirmed_at: new Date(Date.now() - 500).toISOString(), note: TAG })
+      .select("id")
+      .single();
+    orderIds.push(o!.id);
+    await db.from("order_items").insert({
+      tenant_id: tenant, order_id: o!.id, menu_item_id: item.id, name_snapshot: item.name, unit_price_snapshot: 1000, qty: 5,
+    });
+
+    await page.reload();
+    await expect(card().getByText("Có thể đã hết — hãy hỏi bếp")).toBeVisible();
+
+    // Vẫn thêm vào giỏ được: không khóa món (QD-017 C2). pho-viet bán tại quầy → thực đơn bấm
+    // được ngay, món vào "Đơn mới" và nút "Tạo đơn" bật lên.
+    const add = card().getByRole("button", { name: `Thêm ${item.name}` });
+    await expect(add).toBeEnabled();
+    await add.click();
+    await expect(page.getByRole("button", { name: /^Tạo đơn/ })).toBeEnabled();
+    const { data: still } = await db.from("menu_items").select("is_available").eq("id", item.id).single();
+    expect(still!.is_available).toBe(true);
+
+    // Trang khách không lộ số phần (QD-017 C4)
+    const html = await (await page.request.get(`/r/${SLUG}/menu`)).text();
+    expect(html).not.toContain("còn ~");
+    expect(html).not.toContain("hỏi bếp");
+  } finally {
+    await db.from("orders").delete().in("id", orderIds);
+    await db.from("stock_entries").delete().eq("ingredient_id", ing!.id);
+    await db.from("recipe_lines").delete().eq("ingredient_id", ing!.id);
+    await db.from("ingredients").delete().eq("id", ing!.id);
+  }
+
+  // Hồi quy INV-10: hết dữ liệu sổ → POS không còn nhãn nào
+  await page.reload();
+  await expect(page.getByText("Có thể đã hết — hãy hỏi bếp")).toHaveCount(0);
+  await expect(page.getByText(/^còn ~\d+$/)).toHaveCount(0);
 });

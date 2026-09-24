@@ -155,6 +155,21 @@ export const CASES: Case[] = [
     insertRow: (t, id) => ({ id, tenant_id: t, ingredient_id: B(19), modifier_option_id: B(4), qty: 1 }),
     updatePatch: { qty: 99 },
   },
+  {
+    table: "production_batches",
+    insertRow: (t, id) => ({
+      id, tenant_id: t, business_date: "2030-01-02", ingredient_id: B(19),
+      batch_count: 1, expected_qty: 1, actual_qty: 1,
+    }),
+    updatePatch: { actual_qty: 99 },
+  },
+  {
+    table: "stock_entries",
+    insertRow: (t, id) => ({
+      id, tenant_id: t, business_date: "2030-01-02", ingredient_id: B(19), kind: "receipt", qty: 1, note: MARK,
+    }),
+    updatePatch: { note: MARK },
+  },
 ];
 
 /** Dòng fixture của tenant B ứng với một bảng. */
@@ -180,8 +195,8 @@ afterAll(async () => {
 }, 120_000);
 
 describe("RLS đọc: tenant A ⊥ tenant B", () => {
-  it("ma trận phủ đủ 20 bảng có tenant_id", () => {
-    expect(CASES).toHaveLength(20);
+  it("ma trận phủ đủ 22 bảng có tenant_id", () => {
+    expect(CASES).toHaveLength(22);
   });
 
   it.each(CASES)("$table — đối chứng dương: A đọc dữ liệu của chính A", async (c) => {

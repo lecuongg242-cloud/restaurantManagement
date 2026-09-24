@@ -164,7 +164,7 @@ Chi tiết: `30-KeHoach/P10/00-TongQuan.md` · nghiên cứu `30-KeHoach/P10/00-
 quyết định `QD-017`. Gỡ hai dòng "không quản lý kho nguyên liệu" và "không làm được lợi nhuận/biên lãi".
 
 - [~] 10-01 **Nguyên liệu, định lượng món/tùy chọn, công thức bán thành phẩm lồng** (INV-01, 02, 03) — giá vốn/phần + food cost %.
-- [ ] 10-02 **Nhập buổi sáng, phiếu chế biến mẻ, số phần trên POS** (INV-04..07) — cảnh báo vàng, không khóa món.
+- [~] 10-02 **Nhập buổi sáng, phiếu chế biến mẻ, số phần trên POS** (INV-04..07) — cảnh báo vàng, không khóa món.
 - [ ] 10-03 **Kiểm kê cuối ngày, xuất hủy, chốt sổ ngày bất biến** (INV-08, 09).
 - [ ] 10-04 **Báo cáo lãi gộp theo món & hao hụt** (REPORT-13, 14).
 
