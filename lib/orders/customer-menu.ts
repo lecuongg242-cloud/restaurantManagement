@@ -6,6 +6,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { timed } from "@/lib/observability/log";
+import { unstable_cache } from "next/cache";
+import { menuTag } from "@/lib/menu/cache";
 import { activeTenantBySlug } from "@/lib/tenant/active";
 
 export type CustomerModifierOption = {
@@ -68,11 +70,35 @@ export async function getCustomerMenu(slug: string): Promise<CustomerMenu | null
 
 /** Thân thật. Tách ra để `timed` bọc được mà không đổi chữ ký công khai (PERF-04). */
 async function readCustomerMenu(slug: string): Promise<CustomerMenu | null> {
+  // Tra tenant KHÔNG cache: quán bị tạm ngưng phải chặn được ngay, không đợi cache hết hạn.
   const tenant = await getPublicTenant(slug);
   if (!tenant) return null;
 
+  const categories = await readMenuCategoriesCached(tenant.id);
+  return {
+    tenant: { id: tenant.id, name: tenant.name, logo_url: tenant.logo_url },
+    categories,
+  };
+}
+
+/**
+ * Phần nặng: 5 truy vấn + ráp cây danh mục → món → nhóm tùy chọn. Đo 24/09/2026 mất 575–1.173ms,
+ * và trước PERF-02 nó chạy lại trong MỌI lần render POS — tức là mỗi sự kiện realtime, trên mọi
+ * thiết bị đang mở trong quán.
+ *
+ * Cache theo `tenantId`, xóa bằng `revalidateMenu` ở mọi lối ghi thực đơn (xem lib/menu/cache.ts;
+ * `tests/menu/cache.test.ts` đọc mã nguồn để giữ điều đó đúng về sau).
+ */
+async function readMenuCategoriesCached(tenantId: string): Promise<CustomerMenuCategory[]> {
+  return unstable_cache(
+    () => readMenuCategories(tenantId),
+    ["customer-menu", tenantId],
+    { tags: [menuTag(tenantId)] }
+  )();
+}
+
+async function readMenuCategories(tid: string): Promise<CustomerMenuCategory[]> {
   const admin = createAdminClient();
-  const tid = tenant.id;
 
   const [{ data: cats }, { data: items }, { data: links }, { data: groups }, { data: options }] =
     await Promise.all([
@@ -159,14 +185,9 @@ async function readCustomerMenu(slug: string): Promise<CustomerMenu | null> {
     itemsByCat.set(it.category_id, arr);
   }
 
-  const categories: CustomerMenuCategory[] = (cats ?? [])
+  return (cats ?? [])
     .map((c) => ({ id: c.id, name: c.name, items: itemsByCat.get(c.id) ?? [] }))
     .filter((c) => c.items.length > 0);
-
-  return {
-    tenant: { id: tenant.id, name: tenant.name, logo_url: tenant.logo_url },
-    categories,
-  };
 }
 
 /**

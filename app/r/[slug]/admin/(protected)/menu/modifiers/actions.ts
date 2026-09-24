@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { revalidateMenu } from "@/lib/menu/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/rbac";
@@ -64,6 +65,7 @@ export async function createGroup(formData: FormData) {
     sort_order,
   });
   revalidatePath(modPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : `Đã thêm nhóm "${f.name}".`);
 }
 
@@ -81,6 +83,7 @@ export async function updateGroup(formData: FormData) {
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(modPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : "Đã lưu nhóm.");
 }
 
@@ -96,6 +99,7 @@ export async function deleteGroup(formData: FormData) {
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(modPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : "Đã xóa nhóm.");
 }
 
@@ -129,6 +133,7 @@ export async function addOption(formData: FormData) {
     sort_order,
   });
   revalidatePath(modPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : `Đã thêm tùy chọn "${name}".`);
 }
 
@@ -148,6 +153,7 @@ export async function updateOption(formData: FormData) {
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(modPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : "Đã lưu tùy chọn.");
 }
 
@@ -163,6 +169,7 @@ export async function deleteOption(formData: FormData) {
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(modPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : "Đã xóa tùy chọn.");
 }
 
@@ -177,4 +184,5 @@ export async function setOptionAvailable(slug: string, id: string, available: bo
     .eq("tenant_id", session.tenant.id);
   if (error) throw new Error(error.message);
   revalidatePath(modPath(slug));
+  revalidateMenu(session.tenant.id);
 }

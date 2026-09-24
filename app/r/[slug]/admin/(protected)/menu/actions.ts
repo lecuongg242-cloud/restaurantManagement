@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { revalidateMenu } from "@/lib/menu/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, canToggleAvailability } from "@/lib/auth/rbac";
@@ -85,6 +86,7 @@ export async function createCategory(formData: FormData) {
     .from("menu_categories")
     .insert({ tenant_id: session.tenant.id, name, sort_order });
   revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : `Đã thêm danh mục "${name}".`);
 }
 
@@ -102,6 +104,7 @@ export async function renameCategory(formData: FormData) {
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : "Đã đổi tên danh mục.");
 }
 
@@ -117,6 +120,7 @@ export async function deleteCategory(formData: FormData) {
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : "Đã xóa danh mục.");
 }
 
@@ -128,6 +132,7 @@ export async function reorderCategory(formData: FormData) {
 
   await moveInList("menu_categories", {}, session.tenant.id, id, dir);
   revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
 }
 
 // ---- Món --------------------------------------------------------------------
@@ -241,6 +246,7 @@ export async function createItem(formData: FormData) {
   }
 
   revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(
     imageError ? "error" : "ok",
     imageError
@@ -305,6 +311,7 @@ export async function updateItem(formData: FormData) {
   }
 
   revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash(
     imageError ? "error" : "ok",
     imageError ? `Đã lưu món nhưng ảnh không lên: ${imageError}` : "Đã lưu món."
@@ -333,6 +340,7 @@ export async function deleteItem(formData: FormData) {
 
   await deleteMenuImage(pathFromPublicUrl(current?.image_url ?? null));
   revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
   await setFlash("ok", "Đã xóa món.");
 }
 
@@ -345,6 +353,7 @@ export async function reorderItem(formData: FormData) {
 
   await moveInList("menu_items", { category_id }, session.tenant.id, id, dir);
   revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
 }
 
 /**
@@ -375,4 +384,5 @@ export async function setItemAvailable(slug: string, id: string, available: bool
   revalidatePath(`/r/${slug}/pos`);
   revalidatePath(`/r/${slug}/kds`);
   revalidatePath(`/r/${slug}/menu`);
+  revalidateMenu(session.tenant.id);
 }

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { revalidateMenu } from "@/lib/menu/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/rbac";
@@ -102,6 +103,7 @@ export async function seedSampleMenu(formData: FormData) {
   }
 
   revalidatePath(onboardingPath(slug));
+  revalidateMenu(session.tenant.id);
   redirect(`${back}&ok=${encodeURIComponent("Đã thêm menu mẫu")}`);
 }
 
