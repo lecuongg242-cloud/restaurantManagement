@@ -19,7 +19,9 @@
     "test:e2e": "playwright test",
     "schema:check": "node scripts/schema-snapshot.mjs",
     "schema:snapshot": "node scripts/schema-snapshot.mjs --write",
-    "test:all": "npm run test && npm run test:rls"
+    "test:all": "npm run test && npm run test:rls",
+    "db:backup": "node scripts/db-backup.mjs dump",
+    "db:backup:anh": "node scripts/db-backup.mjs anh"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
