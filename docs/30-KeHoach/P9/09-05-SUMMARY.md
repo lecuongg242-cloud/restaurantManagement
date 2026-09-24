@@ -32,6 +32,16 @@ Kiểm cả màn điện thoại (390px): không tràn ngang, thẻ xếp dọc.
 | 5 | Production 3 trạng thái | Bảng trên |
 | 6 | Gói mang ra quán | Đóng lại; `--test-auth` từ chính gói báo đăng nhập + nhịp tim + trạng thái máy in |
 
+## Bổ sung: chip thiết bị in trên POS
+
+Theo yêu cầu chủ dự án (24/09 tối): nhân viên đứng quầy cũng phải thấy. Chip thường trực trên thanh
+công cụ POS — *Máy in bếp sẵn sàng* (xanh) / *không phản hồi* (đỏ) / *Cầu in mất kết nối* (đỏ) /
+*Chưa có cầu in* (xám); rê chuột thấy IP + lần kiểm. Thêm băng *"Máy in bếp không phản hồi (IP)"*
+khi cầu in sống mà máy in chết — báo trước khi có phiếu lỗi. Chip + băng dùng chung một lần hỏi
+server 30 giây/lần.
+
+E2E production `cau-in.spec.ts` **5/5** (2 đường in + 3 trạng thái chip). Chụp màn cả hai trạng thái.
+
 ## Sửa thiết kế giữa chừng
 
 **Bỏ hàm đếm phía client đã viết và đã test xanh.** Nó tải danh sách phiếu về rồi đếm — nhưng
