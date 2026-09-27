@@ -528,9 +528,9 @@ export function TakeawayHistory({
                   </>
                 )}
 
-                <div className="mt-sm flex flex-wrap items-center justify-between gap-sm border-t border-hairline-soft pt-sm">
-                  <span className="flex min-w-0 flex-col">
-                    <span className="text-sm font-semibold tabular-nums text-ink">
+                <div className="mt-sm flex flex-wrap items-center justify-between gap-x-sm gap-y-md border-t border-hairline-soft pt-sm">
+                  <span className="flex min-w-0 flex-col gap-xxs">
+                    <span className="text-base font-semibold tabular-nums text-ink">
                       {formatVnd(bill && bill.status === "paid" ? bill.total : g.total)}
                     </span>
                     <span className="text-xs font-normal text-steel">
@@ -547,12 +547,14 @@ export function TakeawayHistory({
                           : "Chưa có hóa đơn"}
                     </span>
                   </span>
-                  <div className="flex items-center gap-xs">
+                  {/* Điện thoại: hàng nút xuống dòng riêng — trải hết bề ngang, "N món" sát trái (bù px-sm),
+                      "In lại hóa đơn" sát phải, thay vì dồn cục ở giữa-trái. */}
+                  <div className="flex items-center gap-xs max-sm:w-full max-sm:justify-between">
                     <button
                       type="button"
                       onClick={() => toggle(g.root.id)}
                       aria-expanded={open}
-                      className="inline-flex h-9 items-center gap-xxs rounded-md px-sm text-xs font-medium text-steel hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      className="inline-flex h-9 items-center gap-xxs rounded-md px-sm text-xs font-medium text-steel max-sm:-ml-sm hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
                       {lineCount} món
                       <ChevronDown

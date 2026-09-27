@@ -166,10 +166,15 @@ test("điện thoại thu tiền → In hóa đơn → hóa đơn CÓ DẤU ra m
   await page.getByRole("button", { name: /^T3\b/ }).click();
   await page.getByRole("button", { name: /^Thêm / }).nth(1).click();
   const themVaoGio = page.getByRole("button", { name: /Thêm vào giỏ/ });
-  await expect(themVaoGio.or(nav.getByLabel(/món chưa gửi/)).first()).toBeVisible();
+  const thanhGio = page.getByRole("button", { name: /^Giỏ hàng: [1-9]/ });
+  await expect(themVaoGio.or(thanhGio).first()).toBeVisible();
   if (await themVaoGio.isVisible()) await themVaoGio.click();
+  // Điện thoại: gửi món từ ngăn Giỏ hàng (thanh giỏ ở đáy tab Thực đơn), rồi sang tab Đơn.
+  await thanhGio.click();
+  const gio = page.getByRole("dialog", { name: /^Giỏ hàng/ });
+  await gio.getByRole("button", { name: /^Xác nhận thêm \d+ món/ }).click();
+  await expect(gio).toBeHidden({ timeout: 15_000 });
   await nav.getByRole("button", { name: /^Đơn/ }).click();
-  await page.getByRole("button", { name: /^Xác nhận thêm \d+ món/ }).click();
   await expect(page.getByRole("button", { name: /^(Tính tiền|Xem hóa đơn)/ })).toBeEnabled({ timeout: 15_000 });
   await page.getByRole("button", { name: /^(Tính tiền|Xem hóa đơn)/ }).click();
 
@@ -216,10 +221,15 @@ test("điện thoại bấm Phiếu khách → phiếu khách có dấu ra máy 
   await page.getByRole("button", { name: /^T2\b/ }).click();
   await page.getByRole("button", { name: /^Thêm / }).nth(1).click();
   const themVaoGio = page.getByRole("button", { name: /Thêm vào giỏ/ });
-  await expect(themVaoGio.or(nav.getByLabel(/món chưa gửi/)).first()).toBeVisible();
+  const thanhGio = page.getByRole("button", { name: /^Giỏ hàng: [1-9]/ });
+  await expect(themVaoGio.or(thanhGio).first()).toBeVisible();
   if (await themVaoGio.isVisible()) await themVaoGio.click();
+  // Điện thoại: gửi món từ ngăn Giỏ hàng (thanh giỏ ở đáy tab Thực đơn), rồi sang tab Đơn.
+  await thanhGio.click();
+  const gio = page.getByRole("dialog", { name: /^Giỏ hàng/ });
+  await gio.getByRole("button", { name: /^Xác nhận thêm \d+ món/ }).click();
+  await expect(gio).toBeHidden({ timeout: 15_000 });
   await nav.getByRole("button", { name: /^Đơn/ }).click();
-  await page.getByRole("button", { name: /^Xác nhận thêm \d+ món/ }).click();
 
   const truoc = nhanQuay.length;
   await page.getByRole("button", { name: /Phiếu khách/ }).last().click();

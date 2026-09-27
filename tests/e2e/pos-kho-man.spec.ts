@@ -133,7 +133,10 @@ test.describe("máy ngủ dậy / có mạng lại", () => {
     // của test này xanh cả khi tắt hook, tức là không chứng minh gì.)
     await page.routeWebSocket(/\/realtime\//, () => {});
     await vaoPos(page);
-    await expect(page.getByText(/Bàn đang gọi/)).toHaveCount(0);
+    // Theo dõi đúng lượt gọi CỦA TEST (ghi chú riêng): quán demo có thể còn lượt gọi khác (DB dùng chung —
+    // vd bàn RLS-MATRIX-A của bộ test RLS), nên "không có băng Bàn đang gọi" là giả định sai.
+    const cuaToi = page.getByText("e2e-thuc-day");
+    await expect(cuaToi).toHaveCount(0);
 
     const { data: goi } = await admin
       .from("staff_calls")
@@ -143,10 +146,10 @@ test.describe("máy ngủ dậy / có mạng lại", () => {
     try {
       // Đối chứng: realtime đã bị cắt thật — thay đổi KHÔNG tự tới.
       await page.waitForTimeout(2_000);
-      await expect(page.getByText(/Bàn đang gọi/)).toHaveCount(0);
+      await expect(cuaToi).toHaveCount(0);
 
       await page.evaluate(() => window.dispatchEvent(new Event("online")));
-      await expect(page.getByText(/Bàn đang gọi/)).toBeVisible({ timeout: 5_000 });
+      await expect(cuaToi).toBeVisible({ timeout: 5_000 });
     } finally {
       await admin.from("staff_calls").delete().eq("id", goi!.id);
     }

@@ -39,7 +39,7 @@ export default async function PosOnlinePage({
     <StationScreen slug={slug} surface="pos">
       <div className="mx-auto w-full max-w-4xl p-lg">
         <Link href={`/r/${slug}/pos`} className="inline-flex items-center gap-xs text-sm text-steel hover:text-ink">
-          <ArrowLeft className="h-4 w-4" /> Về sơ đồ bàn
+          <ArrowLeft className="h-4 w-4" /> Về màn POS
         </Link>
         <h1 className="mt-sm font-display text-2xl text-ink">Đơn online</h1>
         <p className="mt-xxs text-sm text-steel">

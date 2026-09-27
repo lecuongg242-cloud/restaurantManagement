@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useResumeRefresh } from "@/components/pos/use-resume-refresh";
-import { Bell, BellRing, Check, CalendarClock, Loader2, Printer, ShoppingBag } from "lucide-react";
+import { Bell, BellRing, Check, CalendarClock, ChevronUp, Loader2, Printer, ShoppingBag, ShoppingCart } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
@@ -44,8 +44,9 @@ import type { MergeCandidate } from "./MergeTablesDialog";
 import type { CancelStaff } from "./CancelItemDialog";
 import { gioVn } from "@/lib/time/vn";
 import { CauInBanner, ThietBiInChip, useCauIn } from "@/components/pos/CauInBanner";
+import { PhoneAlertBar } from "@/components/pos/PhoneAlertBar";
 import { TablePickerDrawer } from "@/components/pos/TablePickerDrawer";
-import { conLaiSauKhiGui } from "@/lib/orders/cart";
+import { conLaiSauKhiGui, formatVnd, unitPrice } from "@/lib/orders/cart";
 import { MobileTabBar, type MobileTab } from "@/components/pos/MobileTabBar";
 
 const STATUS_VN: Record<string, string> = {
@@ -98,6 +99,8 @@ export function PosBoard({
   const [mobileTab, setMobileTab] = useState<MobileTab>(counter ? "mon" : "ban");
   const [pendingOpen, setPendingOpen] = useState(false);
   const [takeawayMode, setTakeawayMode] = useState(counter);
+  /** Điện thoại: ngăn "Giỏ hàng" của đơn không bàn (mở từ thanh giỏ ở tab Thực đơn). */
+  const [gioMo, setGioMo] = useState(false);
   /**
    * Tab của panel đơn không bàn. Giữ Ở ĐÂY (không phải trong TakeawayPanel) vì ô tìm nằm trên
    * thanh này: tab quyết định ô tìm đang tra hàng đợi hay tra lịch sử.
@@ -529,6 +532,7 @@ export function PosBoard({
       // Xong một hành động — bàn kế tiếp gọi y hệt món này vẫn phải ra đơn riêng.
       orderKey.done();
       setCart((hienTai) => conLaiSauKhiGui(hienTai, guiDi));
+      setGioMo(false);
       router.refresh();
     }
   };
@@ -612,10 +616,33 @@ export function PosBoard({
     </>
   );
 
+  const soMonGio = cart.reduce((n, l) => n + l.qty, 0);
+  const tongGio = cart.reduce((t, l) => {
+    const it = itemMap.get(l.itemId);
+    return it ? t + unitPrice(it, l.optionIds) * l.qty : t;
+  }, 0);
+
+  const onlineLink = (
+    <Link
+      href={`/r/${slug}/pos/online`}
+      aria-label="Đơn online"
+      className="inline-flex h-11 items-center gap-sm rounded-md border border-hairline-strong bg-canvas px-md text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+    >
+      <ShoppingBag className="h-4 w-4" />
+      <span className="hidden lg:inline">Đơn online</span>
+    </Link>
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
-      {/* Toolbar */}
-      <div className="flex items-center gap-md border-b border-hairline-soft bg-canvas py-sm pl-md pr-lg">
+      {/* Toolbar. Điện thoại + chế độ quầy: cả hàng chỉ còn 2–3 nút ở góc phải (không có ô tìm bàn) →
+          ẩn, các nút đó dời vào hàng PhoneAlertBar ngay dưới. */}
+      <div
+        className={cn(
+          "flex items-center gap-md border-b border-hairline-soft bg-canvas py-sm pl-md pr-lg",
+          counter && "max-sm:hidden"
+        )}
+      >
         {/* Dưới 1024 px cột sơ đồ bàn ẩn đi — chọn bàn qua ngăn kéo (ORDER-19). Từ lg nút này ẩn. */}
         {!counter && (
           <TablePickerDrawer
@@ -651,22 +678,16 @@ export function PosBoard({
               <span className="hidden lg:inline">Đặt bàn</span>
             </Link>
           )}
-          <Link
-            href={`/r/${slug}/pos/online`}
-            aria-label="Đơn online"
-            className="inline-flex h-11 items-center gap-sm rounded-md border border-hairline-strong bg-canvas px-md text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          >
-            <ShoppingBag className="h-4 w-4" />
-            <span className="hidden lg:inline">Đơn online</span>
-          </Link>
-          {/* Có đơn chờ duyệt = việc GẤP NHẤT ở POS → nút đổi sang nền primary + chuông rung,
+          {onlineLink}
+          {/* Điện thoại: nút này ẩn — nút "Chờ duyệt N" của PhoneAlertBar làm đúng việc đó.
+              Có đơn chờ duyệt = việc GẤP NHẤT ở POS → nút đổi sang nền primary + chuông rung,
               không để cùng một sắc độ với các nút phụ (dễ miss đơn khách). */}
           <button
             type="button"
             onClick={() => setPendingOpen(true)}
             aria-label={`Order chờ duyệt${initial.pending.length > 0 ? `, ${initial.pending.length} đơn` : ""}`}
             className={cn(
-              "relative inline-flex h-11 items-center gap-sm rounded-md px-md text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+              "relative inline-flex h-11 items-center gap-sm rounded-md px-md text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 max-sm:hidden",
               initial.pending.length > 0
                 ? "border-2 border-primary-deep bg-primary text-primary-fg shadow-card hover:bg-primary-deep"
                 : "border border-hairline-strong bg-canvas font-medium text-ink hover:bg-surface"
@@ -691,15 +712,35 @@ export function PosBoard({
           nhân viên phải biết trước khi xử lý bất kỳ đơn nào bên dưới. */}
       <CauInBanner st={cauIn.st} onDaXuLy={cauIn.daXuLy} />
 
+      <PhoneAlertBar
+        pendingCount={initial.pending.length}
+        onOpenPending={() => setPendingOpen(true)}
+        unprinted={initial.unprinted}
+        printingId={printingOrderId}
+        onPrint={handlePrintUnprinted}
+        calls={initial.calls}
+        resolvingId={resolvingCall}
+        onResolve={handleResolveCall}
+        callError={callError}
+        always={counter}
+        trailing={
+          counter ? (
+            <>
+              <ThietBiInChip st={cauIn.st} />
+              {onlineLink}
+            </>
+          ) : null
+        }
+      />
+
       {/* Banner ĐƠN KHÁCH CHỜ DUYỆT — ưu tiên cao nhất nên đặt trên banner gọi nhân viên.
           Bấm chip mở drawer để XEM món rồi mới duyệt (D8: duyệt để chặn order giỡn/nhầm bàn),
           không duyệt tắt từ banner. */}
       {initial.pending.length > 0 && (
         // Nền kem + chữ mực (như banner "Bàn đang gọi"): chữ trắng trên nền cam đặc chỉ đạt
         // tương phản 3.3:1, dưới AA cho chữ 14px. Nổi bật bằng viền primary dày + chuông rung.
-        // Điện thoại (ORDER-20): mỗi băng gọn thành MỘT dòng chip cuộn ngang — xuống dòng như máy quầy thì
-        // ba băng chiếm nửa màn hình, vùng đơn/thực đơn còn một khe.
-        <div className="flex flex-wrap items-center gap-sm border-b-2 border-primary bg-cream-deeper px-lg py-sm max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:whitespace-nowrap max-sm:px-md max-sm:[&>*]:shrink-0">
+        // Điện thoại: ba băng ẩn, thay bằng PhoneAlertBar (một hàng nút) — xem ngay dưới CauInBanner.
+        <div className="flex flex-wrap items-center gap-sm border-b-2 border-primary bg-cream-deeper px-lg py-sm max-sm:hidden">
           <span className="inline-flex items-center gap-xs text-sm font-bold text-ink">
             <BellRing className="h-4 w-4 animate-pulse text-primary" />
             Đơn khách chờ duyệt ({initial.pending.length})
@@ -736,7 +777,7 @@ export function PosBoard({
           in = món không bao giờ xuống bếp, nên viền đỏ: hậu quả nặng hơn cả đơn chờ duyệt.
           Bấm chip là in luôn — không có bước xem trước, vì món do chính nhân viên gõ. */}
       {initial.unprinted.length > 0 && (
-        <div className="flex flex-wrap items-center gap-sm border-b-2 border-status-late bg-cream-soft px-lg py-sm max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:whitespace-nowrap max-sm:px-md max-sm:[&>*]:shrink-0">
+        <div className="flex flex-wrap items-center gap-sm border-b-2 border-status-late bg-cream-soft px-lg py-sm max-sm:hidden">
           <span className="inline-flex items-center gap-xs text-sm font-bold text-ink">
             <Printer className="h-4 w-4 text-status-late" />
             Đơn cần in phiếu ({initial.unprinted.length})
@@ -770,7 +811,7 @@ export function PosBoard({
 
       {/* Banner "Gọi nhân viên" (CALL-01) — bàn đang gọi, bấm để đánh dấu đã xử lý */}
       {initial.calls.length > 0 && (
-        <div className="flex flex-wrap items-center gap-sm border-b border-hairline-soft bg-cream px-lg py-sm max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:whitespace-nowrap max-sm:px-md max-sm:[&>*]:shrink-0">
+        <div className="flex flex-wrap items-center gap-sm border-b border-hairline-soft bg-cream px-lg py-sm max-sm:hidden">
           <span className="inline-flex items-center gap-xs text-sm font-semibold text-ink">
             <BellRing className="h-4 w-4 animate-pulse text-primary" />
             Bàn đang gọi ({initial.calls.length})
@@ -826,14 +867,53 @@ export function PosBoard({
           </aside>
         )}
 
-        <section className={cn("min-h-0 min-w-0 flex-1", mobileTab !== "mon" && "max-sm:hidden")}>
-          <MenuPanel
-            slug={slug}
-            menu={menu}
-            portions={portions}
-            canAdd={takeawayMode || (!!selectedTable && !splitEvenlyNow)}
-            onAddLine={addLine}
-          />
+        <section className={cn("flex min-h-0 min-w-0 flex-1 flex-col", mobileTab !== "mon" && "max-sm:hidden")}>
+          <div className="min-h-0 flex-1">
+            <MenuPanel
+              slug={slug}
+              menu={menu}
+              portions={portions}
+              canAdd={takeawayMode || (!!selectedTable && !splitEvenlyNow)}
+              onAddLine={addLine}
+            />
+          </div>
+          {/* Điện thoại: thanh giỏ LUÔN ở đáy thực đơn (đơn không bàn, hoặc đang gọi món cho một bàn) — xem/sửa
+              món đã chọn và gửi ngay tại đây, không phải sang tab Đơn (chủ dự án: tốn thời gian, tab Đơn chật). */}
+          {(takeawayMode || selectedTable) && (
+            <button
+              type="button"
+              onClick={() => setGioMo(true)}
+              aria-label={`Giỏ hàng: ${soMonGio} món`}
+              className="flex min-h-[52px] shrink-0 items-center gap-sm border-t border-hairline-soft bg-canvas px-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:hidden"
+            >
+              <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-cream">
+                <ShoppingCart className="h-5 w-5 text-primary" aria-hidden />
+                {soMonGio > 0 && (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-[20px] place-items-center rounded-full bg-primary px-1 text-xs font-bold text-primary-fg">
+                    {soMonGio}
+                  </span>
+                )}
+              </span>
+              <span className="min-w-0 flex-1 text-sm">
+                {soMonGio > 0 ? (
+                  <span className="font-medium text-ink">
+                    {!takeawayMode && selectedTable ? `Bàn ${selectedTable.name} · ` : "Giỏ hàng · "}
+                    {soMonGio} món
+                  </span>
+                ) : (
+                  <span className="text-steel">
+                    {!takeawayMode && selectedTable
+                      ? `Bàn ${selectedTable.name} — chạm món để thêm`
+                      : "Giỏ trống — chạm món để thêm"}
+                  </span>
+                )}
+              </span>
+              {soMonGio > 0 && (
+                <span className="shrink-0 text-base font-semibold tabular-nums text-ink">{formatVnd(tongGio)}</span>
+              )}
+              <ChevronUp className="h-5 w-5 shrink-0 text-steel" aria-hidden />
+            </button>
+          )}
         </section>
 
         {/* Panel đơn không bàn cần chỗ cho HAI cột (gõ đơn + hàng đợi) nên rộng hơn panel bàn;
@@ -869,6 +949,9 @@ export function PosBoard({
               tab={takeawayTab}
               onTabChange={changeTakeawayTab}
               searchQuery={query}
+              phoneCartOpen={gioMo}
+              onPhoneCartOpenChange={setGioMo}
+              onGoiThem={() => setMobileTab("mon")}
             />
           ) : selectedTable ? (
             <OrderPanel
@@ -890,6 +973,8 @@ export function PosBoard({
               onOpenBill={openBill}
               openingBill={openingBill}
               onClose={() => setSelectedTableId(null)}
+              phoneCartOpen={gioMo}
+              onPhoneCartOpenChange={setGioMo}
             />
           ) : (
             <div className="grid h-full place-items-center p-lg text-center text-sm text-steel">
@@ -899,7 +984,8 @@ export function PosBoard({
         </aside>
       </div>
 
-      <MobileTabBar tab={mobileTab} onTab={setMobileTab} soMonChuaGui={cart.length} counter={counter} />
+      {/* Không còn badge "món chưa gửi" trên tab Đơn: giỏ nằm ở thanh giỏ đáy tab Thực đơn. */}
+      <MobileTabBar tab={mobileTab} onTab={setMobileTab} counter={counter} />
 
       <PendingOrdersDrawer
         slug={slug}

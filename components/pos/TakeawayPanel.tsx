@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Drawer } from "vaul";
+import { useLaDienThoai } from "@/components/pos/use-la-dien-thoai";
 import { useRouter } from "next/navigation";
 import { X, Loader2, ShoppingBag, Plus, CornerDownRight } from "lucide-react";
 import type { CustomerMenuItem } from "@/lib/orders/customer-menu";
@@ -113,6 +115,9 @@ export function TakeawayPanel({
   tab,
   onTabChange,
   searchQuery,
+  phoneCartOpen,
+  onPhoneCartOpenChange,
+  onGoiThem,
 }: {
   slug: string;
   cart: CartLine[];
@@ -145,6 +150,11 @@ export function TakeawayPanel({
   onTabChange: (tab: "queue" | "history") => void;
   /** Chữ đang gõ ở ô tìm DUY NHẤT phía trên — tab lịch sử dùng nó để lọc danh sách. */
   searchQuery: string;
+  /** Điện thoại: ngăn "Giỏ hàng" (bật từ thanh giỏ ở tab Thực đơn) đang mở không. */
+  phoneCartOpen?: boolean;
+  onPhoneCartOpenChange?: (open: boolean) => void;
+  /** Bấm "Gọi thêm" trên một đơn — điện thoại chuyển sang tab Thực đơn để chọn món. */
+  onGoiThem?: () => void;
 }) {
   const printer = usePrintAdapter();
   const title = counter ? "Gọi món cho khách" : "Bán mang về";
@@ -152,6 +162,7 @@ export function TakeawayPanel({
   const hideClose = counter; // chế độ quầy không có bàn để quay về
 
   const router = useRouter();
+  const dienThoai = useLaDienThoai();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [creating, setCreating] = useState(false);
@@ -249,6 +260,7 @@ export function TakeawayPanel({
     setName("");
     setPhone("");
     setAddToOrderId(null);
+    onPhoneCartOpenChange?.(false);
     router.refresh();
   };
 
@@ -265,79 +277,13 @@ export function TakeawayPanel({
     }
   };
 
-  return (
-    <div className="flex h-full min-h-0 flex-col bg-canvas">
-      {/* Header: tiêu đề · tab · ô tìm DUY NHẤT. Ba thứ này cùng điều khiển một danh sách nên
-          gom chung một thanh; wrap khi panel hẹp. */}
-      <div className="flex flex-wrap items-center gap-x-md gap-y-sm border-b border-hairline-soft px-lg py-md">
-        <h2 className="inline-flex shrink-0 items-center gap-sm font-display text-xl text-ink">
-          <ShoppingBag className="h-5 w-5 text-primary" /> {title}
-        </h2>
-        <div
-          role="tablist"
-          aria-label="Danh sách đơn"
-          className="inline-flex shrink-0 rounded-full border border-hairline-strong p-xxs"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "queue"}
-            onClick={() => onTabChange("queue")}
-            className={tabBtn(tab === "queue")}
-          >
-            Đang chờ ({groups.length})
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "history"}
-            onClick={() => onTabChange("history")}
-            className={tabBtn(tab === "history")}
-          >
-            Đã xong
-          </button>
-        </div>
-        {searchSlot && <div className="ml-auto flex shrink-0 items-center">{searchSlot}</div>}
-        {!hideClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={`Đóng ${title.toLowerCase()}`}
-            className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
-      </div>
-
-      {error && (
-        <p role="alert" className="mx-lg mt-md rounded-md bg-cream-soft px-md py-sm text-sm text-status-late">
-          {error}
-        </p>
-      )}
-
-      {/* Đơn của NGÀY TRƯỚC còn nằm trong hàng đợi = tiền chưa thu, hoặc đã cầm tiền mà quên bấm.
-          Hàng đợi xếp mới-nhất-lên-đầu nên đơn cũ trôi xuống đáy và không ai thấy: ngày 13/08/2026
-          quán bỏ sót 37 đơn theo đúng kiểu đó, sáng hôm sau mới chốt bù. Băng này để mở ca là thấy. */}
-      {staleGroups.length > 0 && (
-        <div
-          role="alert"
-          className="mx-lg mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
-        >
-          <span className="font-semibold">
-            {staleGroups.length} đơn từ ngày trước chưa thu tiền
-          </span>
-          {": "}
-          {staleGroups.map((g) => orderLabel(g.root) || "(chưa có số)").join(", ")}
-          {" — kiểm tra rồi thu tiền hoặc hủy."}
-        </div>
-      )}
-
-      {/* HAI CỘT: gõ đơn mới bên trái, hàng đợi bên phải — mỗi cột cuộn riêng. Xếp chồng chung
-          một khung cuộn thì quán đông (chục đơn chờ) là ô gõ đơn bị đẩy khuất, nhân viên phải
-          cuộn ngược lên mỗi lần có khách mới. Màn hẹp (<1280px) mới xếp dọc. */}
-      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
-        <div className="max-h-[45%] shrink-0 overflow-y-auto border-b border-hairline px-lg py-md xl:max-h-none xl:w-[27rem] xl:border-b-0 xl:border-r">
+  /**
+   * Khung gõ đơn — dùng ở HAI chỗ: cột trái (máy tính/tablet) và ngăn "Giỏ hàng" bật từ tab Thực đơn trên
+   * điện thoại (chủ dự án: xem món đã chọn ngay ở thực đơn, tab Đơn chỉ còn danh sách đơn). Cùng một state
+   * (tên, SĐT, giỏ) nên hai chỗ không bao giờ lệch nhau.
+   */
+  const builderCard = (
+    <>
         {/* ---- Đơn mới (builder) ---- */}
         <div
           className={
@@ -460,6 +406,94 @@ export function TakeawayPanel({
             )}
           </button>
         </div>
+    </>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-canvas">
+      {/* Header: tiêu đề · tab · ô tìm DUY NHẤT. Ba thứ này cùng điều khiển một danh sách nên
+          gom chung một thanh; wrap khi panel hẹp. */}
+      <div className="flex flex-wrap items-center gap-x-md gap-y-sm border-b border-hairline-soft px-lg py-md">
+        <h2 className="inline-flex shrink-0 items-center gap-sm font-display text-xl text-ink">
+          <ShoppingBag className="h-5 w-5 text-primary" /> {title}
+        </h2>
+        <div
+          role="tablist"
+          aria-label="Danh sách đơn"
+          className="inline-flex shrink-0 rounded-full border border-hairline-strong p-xxs"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "queue"}
+            onClick={() => onTabChange("queue")}
+            className={tabBtn(tab === "queue")}
+          >
+            Đang chờ ({groups.length})
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "history"}
+            onClick={() => onTabChange("history")}
+            className={tabBtn(tab === "history")}
+          >
+            Đã xong
+          </button>
+        </div>
+        {/* Điện thoại: ô tìm chiếm TRỌN một hàng riêng. Ô tìm co giãn theo chỗ trống (max-sm:w-0 flex-1,
+            vốn cho thanh công cụ trên) — đặt cạnh tab mà không cho bề ngang thì nó co còn cái icon và
+            lòi ra ngoài mép phải. */}
+        {searchSlot && (
+          <div className="ml-auto flex shrink-0 items-center max-sm:ml-0 max-sm:w-full">{searchSlot}</div>
+        )}
+        {!hideClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={`Đóng ${title.toLowerCase()}`}
+            className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <p role="alert" className="mx-lg mt-md rounded-md bg-cream-soft px-md py-sm text-sm text-status-late">
+          {error}
+        </p>
+      )}
+
+      {/* Đơn của NGÀY TRƯỚC còn nằm trong hàng đợi = tiền chưa thu, hoặc đã cầm tiền mà quên bấm.
+          Hàng đợi xếp mới-nhất-lên-đầu nên đơn cũ trôi xuống đáy và không ai thấy: ngày 13/08/2026
+          quán bỏ sót 37 đơn theo đúng kiểu đó, sáng hôm sau mới chốt bù. Băng này để mở ca là thấy. */}
+      {staleGroups.length > 0 && (
+        <div
+          role="alert"
+          className="mx-lg mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
+        >
+          <span className="font-semibold">
+            {staleGroups.length} đơn từ ngày trước chưa thu tiền
+          </span>
+          {": "}
+          {staleGroups.map((g) => orderLabel(g.root) || "(chưa có số)").join(", ")}
+          {" — kiểm tra rồi thu tiền hoặc hủy."}
+        </div>
+      )}
+
+      {/* HAI CỘT: gõ đơn mới bên trái, hàng đợi bên phải — mỗi cột cuộn riêng. Xếp chồng chung
+          một khung cuộn thì quán đông (chục đơn chờ) là ô gõ đơn bị đẩy khuất, nhân viên phải
+          cuộn ngược lên mỗi lần có khách mới. Màn hẹp (<1280px) mới xếp dọc. */}
+      <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
+        {/* Tab "Đã xong" trên màn xếp dọc (< 1280px): ẩn ô gõ đơn — nó ăn gần nửa chiều cao, lịch sử chỉ
+            còn một khe ở đáy. Tab đó để tra đơn cũ; màn rộng vẫn hai cột như cũ. */}
+        <div
+          className={`max-h-[45%] shrink-0 overflow-y-auto border-b border-hairline px-lg py-md max-sm:hidden xl:max-h-none xl:w-[27rem] xl:border-b-0 xl:border-r${
+            tab === "history" ? " max-xl:hidden" : ""
+          }`}
+        >
+        {builderCard}
 
       </div>
 
@@ -467,7 +501,8 @@ export function TakeawayPanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
         {/* Chip "đang lọc theo số đơn" bám mép trên để lúc nào cũng thoát lọc được. */}
         {tab === "queue" && filteredOrder && (
-          <div className="sticky top-0 z-20 -mt-md flex bg-canvas py-sm">
+          // -top-md bù padding trên (py-md) của vùng cuộn — top-0 để lại khe 16px, đơn lọt qua khi cuộn.
+          <div className="sticky -top-md z-20 -mt-md flex bg-canvas py-sm">
             <button
               type="button"
               onClick={onClearFilter}
@@ -582,7 +617,10 @@ export function TakeawayPanel({
                       vùng chạm rộng, và không tranh chỗ với hàng nút in/hủy ở header. */}
                   <button
                     type="button"
-                    onClick={() => setAddToOrderId(g.root.id)}
+                    onClick={() => {
+                      setAddToOrderId(g.root.id);
+                      onGoiThem?.();
+                    }}
                     className="mt-sm flex h-10 w-full items-center justify-center gap-xs rounded-md border border-dashed border-primary/60 text-sm font-medium text-primary hover:bg-cream-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   >
                     <Plus className="h-4 w-4" aria-hidden />
@@ -623,6 +661,37 @@ export function TakeawayPanel({
         )}
         </div>
       </div>
+
+      {/* Điện thoại: giỏ hàng bật từ thanh giỏ ở tab Thực đơn (PosBoard). Portal nên hiện được dù panel này
+          đang ẩn (max-sm:hidden khi đứng ở tab Thực đơn). */}
+      <Drawer.Root open={!!phoneCartOpen} onOpenChange={(v) => onPhoneCartOpenChange?.(v)} repositionInputs={false}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-40 bg-ink/40 sm:hidden" />
+          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-xl bg-canvas pb-[env(safe-area-inset-bottom)] shadow-modal outline-none sm:hidden">
+            <div className="flex items-center justify-between border-b border-hairline-soft px-md py-sm">
+              <Drawer.Title className="font-display text-lg text-ink">Giỏ hàng</Drawer.Title>
+              <Drawer.Description className="sr-only">Món đã chọn, ghi chú và nút tạo đơn</Drawer.Description>
+              <Drawer.Close asChild>
+                <button
+                  type="button"
+                  aria-label="Đóng giỏ hàng"
+                  className="grid h-11 w-11 place-items-center rounded-md text-steel hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </Drawer.Close>
+            </div>
+            <div className="min-h-0 overflow-y-auto px-md py-md">
+              {error && (
+                <p role="alert" className="mb-sm rounded-md bg-cream-soft px-md py-sm text-sm text-status-late">
+                  {error}
+                </p>
+              )}
+              {builderCard}
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
 
       {payBill && (
         <PaymentDialog
@@ -679,7 +748,8 @@ export function TakeawayPanel({
         }}
         initialLine={editing?.initial ?? null}
         submitLabel="Cập nhật"
-        presentation="dialog"
+        // Điện thoại: mở từ ngăn Giỏ hàng → phải là bottom sheet có portal (xem useLaDienThoai).
+        presentation={dienThoai ? "sheet" : "dialog"}
         onAdd={(pending) => {
           if (editing) {
             onCartEdit(editing.lineId, pending);

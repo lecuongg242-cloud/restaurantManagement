@@ -13,12 +13,10 @@ export type MobileTab = "ban" | "mon" | "don";
 export function MobileTabBar({
   tab,
   onTab,
-  soMonChuaGui,
   counter,
 }: {
   tab: MobileTab;
   onTab: (t: MobileTab) => void;
-  soMonChuaGui: number;
   /** Chế độ quầy: không có bàn ⇒ không có tab "Bàn". */
   counter: boolean;
 }) {
@@ -46,14 +44,6 @@ export function MobileTabBar({
         >
           <Icon className="h-5 w-5" aria-hidden />
           {nhan}
-          {id === "don" && soMonChuaGui > 0 && (
-            <span
-              className="absolute right-[calc(50%-1.75rem)] top-1.5 grid h-5 min-w-[20px] place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-fg"
-              aria-label={`${soMonChuaGui} món chưa gửi`}
-            >
-              {soMonChuaGui}
-            </span>
-          )}
         </button>
       ))}
     </nav>

@@ -62,14 +62,21 @@ test("ORDER-15: gõ đơn từ điện thoại ở 360px → ORDER-16: POS quầ
   // Bước 2 — thêm một món (món có tùy chọn → hộp chọn, chờ nó hiện).
   await phone.locator('button[aria-label^="Thêm "]:not([disabled])').first().click();
   const themVaoGio = phone.getByRole("button", { name: /^Thêm vào giỏ/ });
-  await expect(themVaoGio.or(nav.getByLabel(/món chưa gửi/)).first()).toBeVisible({ timeout: 10000 });
+  const thanhGio = phone.getByRole("button", { name: /^Giỏ hàng: [1-9]/ });
+  await expect(themVaoGio.or(thanhGio).first()).toBeVisible({ timeout: 10000 });
   if (await themVaoGio.isVisible()) await themVaoGio.click();
 
-  // Bước 3 — tab Đơn → gửi. Nhân viên gõ hộ nên KHÔNG hỏi tên/SĐT khách (khác giỏ khách QR — ORDER-10).
+  // Bước 3 — đếm đơn ở tab Đơn, rồi gửi từ ngăn Giỏ hàng (thanh giỏ ở đáy tab Thực đơn). Nhân viên gõ hộ
+  // nên KHÔNG hỏi tên/SĐT khách (khác giỏ khách QR — ORDER-10).
   await nav.getByRole("button", { name: /^Đơn/ }).click();
-  await expect(phone.locator("#cust-name")).toHaveCount(0);
   const truoc = await phone.getByText(/Đơn #\d+/).count();
-  await phone.getByRole("button", { name: /^Xác nhận thêm \d+ món/ }).click();
+  await nav.getByRole("button", { name: /^Thực đơn/ }).click();
+  await thanhGio.click();
+  const gio = phone.getByRole("dialog", { name: /^Giỏ hàng/ });
+  await expect(gio.getByText(/Tên khách/)).toHaveCount(0);
+  await gio.getByRole("button", { name: /^Xác nhận thêm \d+ món/ }).click();
+  await expect(gio).toBeHidden({ timeout: 20000 });
+  await nav.getByRole("button", { name: /^Đơn/ }).click();
   await expect(phone.getByText(/Đơn #\d+/)).toHaveCount(truoc + 1, { timeout: 20000 });
   await phone.screenshot({ path: `${SHOTS}/order15-2-da-gui.png` });
 

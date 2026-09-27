@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Drawer } from "vaul";
+import { useLaDienThoai } from "@/components/pos/use-la-dien-thoai";
 import { useRouter } from "next/navigation";
 import { X, Loader2, ShoppingBag, Receipt } from "lucide-react";
 import type { CustomerMenuItem } from "@/lib/orders/customer-menu";
@@ -39,6 +41,8 @@ export function OrderPanel({
   onOpenBill,
   openingBill,
   onClose,
+  phoneCartOpen,
+  onPhoneCartOpenChange,
 }: {
   slug: string;
   table: PosTable;
@@ -62,8 +66,12 @@ export function OrderPanel({
   onOpenBill: () => void;
   openingBill: boolean;
   onClose: () => void;
+  /** Điện thoại: ngăn "Giỏ hàng" (bật từ thanh giỏ ở tab Thực đơn) đang mở không. */
+  phoneCartOpen?: boolean;
+  onPhoneCartOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
+  const dienThoai = useLaDienThoai();
   const [cancelItem, setCancelItem] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<{
     lineId: string;
@@ -141,6 +149,87 @@ export function OrderPanel({
       router.refresh();
     }
   };
+
+  /**
+   * Khối "Đang thêm" — dùng ở HAI chỗ: trong panel (máy tính/tablet) và ngăn "Giỏ hàng" bật từ tab Thực đơn
+   * trên điện thoại (chủ dự án: xem món đã chọn ngay ở thực đơn; tab Đơn chỉ còn món đã gửi + tính tiền).
+   */
+  const cartCard = (
+          <div className="mt-lg rounded-lg border border-primary/40 bg-cream-soft p-md">
+            <p className="flex items-center gap-xs text-sm font-medium text-ink">
+              <ShoppingBag className="h-4 w-4 text-primary" /> Đang thêm ({cart.length})
+            </p>
+            <ul className="mt-sm flex flex-col gap-sm">
+              {cart.map((l) => {
+                const it = itemMap.get(l.itemId);
+                if (!it) return null;
+                const names = cartOptionNames(it, l.optionIds);
+                return (
+                  <li key={l.lineId}>
+                    <div className="flex items-center justify-between gap-sm">
+                      <div className="min-w-0">
+                        <p className="text-sm text-ink">{it.name}</p>
+                        {names.length > 0 && (
+                          <p className="text-xs text-steel">{names.join(" · ")}</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-sm">
+                        <QtyStepper value={l.qty} onChange={(v) => onCartQty(l.lineId, v)} />
+                        {it.groups.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditing({
+                                lineId: l.lineId,
+                                item: it,
+                                initial: { qty: l.qty, note: l.note, optionIds: l.optionIds },
+                              })
+                            }
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Sửa
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onCartRemove(l.lineId)}
+                          aria-label="Xoá khỏi giỏ"
+                          className="text-xs text-status-late hover:underline"
+                        >
+                          Xoá
+                        </button>
+                      </div>
+                    </div>
+                    {/* Ghi chú nhập TẠI ĐÂY (không còn ở hộp thoại chọn món). */}
+                    <input
+                      value={l.note}
+                      onChange={(e) => onCartNote(l.lineId, e.target.value)}
+                      maxLength={200}
+                      placeholder="Ghi chú (VD: ít cay…)"
+                      aria-label={`Ghi chú cho ${it.name}`}
+                      className="mt-xs h-9 w-full rounded-md border border-hairline px-sm text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 max-lg:h-11 lg:text-sm"
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+            {/* Giỏ gõ dở TRƯỚC khi chia đều vẫn còn đây — giữ nguyên để không mất công gõ lại sau
+                khi gỡ chia, chỉ khóa nút gửi. */}
+            <button
+              type="button"
+              onClick={startConfirmAdd}
+              disabled={adding || splitEvenly}
+              title={splitEvenly ? "Hóa đơn đã chia đều — gỡ chia trước khi thêm món." : ""}
+              className="mt-md flex h-11 w-full items-center justify-center gap-sm rounded-md bg-primary text-sm font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
+            >
+              {adding ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                `Xác nhận thêm ${cart.length} món · ${formatVnd(cartTotal)}`
+              )}
+            </button>
+          </div>
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-canvas">
@@ -256,83 +345,8 @@ export function OrderPanel({
           </p>
         )}
 
-        {/* Giỏ đang thêm */}
-        {cart.length > 0 && (
-          <div className="mt-lg rounded-lg border border-primary/40 bg-cream-soft p-md">
-            <p className="flex items-center gap-xs text-sm font-medium text-ink">
-              <ShoppingBag className="h-4 w-4 text-primary" /> Đang thêm ({cart.length})
-            </p>
-            <ul className="mt-sm flex flex-col gap-sm">
-              {cart.map((l) => {
-                const it = itemMap.get(l.itemId);
-                if (!it) return null;
-                const names = cartOptionNames(it, l.optionIds);
-                return (
-                  <li key={l.lineId}>
-                    <div className="flex items-center justify-between gap-sm">
-                      <div className="min-w-0">
-                        <p className="text-sm text-ink">{it.name}</p>
-                        {names.length > 0 && (
-                          <p className="text-xs text-steel">{names.join(" · ")}</p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-sm">
-                        <QtyStepper value={l.qty} onChange={(v) => onCartQty(l.lineId, v)} />
-                        {it.groups.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setEditing({
-                                lineId: l.lineId,
-                                item: it,
-                                initial: { qty: l.qty, note: l.note, optionIds: l.optionIds },
-                              })
-                            }
-                            className="text-xs text-primary hover:underline"
-                          >
-                            Sửa
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onCartRemove(l.lineId)}
-                          aria-label="Xoá khỏi giỏ"
-                          className="text-xs text-status-late hover:underline"
-                        >
-                          Xoá
-                        </button>
-                      </div>
-                    </div>
-                    {/* Ghi chú nhập TẠI ĐÂY (không còn ở hộp thoại chọn món). */}
-                    <input
-                      value={l.note}
-                      onChange={(e) => onCartNote(l.lineId, e.target.value)}
-                      maxLength={200}
-                      placeholder="Ghi chú (VD: ít cay…)"
-                      aria-label={`Ghi chú cho ${it.name}`}
-                      className="mt-xs h-9 w-full rounded-md border border-hairline px-sm text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 max-lg:h-11 lg:text-sm"
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-            {/* Giỏ gõ dở TRƯỚC khi chia đều vẫn còn đây — giữ nguyên để không mất công gõ lại sau
-                khi gỡ chia, chỉ khóa nút gửi. */}
-            <button
-              type="button"
-              onClick={startConfirmAdd}
-              disabled={adding || splitEvenly}
-              title={splitEvenly ? "Hóa đơn đã chia đều — gỡ chia trước khi thêm món." : ""}
-              className="mt-md flex h-11 w-full items-center justify-center gap-sm rounded-md bg-primary text-sm font-medium text-primary-fg hover:bg-primary-deep focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60"
-            >
-              {adding ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                `Xác nhận thêm ${cart.length} món · ${formatVnd(cartTotal)}`
-              )}
-            </button>
-          </div>
-        )}
+        {/* Giỏ đang thêm — điện thoại: nằm trong ngăn "Giỏ hàng" (bật từ tab Thực đơn), không ở đây. */}
+        {cart.length > 0 && <div className="max-sm:hidden">{cartCard}</div>}
       </div>
 
       {/* Footer: tạm tính + đóng phiên */}
@@ -375,6 +389,45 @@ export function OrderPanel({
         )}
       </div>
 
+      {/* Điện thoại: ngăn "Giỏ hàng" — portal nên hiện được dù panel này đang ẩn (đứng ở tab Thực đơn). */}
+      <Drawer.Root open={!!phoneCartOpen} onOpenChange={(v) => onPhoneCartOpenChange?.(v)} repositionInputs={false}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-40 bg-ink/40 sm:hidden" />
+          <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-xl bg-canvas pb-[env(safe-area-inset-bottom)] shadow-modal outline-none sm:hidden">
+            <div className="flex items-center justify-between border-b border-hairline-soft px-md py-sm">
+              <Drawer.Title className="font-display text-lg text-ink">Giỏ hàng · Bàn {table.name}</Drawer.Title>
+              <Drawer.Description className="sr-only">Món chưa gửi, ghi chú và nút gửi bếp</Drawer.Description>
+              <Drawer.Close asChild>
+                <button
+                  type="button"
+                  aria-label="Đóng giỏ hàng"
+                  className="grid h-11 w-11 place-items-center rounded-md text-steel hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </Drawer.Close>
+            </div>
+            <div className="min-h-0 overflow-y-auto px-md py-md">
+              {addError && (
+                <p role="alert" className="mb-sm rounded-md bg-cream-soft px-md py-sm text-sm text-status-late">
+                  {addError}
+                </p>
+              )}
+              {splitEvenly && (
+                <p role="status" className="mb-sm rounded-md bg-surface px-md py-sm text-xs text-steel">
+                  Hóa đơn đã chia đều — gỡ chia ở khối hóa đơn trước khi thêm món.
+                </p>
+              )}
+              {cart.length > 0 ? (
+                cartCard
+              ) : (
+                <p className="py-lg text-center text-sm text-steel">Giỏ trống — chạm món ở thực đơn để thêm.</p>
+              )}
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+
       <CancelItemDialog
         slug={slug}
         item={cancelItem}
@@ -394,7 +447,8 @@ export function OrderPanel({
         }}
         initialLine={editing?.initial ?? null}
         submitLabel="Cập nhật"
-        presentation="dialog"
+        // Điện thoại: mở từ ngăn Giỏ hàng → phải là bottom sheet có portal (xem useLaDienThoai).
+        presentation={dienThoai ? "sheet" : "dialog"}
         onAdd={(pending) => {
           if (editing) {
             onCartEdit(editing.lineId, pending);

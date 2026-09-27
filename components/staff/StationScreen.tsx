@@ -60,7 +60,9 @@ export async function StationScreen({
       )}
     >
       <header className="flex shrink-0 items-center justify-between gap-sm border-b border-hairline-soft bg-canvas px-lg py-md max-sm:px-md max-sm:py-sm">
-        <div className="flex items-baseline gap-sm">
+        {/* shrink-0 + nowrap: 360px trở xuống, cụm này bị co rồi rớt dòng "Trạm / POS" — để tên nhân viên
+            bên phải tự cắt (truncate) thay. */}
+        <div className="flex shrink-0 items-baseline gap-sm whitespace-nowrap">
           <span className="text-base font-medium text-ink">{label}</span>
           <span className="text-sm text-steel max-sm:hidden">· {session.tenant.name}</span>
         </div>
