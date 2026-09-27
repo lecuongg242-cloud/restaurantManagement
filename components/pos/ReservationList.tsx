@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useResumeRefresh } from "@/components/pos/use-resume-refresh";
 import { ChevronLeft, ChevronRight, CalendarPlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,8 @@ export function ReservationList({
   tables?: TableOpt[];
 }) {
   const router = useRouter();
+  // Máy ngủ dậy / có mạng lại → tải lại: realtime nối lại nhưng không phát lại thay đổi đã lỡ (ORDER-19).
+  useResumeRefresh(() => router.refresh());
   const [isPending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);

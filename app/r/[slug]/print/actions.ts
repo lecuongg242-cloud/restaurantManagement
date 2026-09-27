@@ -7,7 +7,10 @@ import { buildKitchenTicket } from "@/lib/print/kitchen-ticket";
 import { buildCustomerTicket } from "@/lib/print/customer-ticket";
 import type { OrderPrintState } from "@/lib/print/adapter";
 import { daInGanDay } from "@/lib/print/dedupe";
-import { cauInConSongCua, thayTheLuotDangCho } from "@/lib/print/cau-in-db";
+import { cauInConSongCua, thayTheLuotDangCho, trangThaiQuay } from "@/lib/print/cau-in-db";
+import { buildReceiptView } from "@/lib/billing/receipt-view";
+import { gioNgayNamVn, gioNgayVn } from "@/lib/time/vn";
+import type { PhieuAnh } from "@/lib/print/anh-phieu";
 import { toState, CHUA_IN, type JobRow } from "@/lib/print/trang-thai";
 import { cauInConSong, loiDonDap, trangThaiMayIn, CUA_SO_LOI_MS, type NhipTim } from "@/lib/print/cau-in";
 
@@ -91,6 +94,65 @@ export async function queueKitchenTicketPrint(
   orderId: string
 ): Promise<{ ok: boolean }> {
   return insertPrintJob(slug, orderId, "kitchen_ticket", "pending");
+}
+
+/**
+ * Kết quả xếp phiếu ra máy in QUẦY. `cau-in` = đã khai máy in quầy nhưng cầu in chết; `chua-khai` = cầu in
+ * chưa khai máy in quầy → thiết bị in trình duyệt như trước P12.
+ */
+export type KetQuaXepQuay = { ok: true } | { ok: false; lyDo: "cau-in" | "chua-khai" | "loi" };
+
+/**
+ * Xếp HÓA ĐƠN / PHIẾU KHÁCH ra máy in quầy qua cầu in (PRINT-16) — cho thiết bị KHÔNG có máy in (điện
+ * thoại, tablet). Lưu kèm bản chụp nội dung (`payload.anh`): cầu in lấy ảnh có dấu dựng từ đúng bản chụp
+ * này (`/api/print/jobs/[id]/image`), không cần quyền đọc hóa đơn.
+ *
+ * Chỉ xếp khi cầu in SỐNG và ĐÃ KHAI máy in quầy — nếu không, phiếu nằm `pending` mà không ai in.
+ */
+async function xepPhieuQuay(
+  slug: string,
+  loai: "receipt" | "customer_ticket",
+  id: string
+): Promise<KetQuaXepQuay> {
+  const session = await getSessionMembership(slug);
+  if (!session || !canAccess(session.role, "pos")) return { ok: false, lyDo: "loi" };
+  const supabase = await createClient();
+  const quay = await trangThaiQuay(supabase, session.tenant.id);
+  if (quay === "chua-khai") return { ok: false, lyDo: "chua-khai" };
+  if (quay === "chet") return { ok: false, lyDo: "cau-in" };
+
+  let payload: Record<string, unknown>;
+  if (loai === "receipt") {
+    const hoaDon = await buildReceiptView(id, session.tenant.id);
+    if (!hoaDon) return { ok: false, lyDo: "loi" };
+    // Bấm đúp / remount trong 3 giây: người dùng chỉ định in MỘT lần.
+    if (await daInGanDay(supabase, session.tenant.id, "receipt", "billId", id)) return { ok: true };
+    const anh: PhieuAnh = { loai: "receipt", hoaDon, gio: gioNgayNamVn(hoaDon.dateTime ?? new Date().toISOString()) };
+    payload = { billId: id, billNo: hoaDon.billNo, total: hoaDon.total, anh };
+  } else {
+    const phieu = await buildCustomerTicket(id, session.tenant.id);
+    if (!phieu) return { ok: false, lyDo: "loi" };
+    if (await daInGanDay(supabase, session.tenant.id, "customer_ticket", "orderId", id)) return { ok: true };
+    const anh: PhieuAnh = { loai: "customer_ticket", phieu, gio: gioNgayVn(phieu.createdAt) };
+    payload = { ...phieu, anh };
+  }
+
+  const { error } = await supabase.from("print_jobs").insert({
+    tenant_id: session.tenant.id,
+    type: loai,
+    target_station: "counter",
+    payload,
+    status: "pending",
+  });
+  return error ? { ok: false, lyDo: "loi" } : { ok: true };
+}
+
+export async function queueReceiptPrint(slug: string, billId: string): Promise<KetQuaXepQuay> {
+  return xepPhieuQuay(slug, "receipt", billId);
+}
+
+export async function queueCustomerTicketPrint(slug: string, orderId: string): Promise<KetQuaXepQuay> {
+  return xepPhieuQuay(slug, "customer_ticket", orderId);
 }
 
 

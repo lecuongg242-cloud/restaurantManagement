@@ -3,6 +3,7 @@
  * Body: { qrToken }. Resolve token → bàn → insert staff_calls (service role) với dedupe 45s.
  */
 import { NextResponse } from "next/server";
+import { RULES, checkRateLimit, clientIp, tooManyResponse } from "@/lib/security/rate-limit";
 import { createStaffCall } from "@/lib/orders/staff-calls";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const b = (body ?? {}) as { qrToken?: unknown; note?: unknown };
   const qrToken = typeof b.qrToken === "string" ? b.qrToken : "";
   const note = typeof b.note === "string" ? b.note : "";
+
+  // TENANT-07: khóa theo token bàn, chặn trước khi ghi.
+  const rl = await checkRateLimit(RULES.call, [qrToken || clientIp(req.headers)]);
+  if (!rl.ok) return tooManyResponse(rl);
 
   const result = await createStaffCall(slug, qrToken, note);
   if ("error" in result) {

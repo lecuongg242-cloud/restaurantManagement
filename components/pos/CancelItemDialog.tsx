@@ -92,7 +92,7 @@ export function CancelItemDialog({
     // Modal GIỮA màn hình như mọi hộp thoại POS khác (PaymentDialog, PinPrompt, SplitBill…).
     // Trước đây là bottom sheet kiểu mobile → trên máy POS ngang thì dính đáy, lạc kiểu.
     <div
-      className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-md"
+      className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-md max-sm:p-0"
       role="dialog"
       aria-modal="true"
       aria-label={variant === "order" ? "Hủy cả đơn" : "Hủy món"}
@@ -100,7 +100,7 @@ export function CancelItemDialog({
         if (e.target === e.currentTarget) close(false); // bấm nền để đóng
       }}
     >
-      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-canvas shadow-modal">
+      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none">
         <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
           <h3 className="font-display text-xl text-status-late">
             {variant === "order" ? `Hủy cả đơn ${item.name}` : `Hủy món: ${item.name}`}

@@ -3,6 +3,7 @@
  * Giá integer VND. Dùng ở MenuBrowser/ModifierSheet/CartSheet.
  */
 import type { CustomerMenuItem } from "./customer-menu";
+import type { CartLine } from "./types";
 
 export const formatVnd = (n: number) => n.toLocaleString("vi-VN") + "₫";
 
@@ -29,4 +30,14 @@ export function unitPrice(item: CustomerMenuItem, optionIds: string[]): number {
     }
   }
   return sum;
+}
+
+/**
+ * Giỏ sau khi một lượt gửi THÀNH CÔNG: bỏ đúng những dòng đã gửi (theo `lineId`), GIỮ dòng được thêm vào
+ * trong lúc chờ mạng. Trước đây `setCart([])` xóa luôn cả những dòng đó — món mất lặng lẽ, không vào bếp
+ * (tìm ra ở 12-05: điện thoại mạng chậm, phục vụ bấm gửi rồi thêm món ngay).
+ */
+export function conLaiSauKhiGui(gioHienTai: CartLine[], daGui: CartLine[]): CartLine[] {
+  const daGuiIds = new Set(daGui.map((l) => l.lineId));
+  return gioHienTai.filter((l) => !daGuiIds.has(l.lineId));
 }

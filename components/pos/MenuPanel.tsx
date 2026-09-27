@@ -86,7 +86,7 @@ export function MenuPanel({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Tìm món…"
             aria-label="Tìm món"
-            className="h-10 w-full rounded-md border border-hairline pl-8 pr-md text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="h-10 w-full rounded-md border border-hairline pl-8 pr-md text-base text-ink outline-none lg:text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </header>

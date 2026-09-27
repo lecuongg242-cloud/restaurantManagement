@@ -59,14 +59,15 @@ export async function StationScreen({
         fill ? "h-dvh overflow-hidden" : "min-h-screen"
       )}
     >
-      <header className="flex shrink-0 items-center justify-between border-b border-hairline-soft bg-canvas px-lg py-md">
+      <header className="flex shrink-0 items-center justify-between gap-sm border-b border-hairline-soft bg-canvas px-lg py-md max-sm:px-md max-sm:py-sm">
         <div className="flex items-baseline gap-sm">
           <span className="text-base font-medium text-ink">{label}</span>
-          <span className="text-sm text-steel">· {session.tenant.name}</span>
+          <span className="text-sm text-steel max-sm:hidden">· {session.tenant.name}</span>
         </div>
-        <div className="flex items-center gap-sm">
-          <span className="rounded-full bg-cream px-md py-xxs text-sm font-medium text-ink">
-            Nhân viên: {staffName}
+        <div className="flex min-w-0 items-center gap-sm">
+          <span className="truncate rounded-full bg-cream px-md py-xxs text-sm font-medium text-ink">
+            <span className="max-sm:hidden">Nhân viên: </span>
+            {staffName}
           </span>
           <form action={signOut}>
             <Button type="submit" variant="link" size="sm">

@@ -188,3 +188,25 @@ describe("Trạng thái máy in trong nhịp tim", () => {
     expect(error!.message).toContain("chi tai khoan cau in");
   });
 });
+
+describe("PRINT-12 — nhịp tim kèm phiên bản cầu in", () => {
+  it("báo kèm phiên bản → lưu; gọi kiểu cũ (không phiên bản) → GIỮ phiên bản đã có", async () => {
+    const { error } = await printer.rpc("printer_heartbeat", { p_version: 7 });
+    expect(error).toBeNull();
+    const doc = async () =>
+      (await adminClient().from("printer_heartbeats").select("version").eq("tenant_id", tenantA).single()).data!
+        .version;
+    expect(await doc()).toBe(7);
+
+    // Cầu in bản cũ gọi đúng như 0044 (hai tham số) và như 0043 (không tham số).
+    expect((await printer.rpc("printer_heartbeat", { p_printer_ok: true, p_printer_host: "h:9100" })).error).toBeNull();
+    expect((await printer.rpc("printer_heartbeat")).error).toBeNull();
+    expect(await doc()).toBe(7);
+  });
+
+  it("chủ quán vẫn không giả được nhịp tim khi kèm phiên bản", async () => {
+    const { error } = await chuA.rpc("printer_heartbeat", { p_version: 99 });
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("chi tai khoan cau in");
+  });
+});

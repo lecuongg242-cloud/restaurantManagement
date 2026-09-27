@@ -310,7 +310,7 @@ export function OrderPanel({
                       maxLength={200}
                       placeholder="Ghi chú (VD: ít cay…)"
                       aria-label={`Ghi chú cho ${it.name}`}
-                      className="mt-xs h-9 w-full rounded-md border border-hairline px-sm text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      className="mt-xs h-9 w-full rounded-md border border-hairline px-sm text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 max-lg:h-11 lg:text-sm"
                     />
                   </li>
                 );

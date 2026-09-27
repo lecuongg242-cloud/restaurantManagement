@@ -75,7 +75,7 @@ export type PosReservation = {
 
 /**
  * Đơn đã xác nhận nhưng CHƯA in phiếu bếp lần nào (ORDER-16). Đơn nhân viên gõ — nhất là từ điện
- * thoại tại bàn (/pos/m) — vào thẳng `confirmed`, không đi qua hàng chờ duyệt, nên quầy không có
+ * thoại tại bàn (POS trên điện thoại) — vào thẳng `confirmed`, không đi qua hàng chờ duyệt, nên quầy không có
  * tín hiệu nào để biết phải in. Bếp không có màn KDS thì đơn quên in = món không bao giờ xuống bếp.
  */
 export type PosUnprinted = {

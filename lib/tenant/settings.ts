@@ -7,6 +7,13 @@
 /** Chế độ phục vụ: 'table' = theo bàn (sơ đồ bàn), 'counter' = bán tại quầy (không bàn). */
 export type ServiceMode = "table" | "counter";
 
+/**
+ * Đường in của quán (PRINT-10, QD-019 D5). `browser` = in qua hộp thoại trình duyệt ở máy có máy in;
+ * `bridge` = phiếu bếp vào hàng đợi `print_jobs` cho cầu in cục bộ. Theo TỪNG quán — trước đây là
+ * một biến môi trường nhúng lúc build, một công tắc cho mọi quán.
+ */
+export type PrintMode = "browser" | "bridge";
+
 export type TenantSettings = {
   currency: "VND";
   service_charge_pct: number; // [0,100]
@@ -15,6 +22,7 @@ export type TenantSettings = {
   qr_order_auto_send: boolean;
   receipt_footer: string;
   service_mode: ServiceMode;
+  print_mode: PrintMode;
   onboarding_done: boolean;
 };
 
@@ -26,6 +34,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   qr_order_auto_send: false,
   receipt_footer: "",
   service_mode: "table",
+  print_mode: "browser",
   onboarding_done: false,
 };
 
@@ -57,6 +66,7 @@ export function parseSettings(raw: unknown): TenantSettings {
         ? o.receipt_footer.slice(0, 500)
         : DEFAULT_SETTINGS.receipt_footer,
     service_mode: o.service_mode === "counter" ? "counter" : "table",
+    print_mode: o.print_mode === "bridge" ? "bridge" : "browser",
     onboarding_done: asBool(o.onboarding_done, DEFAULT_SETTINGS.onboarding_done),
   };
 }

@@ -9,15 +9,19 @@
 #   powershell -ExecutionPolicy Bypass -File print-setup.ps1 -AppUrl "https://ten-mien/r/qt-food/pos"
 #
 # Tham so:
-#   -AppUrl      URL trang POS (de tao loi tat Chrome). Bo qua thi khong tao loi tat.
-#   -KitchenIp   IP may in bep neu da biet. Bo qua thi script tu do trong mang.
-#   -InstallDir  Thu muc cai. Mac dinh C:\cau-in-qt-food
-#   -SkipNode    Bo qua buoc cai Node (khi da cai san).
+#   -ApiBase         Dia chi app (vd https://ten-mien) - de doi MA KICH HOAT (PRINT-11). CAI-DAT.bat dien san.
+#   -ActivationCode  Ma kich hoat 8 ky tu (bo qua thi hoi, neu may chua co tai khoan cau in dung duoc).
+#   -AppUrl          URL trang POS (de tao loi tat Chrome). Bo qua thi lay tu ket qua kich hoat.
+#   -KitchenIp       IP may in bep neu da biet. Bo qua thi script tu do trong mang.
+#   -InstallDir      Thu muc cai. Mac dinh C:\cau-in (MOT bo cai cho moi quan - QD-019 D6).
+#   -SkipNode        Bo qua buoc Node (khi da co san).
 
 param(
+  [string]$ApiBase,
+  [string]$ActivationCode,
   [string]$AppUrl,
   [string]$KitchenIp,
-  [string]$InstallDir = "C:\cau-in-qt-food",
+  [string]$InstallDir = "C:\cau-in",
   [switch]$SkipNode
 )
 
@@ -54,6 +58,8 @@ $isAdmin = (New-Object Security.Principal.WindowsPrincipal $identity).IsInRole(
 if (-not $isAdmin) {
   Warn "Chua co quyen Admin - dang mo lai cua so co quyen..."
   $argList = @("-ExecutionPolicy", "Bypass", "-File", "`"$($MyInvocation.MyCommand.Path)`"")
+  if ($ApiBase) { $argList += @("-ApiBase", "`"$ApiBase`"") }
+  if ($ActivationCode) { $argList += @("-ActivationCode", "`"$ActivationCode`"") }
   if ($AppUrl) { $argList += @("-AppUrl", "`"$AppUrl`"") }
   if ($KitchenIp) { $argList += @("-KitchenIp", "`"$KitchenIp`"") }
   if ($InstallDir) { $argList += @("-InstallDir", "`"$InstallDir`"") }
@@ -68,49 +74,115 @@ if (-not $isAdmin) {
 Ok "Da co quyen Administrator"
 
 # ── 2. Node ────────────────────────────────────────────────────────────────────
+# Node DI KEM bo cai (node\node.exe, QD-019 D7): khong cai vao he thong, khong can winget (Win10 cu
+# khong co), khong phu thuoc PATH (tac vu nen chay duoi SYSTEM). Cau in chi dung thu vien co san cua
+# Node nen mot file node.exe la du.
 Step 2 "Kiem tra Node"
-function Refresh-Path {
-  $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-              [Environment]::GetEnvironmentVariable("Path", "User")
-}
-
-if ($SkipNode) {
-  Warn "Bo qua theo yeu cau (-SkipNode)"
-} elseif (Get-Command node -ErrorAction SilentlyContinue) {
-  Ok ("Da co Node " + (node --version))
+$bundledNode = Join-Path $SourceDir "node\node.exe"
+$node = $null
+if (Test-Path $bundledNode) {
+  $node = $bundledNode
+  Ok ("Node di kem bo cai " + (& $node --version))
+} elseif ($SkipNode -or (Get-Command node -ErrorAction SilentlyContinue)) {
+  # Chi xay ra khi chay tu repo (may dev) - bo cai that luon co node\node.exe.
+  $node = "node"
+  Warn "Bo cai khong co node\node.exe - dung Node cua may"
 } else {
-  if (Get-Command winget -ErrorAction SilentlyContinue) {
-    Write-Host "      Dang cai Node LTS (vai phut, khong tat cua so)..."
-    winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements --silent
-    Refresh-Path
-  }
-  if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    Start-Process "https://nodejs.org"
-    Die "Khong tu cai duoc Node. Trang tai vua mo - cai ban LTS roi chay lai script nay."
-  }
-  Ok ("Da cai Node " + (node --version))
+  Die "Bo cai thieu thu muc node\ (node.exe). Lay lai bo cai day du (cau-in.zip) roi chay lai."
 }
 
-# ── 3. Chep file ───────────────────────────────────────────────────────────────
-Step 3 "Chep file vao $InstallDir"
-$needed = @("print-bridge.mjs", "print-bridge.bat", "print-scan.ps1")
+# ── 3. Tat cau in cu + chep file ───────────────────────────────────────────────
+# Tat cau in DANG CHAY truoc khi chep: cai lai tren may dang chay thi node.exe cu dang bi khoa -> chep
+# de that bai. Va cai de ma khong tat thi ban cu chay song song ban moi -> MOI PHIEU BEP RA HAI TO.
+# Qua cmd /c chu KHONG dung "2>$null": voi $ErrorActionPreference = "Stop", PowerShell 5.1 bien
+# dong loi cua schtasks ("khong tim thay tac vu" - may cai LAN DAU chua co tac vu nay) thanh loi
+# DUNG SCRIPT. Da dung cai dat that o qt-food ngay 24/09/2026.
+Step 3 "Tat cau in cu va chep file vao $InstallDir"
+cmd /c "schtasks /end /tn CauInBep >nul 2>&1"
+$cu = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+  Where-Object { $_.CommandLine -like '*print-bridge.mjs*' })
+foreach ($p in $cu) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+if ($cu.Count -gt 0) { Ok ("Da tat " + $cu.Count + " cau in cu dang chay"); Start-Sleep -Seconds 1 }
+
+$needed = @("print-bridge.mjs", "print-bridge.bat", "print-scan.ps1", "print-activate.ps1", "print-raw.ps1", "go-cai-dat.ps1", "GO-CAI-DAT.bat")
 foreach ($f in $needed) {
   if (-not (Test-Path (Join-Path $SourceDir $f))) { Die "Thieu file $f trong thu muc nguon." }
-}
-if (-not (Test-Path (Join-Path $SourceDir ".env.local"))) {
-  Die "Thieu file .env.local trong thu muc nguon (chua co khoa ket noi may chu)."
 }
 
 if ((Resolve-Path $SourceDir).Path -eq (Resolve-Path -LiteralPath $InstallDir -ErrorAction SilentlyContinue).Path) {
   Ok "Dang chay san trong thu muc cai, khong can chep"
 } else {
   New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-  foreach ($f in ($needed + ".env.local")) {
+  foreach ($f in $needed) {
     Copy-Item (Join-Path $SourceDir $f) (Join-Path $InstallDir $f) -Force
   }
-  Ok "Da chep 4 file"
+  # Do print-pack sinh ra (khong co khi chay tu repo). Chep vao day de cong cu sua loi + huong dan van con
+  # sau khi nguoi lap xoa thu muc giai nen tren Desktop - HUONG-DAN.txt tro toi C:\cau-in.
+  foreach ($f in @("KIEM-TRA-MAY-IN.bat", "HUONG-DAN.txt")) {
+    if (Test-Path (Join-Path $SourceDir $f)) { Copy-Item (Join-Path $SourceDir $f) (Join-Path $InstallDir $f) -Force }
+  }
+  if ($node -eq $bundledNode) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $InstallDir "node") | Out-Null
+    Copy-Item $bundledNode (Join-Path $InstallDir "node\node.exe") -Force
+    $node = Join-Path $InstallDir "node\node.exe"
+  }
+  Ok ("Da chep " + $needed.Count + " file" + $(if ($node -ne "node") { " + node.exe" } else { "" }))
 }
 $envFile = Join-Path $InstallDir ".env.local"
+
+# ── 3b. Tai khoan cau in ───────────────────────────────────────────────────────
+# Uu tien dung lai tai khoan DA CO (cai lai may cu, hoac nang cap tu bo cai cu C:\cau-in-<quan>), NHUNG
+# chi khi dang nhap thu duoc. Khong co / dang nhap hong -> hoi MA KICH HOAT (PRINT-11). Bo cai khong
+# mang mat khau nao (QD-019 D6).
+function Test-BridgeAuth {
+  # Ha muc loi trong luc goi node: voi "Stop", PowerShell 5.1 bien moi dong stderr cua chuong trinh
+  # ngoai thanh loi DUNG SCRIPT (cung loai loi schtasks o buoc 3).
+  $truoc = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  Push-Location $InstallDir
+  try {
+    & $node (Join-Path $InstallDir "print-bridge.mjs") --test-auth 2>&1 | Out-Null
+    return ($LASTEXITCODE -eq 0)
+  } finally {
+    Pop-Location
+    $ErrorActionPreference = $truoc
+  }
+}
+
+if (-not $ActivationCode -and -not (Test-Path $envFile)) {
+  $cuEnv = Get-ChildItem -Path "C:\" -Directory -Filter "cau-in-*" -ErrorAction SilentlyContinue |
+    ForEach-Object { Join-Path $_.FullName ".env.local" } |
+    Where-Object { (Test-Path $_) -and (Select-String -Path $_ -Pattern '^PRINT_BRIDGE_PASSWORD=.+' -Quiet) } |
+    Select-Object -First 1
+  if ($cuEnv) {
+    Copy-Item $cuEnv $envFile -Force
+    Ok ("Tim thay bo cai cu: " + (Split-Path -Parent $cuEnv) + " - thu dung lai tai khoan")
+  }
+}
+
+$daKichHoat = $false
+if (-not $ActivationCode -and (Test-Path $envFile) -and (Test-BridgeAuth)) {
+  Ok "Tai khoan cau in da co va dang nhap duoc - khong can ma kich hoat"
+  $daKichHoat = $true
+}
+if (-not $daKichHoat) {
+  if (-not $ApiBase) { Die "Thieu -ApiBase (dia chi app). Chay bang CAI-DAT.bat trong bo cai." }
+  Write-Host ""
+  Write-Host "      Kich hoat cau in (bo cai chu quan tai o Admin -> May in da kem ma, khong phai go)."
+  $activateArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $InstallDir "print-activate.ps1"),
+    "-ApiBase", $ApiBase, "-EnvFile", $envFile)
+  if ($ActivationCode) { $activateArgs += @("-Code", $ActivationCode) }
+  else { $activateArgs += @("-TimMaTu", $SourceDir) }
+  & powershell @activateArgs
+  if ($LASTEXITCODE -ne 0) { Die "Chua kich hoat duoc cau in. Chu quan tai lai bo cai o Admin -> May in roi chay lai CAI-DAT.bat." }
+  if (-not (Test-BridgeAuth)) { Die "Da kich hoat nhung cau in khong dang nhap duoc. Bao ky thuat." }
+  Ok "Cau in dang nhap duoc"
+}
+
+if (-not $AppUrl) {
+  $posLine = Select-String -Path $envFile -Pattern '^POS_URL=(.+)$' | Select-Object -First 1
+  if ($posLine) { $AppUrl = $posLine.Matches[0].Groups[1].Value.Trim() }
+}
 
 # ── 4. May in bep ──────────────────────────────────────────────────────────────
 # Buoc de sai nhat: quan co 2 may in, rat de cau hinh nham IP may quay thanh may bep
@@ -201,6 +273,12 @@ if ($printers.Count -eq 0) {
     $cim = Get-CimInstance -ClassName Win32_Printer -Filter ("Name = '" + $name.Replace("'", "''") + "'")
     Invoke-CimMethod -InputObject $cim -MethodName SetDefaultPrinter | Out-Null
     Ok "May in mac dinh = $name"
+    # Cau in in hoa don tu dien thoai/tablet ra DUNG may nay (PRINT-15). Luu TEN, khong dua vao "mac
+    # dinh": tac vu nen chay duoi SYSTEM khong thay may in mac dinh cua nguoi dung.
+    $dongEnv = @(Get-Content $envFile | Where-Object { $_ -notmatch '^COUNTER_PRINTER=' })
+    $dongEnv += "COUNTER_PRINTER=usb:$name"
+    Set-Content -Path $envFile -Value $dongEnv -Encoding UTF8
+    Ok "Hoa don tu dien thoai se in ra may nay (COUNTER_PRINTER=usb:$name)"
   } else {
     Warn "Bo qua - nho tu dat may in QUAY lam mac dinh, khong hoa don se in o bep"
   }
@@ -210,12 +288,8 @@ if ($printers.Count -eq 0) {
 Step 6 "Dang ky chay nen va chong laptop ngu"
 $bat = Join-Path $InstallDir "print-bridge.bat"
 
-# Tat cau in DANG CHAY truoc khi dang ky lai. Cai de (nang cap) ma khong tat thi ban cu van
-# chay song song ban moi. Ban cu chua co khoa mot phien (PRINT-08) nen khong nhuong -> neu ca hai
-# cung in duoc thi MOI PHIEU BEP RA HAI TO.
-# Qua cmd /c chu KHONG dung "2>$null": voi $ErrorActionPreference = "Stop", PowerShell 5.1 bien
-# dong loi cua schtasks ("khong tim thay tac vu" - may cai LAN DAU chua co tac vu nay) thanh loi
-# DUNG SCRIPT. Da dung cai dat that o qt-food ngay 24/09/2026.
+# Tat lan nua (da tat o buoc 3): phong truong hop ai do mo tay cau in cu trong luc dang do may in.
+# Ly do phai tat + vi sao qua cmd /c: xem buoc 3.
 cmd /c "schtasks /end /tn CauInBep >nul 2>&1"
 $cu = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
   Where-Object { $_.CommandLine -like '*print-bridge.mjs*' })
@@ -283,6 +357,12 @@ Write-Host ""
 Write-Host " May in bep : $kitchen (qua cau in)"
 Write-Host " Thu muc    : $InstallDir"
 Write-Host " Tu chay    : tac vu 'CauInBep' khi bat may"
+$thuMucCu = @(Get-ChildItem -Path "C:\" -Directory -Filter "cau-in-*" -ErrorAction SilentlyContinue)
+if ($thuMucCu.Count -gt 0) {
+  Write-Host ""
+  Write-Host (" Bo cai cu con de lai: " + (($thuMucCu | ForEach-Object { $_.FullName }) -join ", ")) -ForegroundColor Yellow
+  Write-Host " Khong con dung nua - xoa sau khi 4 phep thu duoi day deu dat. DUNG mo print-bridge.bat trong do." -ForegroundColor Yellow
+}
 Write-Host ""
 Write-Host " CON LAI 4 PHEP THU - lam du moi coi la xong:" -ForegroundColor Yellow
 Write-Host ""

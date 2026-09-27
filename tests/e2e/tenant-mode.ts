@@ -50,3 +50,25 @@ export async function setServiceMode(slug: string, mode: ServiceMode): Promise<v
   const { error } = await c.from("tenants").update({ settings }).eq("id", data.id);
   if (error) throw error;
 }
+
+export type PrintMode = "browser" | "bridge";
+
+/** Đọc `print_mode` hiện tại (PRINT-10) để `afterAll` trả lại đúng như cũ. Thiếu = browser. */
+export async function getPrintMode(slug: string): Promise<PrintMode> {
+  const { data } = await admin().from("tenants").select("settings").eq("slug", slug).maybeSingle();
+  const raw = (data?.settings as { print_mode?: string } | null)?.print_mode;
+  return raw === "bridge" ? "bridge" : "browser";
+}
+
+export async function setPrintMode(slug: string, mode: PrintMode): Promise<void> {
+  if (!DEMO_SLUGS.has(slug)) {
+    throw new Error(`Từ chối đổi cài đặt "${slug}" — chỉ cho phép tenant demo.`);
+  }
+  const c = admin();
+  const { data } = await c.from("tenants").select("id, settings").eq("slug", slug).maybeSingle();
+  if (!data) throw new Error(`Không tìm thấy tenant ${slug}`);
+
+  const settings = { ...((data.settings as Record<string, unknown>) ?? {}), print_mode: mode };
+  const { error } = await c.from("tenants").update({ settings }).eq("id", data.id);
+  if (error) throw error;
+}

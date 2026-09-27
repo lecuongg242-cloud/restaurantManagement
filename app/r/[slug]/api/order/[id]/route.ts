@@ -4,16 +4,22 @@
  * tenant khác. KHÔNG trả cột nhạy cảm; chỉ đủ dựng stepper + danh sách món snapshot.
  */
 import { NextResponse } from "next/server";
+import { RULES, checkRateLimit, clientIp, tooManyResponse } from "@/lib/security/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeTenantBySlug } from "@/lib/tenant/active";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ slug: string; id: string }> }
 ) {
   const { slug, id } = await params;
+
+  // TENANT-07: khóa theo IP + mã đơn — khách poll 15s/đơn khi realtime chết, và cả quán chung một
+  // IP, nên giới hạn theo IP trần sẽ chặn nhầm khách thật.
+  const rl = await checkRateLimit(RULES.orderStatus, [clientIp(req.headers), id]);
+  if (!rl.ok) return tooManyResponse(rl);
   const admin = createAdminClient();
 
   const tenant = await activeTenantBySlug<{ id: string }>("id", slug);

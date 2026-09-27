@@ -17,7 +17,7 @@ import {
   type CancelActor,
 } from "@/lib/orders/cancel-label";
 import type { HistoryStatusFilter } from "@/lib/orders/history-filter";
-import { getPrintAdapter } from "@/lib/print/adapter";
+import { usePrintAdapter } from "@/lib/print/print-mode";
 import { listTakeawayHistoryAction } from "@/app/r/[slug]/pos/actions";
 import { cn } from "@/lib/utils";
 
@@ -165,6 +165,7 @@ export function TakeawayHistory({
   /** Chữ đang gõ ở ô tìm DUY NHẤT trên thanh POS — panel này không có ô tìm riêng. */
   query: string;
 }) {
+  const printer = usePrintAdapter();
   const [preset, setPreset] = useState<string>("today");
   const [from, setFrom] = useState(() => vnDay(0));
   const [to, setTo] = useState(() => vnDay(0));
@@ -562,7 +563,7 @@ export function TakeawayHistory({
                     {bill && bill.status === "paid" && (
                       <button
                         type="button"
-                        onClick={() => getPrintAdapter().printReceipt({ slug, billId: bill.billId })}
+                        onClick={() => printer.printReceipt({ slug, billId: bill.billId })}
                         className="inline-flex h-9 items-center gap-xs rounded-md border border-hairline-strong bg-canvas px-md text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                       >
                         <Printer className="h-4 w-4" aria-hidden />

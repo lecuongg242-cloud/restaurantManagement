@@ -2,6 +2,9 @@ import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+  // tsconfig để `jsx: preserve` (Next tự biên dịch). Test có dựng JSX phía server (ảnh phiếu in, PRINT-14)
+  // nên Vite phải tự biên dịch JSX ở đây — chỉ ảnh hưởng test, không ảnh hưởng build.
+  oxc: { jsx: { runtime: "automatic" } },
   resolve: {
     // Cho phép test dùng alias "@/..." như app (vd unit test lib/billing).
     alias: {

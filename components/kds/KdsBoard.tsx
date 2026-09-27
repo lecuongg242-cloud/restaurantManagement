@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useResumeRefresh } from "@/components/pos/use-resume-refresh";
 import { Ban } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { KdsTicket as KdsTicketType } from "@/lib/orders/kds";
@@ -29,6 +30,8 @@ export function KdsBoard({
   menu: CustomerMenu | null;
 }) {
   const router = useRouter();
+  // Máy ngủ dậy / có mạng lại → tải lại: realtime nối lại nhưng không phát lại thay đổi đã lỡ (ORDER-19).
+  useResumeRefresh(() => router.refresh());
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deltas, setDeltas] = useState<Record<string, number>>({});
   const [soldOutOpen, setSoldOutOpen] = useState(false);

@@ -9,7 +9,7 @@ import type { BillView, PaymentMethod } from "@/lib/billing/types";
 import type { OnlineOrderView } from "@/lib/orders/online";
 import { groupTakeawayOrders } from "@/lib/orders/takeaway-group";
 import { formatVnd, unitPrice } from "@/lib/orders/cart";
-import { getPrintAdapter } from "@/lib/print/adapter";
+import { usePrintAdapter } from "@/lib/print/print-mode";
 import { QtyStepper } from "@/components/customer/QtyStepper";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { Input } from "@/components/ui/input";
@@ -64,7 +64,8 @@ function OrderLines({
             {it.note && <p className="text-xs italic text-stone">“{it.note}”</p>}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-xs">
-            <span className="text-sm tabular-nums text-steel">
+            {/* Tiền là số nhân viên đọc để báo khách — chữ đậm màu chính, không xám. */}
+            <span className="text-sm font-medium tabular-nums text-ink">
               {formatVnd(it.unitPrice * it.qty)}
             </span>
             <button
@@ -121,7 +122,8 @@ export function TakeawayPanel({
   onCartRemove: (lineId: string) => void;
   onCartEdit: (lineId: string, line: PendingLine) => void;
   onCartNote: (lineId: string, note: string) => void;
-  onClearCart: () => void;
+  /** `daGui` = đúng những dòng vừa gửi; bỏ trống = dọn hết giỏ. */
+  onClearCart: (daGui?: CartLine[]) => void;
   onClose: () => void;
   cancelStaff: CancelStaff[];
   canCancelWithoutPin: boolean;
@@ -144,6 +146,7 @@ export function TakeawayPanel({
   /** Chữ đang gõ ở ô tìm DUY NHẤT phía trên — tab lịch sử dùng nó để lọc danh sách. */
   searchQuery: string;
 }) {
+  const printer = usePrintAdapter();
   const title = counter ? "Gọi món cho khách" : "Bán mang về";
   const createLabel = counter ? "Tạo đơn" : "Tạo đơn mang về";
   const hideClose = counter; // chế độ quầy không có bàn để quay về
@@ -217,7 +220,8 @@ export function TakeawayPanel({
     if (cart.length === 0) return;
     setCreating(true);
     setError(null);
-    const lines = cart.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds }));
+    const guiDi = cart; // món thêm vào trong lúc chờ không thuộc lượt này — không được xóa theo
+    const lines = guiDi.map((l) => ({ itemId: l.itemId, qty: l.qty, note: l.note, optionIds: l.optionIds }));
     // Lượt gọi thêm không hỏi lại tên/SĐT — đã có ở đơn gốc.
     const contact = addToId
       ? undefined
@@ -240,8 +244,8 @@ export function TakeawayPanel({
     }
     // Xong một hành động — khách kế gọi y hệt món này vẫn phải ra đơn riêng.
     orderKey.done();
-    // Đơn vào danh sách chờ; dọn builder cho khách kế.
-    onClearCart();
+    // Đơn vào danh sách chờ; dọn builder cho khách kế (chỉ những dòng đã gửi).
+    onClearCart(guiDi);
     setName("");
     setPhone("");
     setAddToOrderId(null);
@@ -392,7 +396,8 @@ export function TakeawayPanel({
                 const names = optionNames(it, l.optionIds);
                 return (
                   <li key={l.lineId} className="border-b border-hairline-soft pb-sm last:border-b-0">
-                    <div className="flex items-start justify-between gap-sm">
+                    {/* items-center: tên món nằm giữa dòng với nút +/−, không dính mép trên. */}
+                    <div className="flex items-center justify-between gap-sm">
                       <div className="min-w-0">
                         {/* Tên món to hơn phần còn lại: nhân viên liếc qua là soát được món đã gõ. */}
                         <p className="text-base font-medium text-ink">{it.name}</p>
@@ -588,7 +593,8 @@ export function TakeawayPanel({
                     {/* Số lượt gọi thêm là span ANH EM của tổng, không lồng bên trong: lồng vào
                         thì mọi thứ đọc `innerText` của tổng (kể cả test) đều dính chữ vào số. */}
                     <span className="flex min-w-0 flex-col">
-                      <span className="text-sm font-semibold tabular-nums text-ink">
+                      <span className="text-xs text-slate">Tổng tiền</span>
+                      <span className="text-base font-semibold tabular-nums text-ink">
                         {formatVnd(g.total)}
                       </span>
                       {g.children.length > 0 && (
@@ -649,7 +655,7 @@ export function TakeawayPanel({
               setPaying(false);
             }
           }}
-          onPrint={() => getPrintAdapter().printReceipt({ slug, billId: payBill.id })}
+          onPrint={() => printer.printReceipt({ slug, billId: payBill.id })}
           onClose={() => setPayBill(null)}
         />
       )}

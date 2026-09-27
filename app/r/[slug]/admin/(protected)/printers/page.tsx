@@ -4,10 +4,14 @@ import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardTitle } from "@/components/ui/card";
 import { TuLamMoi } from "@/components/admin/TuLamMoi";
+import { buttonVariants } from "@/components/ui/button";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { thongTinBoCai } from "@/lib/print/bo-cai";
+import { CAU_LOI } from "@/lib/print/ma-chu-quan";
 import { trangThaiMayIn, type NhipTim } from "@/lib/print/cau-in";
 import { demPhieuHomNay } from "@/lib/print/cau-in-db";
 import { resolveRange } from "@/lib/billing/report-range";
-import { cachDay, gioVn } from "@/lib/time/vn";
+import { cachDay, gioNgayNamVn, gioVn } from "@/lib/time/vn";
 
 /**
  * Màn "Máy in" (PRINT-09) — chủ quán mở ra là biết cầu in có chạy không và máy in bếp có phản hồi
@@ -60,8 +64,18 @@ function So({ nhan, so, xau = false }: { nhan: string; so: number; xau?: boolean
   );
 }
 
-export default async function PrintersPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function PrintersPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ loi?: string }>;
+}) {
   const { slug } = await params;
+  // Lỗi do route tải bộ cài gửi về — URL chỉ mang MÃ lỗi; câu hiển thị tra từ bảng cố định, mã lạ bỏ qua
+  // (không để link lạ chèn câu tùy ý lên trang quản trị).
+  const maLoi = (await searchParams).loi;
+  const loi = maLoi && Object.hasOwn(CAU_LOI, maLoi) ? CAU_LOI[maLoi as keyof typeof CAU_LOI] : null;
 
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/admin/login`);
@@ -71,18 +85,32 @@ export default async function PrintersPage({ params }: { params: Promise<{ slug:
 
   const supabase = await createClient();
   const tenantId = session.tenant.id;
-  const [{ data: nhipRow }, dem] = await Promise.all([
+  const [{ data: nhipRow }, dem, boCai] = await Promise.all([
     supabase
       .from("printer_heartbeats")
-      .select("seen_at, printer_ok, printer_host, printer_checked_at")
+      .select("seen_at, printer_ok, printer_host, printer_checked_at, counter_ok, counter_target, counter_checked_at")
       .eq("tenant_id", tenantId)
       .maybeSingle(),
     demPhieuHomNay(supabase, tenantId, resolveRange({ preset: "today" }).fromUtc),
+    thongTinBoCai(createAdminClient()),
   ]);
 
   const now = Date.now();
-  const nhip = (nhipRow as (NhipTim & { printer_host: string | null }) | null) ?? null;
+  const nhip =
+    (nhipRow as
+      | (NhipTim & {
+          printer_host: string | null;
+          counter_ok: boolean | null;
+          counter_target: string | null;
+          counter_checked_at: string | null;
+        })
+      | null) ?? null;
   const tt = trangThaiMayIn(nhip, now);
+  // Máy in QUẦY (PRINT-15) — cùng quy tắc sống/chết/không biết với máy bếp, áp lên các cột counter_*.
+  const ttQuay = trangThaiMayIn(
+    nhip ? { seen_at: nhip.seen_at, printer_ok: nhip.counter_ok, printer_checked_at: nhip.counter_checked_at } : null,
+    now
+  );
 
   const lyDoKhongBiet =
     tt.cauIn !== "song"
@@ -147,6 +175,78 @@ export default async function PrintersPage({ params }: { params: Promise<{ slug:
           </div>
         </Card>
       </div>
+
+      <Card className="mt-lg">
+        <CardTitle>Máy in quầy — hóa đơn từ điện thoại, tablet</CardTitle>
+        <div className="mt-md flex flex-col gap-sm">
+          {!nhip?.counter_target ? (
+            <>
+              <NhanTrangThai tone="chua-ro">Chưa khai</NhanTrangThai>
+              <p className="text-sm text-slate">
+                Điện thoại / tablet chưa in được hóa đơn. Chạy lại CAI-DAT.bat trên laptop quầy và chọn máy in
+                quầy. Máy quầy vẫn in hóa đơn bình thường.
+              </p>
+            </>
+          ) : (
+            <>
+              {ttQuay.mayIn === "ok" && <NhanTrangThai tone="tot">In được</NhanTrangThai>}
+              {ttQuay.mayIn === "loi" && <NhanTrangThai tone="xau">KHÔNG in được</NhanTrangThai>}
+              {ttQuay.mayIn === "khong-biet" && <NhanTrangThai tone="chua-ro">Không biết</NhanTrangThai>}
+              <Dong nhan="Máy in" giaTri={nhip.counter_target} />
+              {ttQuay.mayIn === "khong-biet" && (
+                <p className="text-sm text-slate">
+                  {ttQuay.cauIn !== "song"
+                    ? "Cầu in không kết nối — điện thoại sẽ báo lỗi khi bấm in hóa đơn."
+                    : nhip.counter_target.startsWith("usb:")
+                      ? "Máy in cắm USB: biết được sau lần in hóa đơn đầu tiên từ điện thoại."
+                      : "Chưa có kết quả kiểm gần đây."}
+                </p>
+              )}
+              {ttQuay.mayIn === "loi" && (
+                <p className="text-sm text-slate">Kiểm tra máy in quầy: nguồn, dây (USB/mạng), giấy.</p>
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+
+      {/* PRINT-17 — tải bộ cài ngay trên laptop quầy, không cần ai gửi qua Zalo/USB. */}
+      <Card className="mt-lg">
+        <CardTitle>Cài cầu in trên laptop quầy</CardTitle>
+        <ol className="mt-md list-decimal space-y-xs pl-lg text-sm text-slate">
+          <li>Mở trang này <span className="font-medium text-ink">trên chính laptop quầy</span> → bấm tải bộ cài (có thể mất tới 1 phút mới bắt đầu tải — đừng bấm lại).</li>
+          <li>Chuột phải file vừa tải → <span className="font-medium text-ink">Extract All</span> (Giải nén tất cả) → Extract.</li>
+          <li>Double-click <span className="font-medium text-ink">CAI-DAT.bat</span> → Yes → trả lời 2 câu hỏi trên màn hình.</li>
+        </ol>
+        {session.role === "owner" ? (
+          <p className="mt-sm text-sm text-slate">
+            Bộ cài <span className="font-medium text-ink">kèm sẵn mã kích hoạt</span> — không phải gõ mã. Cài trong vòng
+            30 phút; quá hạn thì tải lại. Cài bằng bộ cài mới trên máy khác thì cầu in đang chạy ở máy cũ{" "}
+            <span className="font-medium text-ink">ngừng in</span>.
+          </p>
+        ) : (
+          <p className="mt-sm text-sm text-slate">
+            Tài khoản quản lý: bộ cài không kèm mã, lúc cài sẽ hỏi mã. Nhờ chủ quán tải để khỏi phải gõ.
+          </p>
+        )}
+        {loi && (
+          <p role="alert" className="mt-sm text-sm text-status-late">
+            {loi}
+          </p>
+        )}
+        <div className="mt-md flex flex-wrap items-center gap-md">
+          {boCai ? (
+            <form method="post" action={`/r/${slug}/admin/printers/bo-cai`}>
+              <button type="submit" className={buttonVariants({ variant: "primary" })}>
+                Tải bộ cài cầu in ({Math.max(1, Math.round(boCai.kichThuoc / 1048576))} MB)
+              </button>
+            </form>
+          ) : (
+            <p className="text-sm text-slate">Chưa có bộ cài để tải — liên hệ quản trị hệ thống.</p>
+          )}
+          {boCai && <span className="text-sm text-steel">Đóng gói lúc {gioNgayNamVn(boCai.capNhatLuc)}</span>}
+        </div>
+      </Card>
 
       <Card className="mt-lg">
         <CardTitle>Phiếu bếp hôm nay</CardTitle>

@@ -93,6 +93,21 @@ export default async function SettingsPage({
               </span>
             </label>
 
+            <label className="flex min-w-0 max-w-sm flex-col gap-xxs text-sm text-slate">
+              Cách in phiếu
+              <select
+                name="print_mode"
+                defaultValue={settings.print_mode}
+                className="w-full min-w-0 rounded-md border border-hairline-strong bg-canvas px-md py-sm text-base text-ink sm:text-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              >
+                <option value="browser">Trình duyệt — in từ máy quầy có cắm máy in</option>
+                <option value="bridge">Cầu in — phiếu bếp tự in ra máy in bếp</option>
+              </select>
+              <span className="text-xs text-steel">
+                “Cầu in” cần cài bộ cài cầu in trên máy tính ở quán. Chưa cài thì chọn “Trình duyệt”.
+              </span>
+            </label>
+
             <div className="grid gap-md sm:grid-cols-2">
               <label className="flex flex-col gap-xxs text-sm text-slate">
                 Phí phục vụ (%)

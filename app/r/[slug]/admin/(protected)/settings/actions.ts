@@ -158,6 +158,13 @@ export async function updateSettings(formData: FormData) {
     qr_order_auto_send: formData.get("qr_order_auto_send") === "on",
     allow_discount: formData.get("allow_discount") === "on",
     service_mode: formData.get("service_mode") === "counter" ? "counter" : "table",
+    // Form không gửi ô này thì GIỮ giá trị cũ — không để một form khác lặng lẽ đưa quán đang dùng
+    // cầu in về in trình duyệt (PRINT-10).
+    print_mode: formData.has("print_mode")
+      ? formData.get("print_mode") === "bridge"
+        ? "bridge"
+        : "browser"
+      : current.print_mode,
   });
 
   const failed = await updateTenant(supabase, session.tenant.id, {

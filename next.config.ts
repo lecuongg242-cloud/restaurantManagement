@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const supabaseHost = (() => {
   try {
@@ -24,6 +25,16 @@ const nextConfig: NextConfig = {
   // Repo con nằm trong E:\externalProjects (có lockfile cha) — chốt root ở đây
   // để tắt cảnh báo "inferred workspace root".
   outputFileTracingRoot: __dirname,
+  // Cầu in tự cập nhật (PRINT-12): route đọc `scripts/print-bridge.mjs` bằng fs — Next không tự dò
+  // được, thiếu dòng này thì hàm trên Vercel không có tệp để công bố.
+  outputFileTracingIncludes: {
+    "/api/bridge/latest": ["./scripts/print-bridge.mjs"],
+    "/api/bridge/latest/file": ["./scripts/print-bridge.mjs"],
+    // Ảnh hóa đơn có dấu (PRINT-14) đọc font bằng fs.
+    "/api/print/jobs/[id]/image": ["./assets/fonts/*.ttf"],
+    // Favicon chữ cái đầu tên quán (chữ có dấu, vd "Đ").
+    "/r/[slug]/favicon.png": ["./assets/fonts/BeVietnamPro-Bold.ttf"],
+  },
   // next/image được phép tải ảnh menu/logo từ Supabase Storage (bucket public).
   images: {
     remotePatterns: [
@@ -36,4 +47,15 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sentry (OPS-10). Chưa có `SENTRY_AUTH_TOKEN` thì không upload source map — lỗi vẫn được ghi, chỉ là
+ * stack phía trình duyệt chưa giải mã. Token (bí mật) chỉ đặt ở Vercel env, không bao giờ ở repo.
+ */
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  telemetry: false,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+});

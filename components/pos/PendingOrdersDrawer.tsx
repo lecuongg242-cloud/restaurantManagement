@@ -6,7 +6,7 @@ import { Drawer } from "vaul";
 import { Check, X, Loader2 } from "lucide-react";
 import type { PosPending } from "@/lib/orders/pos";
 import { formatVnd } from "@/lib/orders/cart";
-import { getPrintAdapter } from "@/lib/print/adapter";
+import { usePrintAdapter } from "@/lib/print/print-mode";
 import { approveOrder, rejectOrder } from "@/app/r/[slug]/pos/actions";
 import { ACTION_OFFLINE_MSG } from "@/components/pos/offline-msg";
 import { gioVn } from "@/lib/time/vn";
@@ -32,6 +32,7 @@ export function PendingOrdersDrawer({
    */
   splitEvenlyTableIds: Set<string>;
 }) {
+  const printer = usePrintAdapter();
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -50,7 +51,7 @@ export function PendingOrdersDrawer({
     if (!res || !res.ok) setError(res ? res.error : ACTION_OFFLINE_MSG);
     else {
       // Duyệt xong tự mở phiếu bếp để in (qua PrintAdapter — PRINT-01).
-      getPrintAdapter().printKitchenTicket({ slug, orderId: id });
+      printer.printKitchenTicket({ slug, orderId: id });
       router.refresh();
     }
   };

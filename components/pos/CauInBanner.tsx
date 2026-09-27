@@ -5,6 +5,7 @@ import { AlertTriangle, Printer } from "lucide-react";
 import { getCauInStatus, type CauInStatus } from "@/app/r/[slug]/print/actions";
 import { gioVn } from "@/lib/time/vn";
 import { nhanThietBiIn, type ToneThietBi } from "@/lib/print/nhan-thiet-bi";
+import { usePrintMode } from "@/lib/print/print-mode";
 
 /**
  * Sức khỏe cầu in + máy in bếp trên POS (PRINT-07/08/09).
@@ -17,7 +18,6 @@ import { nhanThietBiIn, type ToneThietBi } from "@/lib/print/nhan-thiet-bi";
  * có sự cố, và nút "Đã xử lý". Chỉ chạy ở chế độ cầu in. Hỏi lại 30 giây/lần — khớp nhịp tim, hỏi
  * dày hơn không biết thêm gì.
  */
-const BRIDGE = process.env.NEXT_PUBLIC_PRINT_MODE === "bridge";
 const HOI_LAI_MS = 30_000;
 
 function docMoc(key: string): string | null {
@@ -29,6 +29,7 @@ function docMoc(key: string): string | null {
 }
 
 export function useCauIn(slug: string): { st: CauInStatus | null; daXuLy: () => void } {
+  const bridge = usePrintMode() === "bridge";
   const [st, setSt] = useState<CauInStatus | null>(null);
   const key = `cau-in-da-xu-ly:${slug}`;
 
@@ -38,11 +39,11 @@ export function useCauIn(slug: string): { st: CauInStatus | null; daXuLy: () => 
   }, [slug, key]);
 
   useEffect(() => {
-    if (!BRIDGE) return;
+    if (!bridge) return;
     refresh();
     const id = setInterval(refresh, HOI_LAI_MS);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refresh, bridge]);
 
   /**
    * "Đã xử lý" lưu mốc của LỖI MỚI NHẤT (giờ database), không phải giờ máy POS — để chỉ lỗi xảy ra
@@ -61,7 +62,7 @@ export function useCauIn(slug: string): { st: CauInStatus | null; daXuLy: () => 
     refresh();
   };
 
-  return { st: BRIDGE ? st : null, daXuLy };
+  return { st: bridge ? st : null, daXuLy };
 }
 
 const CHIP: Record<ToneThietBi, string> = {

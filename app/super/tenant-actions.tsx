@@ -6,6 +6,8 @@ import {
   resetOwnerPassword,
   deleteTenant,
   createPrintBridgeAccount,
+  createBridgeActivationCode,
+  revokeBridge,
   type SuperActionState,
 } from "./actions";
 import { buttonVariants } from "@/components/ui/button";
@@ -154,6 +156,53 @@ export function PrintBridgeForm({ tenantId }: { tenantId: string }) {
         )}
         {state.error && <p className="text-xs text-status-late">{state.error}</p>}
       </form>
+    </details>
+  );
+}
+
+/**
+ * Mã kích hoạt cầu in (PRINT-11) — đọc cho người lắp gõ vào bộ cài chung. Hiện một lần, hết hạn 30 phút.
+ * Kèm nút thu hồi cầu in của quán (máy mất, quán ngừng dùng).
+ */
+export function BridgeActivationForm({ tenantId }: { tenantId: string }) {
+  const [state, action] = useActionState(createBridgeActivationCode, EMPTY);
+  const [revokeState, revokeAction] = useActionState(revokeBridge, EMPTY);
+  return (
+    <details className="w-full sm:w-auto">
+      <summary
+        className={cn(
+          buttonVariants({ variant: "secondary", size: "sm" }),
+          "w-full cursor-pointer list-none sm:w-auto [&::-webkit-details-marker]:hidden"
+        )}
+      >
+        Mã cài cầu in
+      </summary>
+      <div className="mt-sm flex max-w-md flex-col gap-sm rounded-md border border-hairline-soft bg-surface p-sm">
+        <form action={action} className="flex flex-col gap-xs">
+          <input type="hidden" name="tenant_id" value={tenantId} />
+          <p className="text-xs text-slate">
+            Tạo mã 8 ký tự để người lắp gõ vào bộ cài cầu in. Mã dùng một lần, hết hạn sau 30 phút. Máy cầu in
+            cũ của quán (nếu có) mất quyền khi máy mới kích hoạt.
+          </p>
+          <SubmitButton size="sm" pendingLabel="Đang tạo…">
+            Tạo mã kích hoạt
+          </SubmitButton>
+          {state.ok && (
+            <pre className="w-full whitespace-pre-wrap break-all rounded bg-cream-soft p-xs font-mono text-sm text-ink">
+              {state.ok}
+            </pre>
+          )}
+          {state.error && <p className="text-xs text-status-late">{state.error}</p>}
+        </form>
+        <form action={revokeAction} className="flex flex-col gap-xs border-t border-hairline-soft pt-sm">
+          <input type="hidden" name="tenant_id" value={tenantId} />
+          <SubmitButton size="sm" variant="secondary" pendingLabel="Đang thu hồi…">
+            Thu hồi cầu in của quán
+          </SubmitButton>
+          {revokeState.ok && <p className="text-xs text-slate">{revokeState.ok}</p>}
+          {revokeState.error && <p className="text-xs text-status-late">{revokeState.error}</p>}
+        </form>
+      </div>
     </details>
   );
 }

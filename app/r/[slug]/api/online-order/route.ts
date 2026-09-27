@@ -3,6 +3,7 @@
  * Không cookie phiên. Validate + snapshot ở server (online.ts → create-order.ts).
  */
 import { NextResponse } from "next/server";
+import { RULES, checkRateLimit, clientIp, tooManyResponse } from "@/lib/security/rate-limit";
 import { createOnlineOrder, type OnlineChannel } from "@/lib/orders/online";
 import type { OrderLineInput } from "@/lib/orders/types";
 
@@ -30,6 +31,10 @@ export async function POST(
     address?: unknown;
     idempotencyKey?: unknown;
   };
+
+  // TENANT-07: không có token bàn → khóa theo IP + quán, chặn trước khi ghi.
+  const rl = await checkRateLimit(RULES.onlineOrder, [clientIp(req.headers), slug]);
+  if (!rl.ok) return tooManyResponse(rl);
 
   const channel: OnlineChannel = b.channel === "delivery" ? "delivery" : "takeaway";
   const lines: OrderLineInput[] = Array.isArray(b.lines)

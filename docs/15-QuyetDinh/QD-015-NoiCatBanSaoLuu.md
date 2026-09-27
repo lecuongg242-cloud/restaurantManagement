@@ -1,6 +1,6 @@
 # QD-015 — Nơi cất bản sao lưu database
 
-**Ngày:** 24/09/2026 · **Trạng thái:** HOÃN — chủ dự án chưa cần (24/09/2026)
+**Ngày:** 24/09/2026 · **Trạng thái:** HOÃN — chủ dự án chưa cần (24/09/2026) · **26/09/2026: đề xuất thay bằng `QD-019` D1 (phương án A), làm ở P11 plan 11-01**
 
 > **Trong lúc hoãn:** không có lịch sao lưu tự động. Bản sao lưu chỉ có khi ai đó chạy tay
 > `npm run db:backup:day-du <thư-mục>` — nên chạy trước mọi thao tác rủi ro trên database (đổi

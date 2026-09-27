@@ -3,8 +3,11 @@
  (đọc hết trang này trước khi bấm gì — mất 2 phút)
 ========================================================================
 
-CHUẨN BỊ — làm đủ 3 việc này rồi mới cài:
+CHUẨN BỊ — làm đủ các việc này rồi mới cài:
 
+  [ ] Bộ cài do CHỦ QUÁN tải ở trang quản lý → Máy in → "Tải bộ cài cầu in"
+      (tải ngay trên laptop này). Bộ cài đó KÈM SẴN MÃ KÍCH HOẠT, không phải
+      gõ — nhưng chỉ dùng được trong 30 phút: tải lúc đã ngồi trước laptop.
   [ ] Laptop của quán CẮM ĐIỆN (không chạy pin) và nối vào Wi-Fi/mạng
       của quán — không phải Wi-Fi khách, không bật VPN.
   [ ] Máy in BẾP cắm dây mạng (LAN) vào cùng router với laptop, đã bật nguồn.
@@ -16,12 +19,17 @@ CHUẨN BỊ — làm đủ 3 việc này rồi mới cài:
 
 CÀI ĐẶT — một lần bấm:
 
-  1. Chép cả thư mục này vào Desktop của laptop quán.
-  2. Double-click file  CAI-DAT.bat
+  1. Chuột phải file vừa tải (cau-in.zip) → "Extract All" (Giải nén tất cả)
+     → Extract.
+  2. Trong thư mục vừa giải nén chỉ có  CAI-DAT.bat  và thư mục  bo-cai
+     (không cần mở). Double-click  CAI-DAT.bat
   3. Windows hỏi "Do you want to allow..." → bấm YES.
-  4. Ngồi đợi. Máy tự cài Node (vài phút, ĐỪNG tắt cửa sổ).
+  4. Màn cài hiện "Dung ma kich hoat di kem bo cai" là xong phần mã.
+     Nếu nó HỎI mã (bộ cài quá 30 phút, hoặc do quản lý tải):
+     chủ quán tải lại bộ cài rồi chạy lại CAI-DAT.bat của bộ mới.
+     (Máy đã cài cầu in trước đây thì bộ cài tự dùng lại, không cần mã.)
 
-  Trong lúc cài chỉ phải trả lời 2 câu:
+  Sau đó chỉ phải trả lời 2 câu:
 
   Câu 1 — "Giấy ra ở đâu? (b = bếp, q = quầy, k = không ra gì)"
      Máy in một phiếu thử rồi hỏi. PHẢI ĐI XUỐNG BẾP NHÌN TẬN MẮT,
@@ -33,6 +41,8 @@ CÀI ĐẶT — một lần bấm:
 
   Câu 2 — "Máy in QUẦY (in hóa đơn) là số mấy?"
      Nhìn danh sách rồi gõ số tương ứng. Đây là máy in hóa đơn cho khách.
+     Hóa đơn bấm từ ĐIỆN THOẠI / TABLET của phục vụ cũng ra máy này — nên
+     laptop quầy phải BẬT trong giờ bán.
 
   Xong sẽ hiện "CAI DAT XONG" màu xanh.
 
@@ -56,11 +66,12 @@ KIỂM TRA — làm đủ 4 phép thử mới coi là xong:
 
 NHỮNG ĐIỀU KHÔNG ĐƯỢC LÀM:
 
-  - Không xóa / đổi tên thư mục  C:\cau-in-...  trên ổ C.
+  - Không xóa / đổi tên thư mục  C:\cau-in  trên ổ C.
   - Không đóng cửa sổ đen "CAU IN BEP DANG CHAY" nếu thấy nó mở
     (đóng = bếp ngừng nhận phiếu). Bình thường nó chạy ẩn, không thấy.
-  - Không gửi thư mục này / file .env.local cho ai khác:
-    trong đó có khóa truy cập máy chủ.
+  - Không gửi file  C:\cau-in\.env.local  cho ai khác: sau khi cài,
+    trong đó có mật khẩu cầu in của quán. (Bộ cài cau-in.zip thì KHÔNG có
+    mật khẩu nào — gửi qua Zalo/USB được.)
   - Không mở POS bằng cửa sổ Chrome thường — phải mở bằng lối tắt "POS",
     nếu không mỗi lần in sẽ hiện hộp thoại chọn máy in.
 
@@ -69,7 +80,8 @@ HỎNG THÌ LÀM GÌ:
 
   Máy in bếp có vấn đề (lúc cài báo "Khong tim thay may in nao trong mang",
   hoặc đang chạy tự nhiên bếp mất phiếu):
-     → Double-click  KIEM-TRA-MAY-IN.bat
+     → Mở thư mục  C:\cau-in  → double-click  KIEM-TRA-MAY-IN.bat
+       (chưa cài xong thì file này nằm trong thư mục  bo-cai  của bộ cài)
        Nó dò cả mạng, in ra danh sách máy in tìm thấy và lý do nếu không thấy.
        Biết IP rồi thì gõ IP vào để in một phiếu thử — giấy ra và tự cắt là máy in ổn.
 
@@ -85,11 +97,22 @@ HỎNG THÌ LÀM GÌ:
 
   Vẫn không được — chạy lại  CAI-DAT.bat  (chạy lại nhiều lần vô hại).
 
-  Muốn xem lỗi: double-click  print-bridge.bat  (có cửa sổ hiện log).
+  Muốn xem lỗi: double-click  C:\cau-in\print-bridge.bat  (có cửa sổ hiện log).
   Xem xong NHỚ ĐÓNG cửa sổ đó lại — để hai cầu in chạy cùng lúc sẽ in
   trùng phiếu, bếp nhận 2 tờ giống nhau.
 
   Máy in bếp mới thay / đổi IP:
      → Chạy lại  CAI-DAT.bat, nó sẽ dò lại từ đầu.
+
+  Cài lại báo "Can MA KICH HOAT" dù máy đã cài trước đây:
+     → Tài khoản cầu in cũ đã bị thu hồi hoặc thay. Chủ quán tải lại bộ cài
+       ở trang quản lý → Máy in, chạy CAI-DAT.bat của bộ mới.
+
+
+GỠ CẦU IN KHỎI MÁY (quán ngừng dùng, đổi sang máy khác):
+
+  Double-click  C:\cau-in\GO-CAI-DAT.bat  → bấm YES → gõ  co  để xác nhận.
+  Máy mất hoặc không dùng nữa: báo người quản lý THU HỒI cầu in của quán
+  (ở /super) — để máy đó không in được phiếu của quán nữa.
 
 ========================================================================

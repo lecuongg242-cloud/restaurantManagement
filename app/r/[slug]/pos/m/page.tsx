@@ -1,52 +1,11 @@
 import { redirect } from "next/navigation";
-import { getSessionMembership } from "@/lib/auth/session";
-import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
-import { getPosSnapshot } from "@/lib/orders/pos";
-import { getCustomerMenu } from "@/lib/orders/customer-menu";
-import { getMenuPortions } from "@/lib/inventory/pos-portions";
-import { createClient } from "@/lib/supabase/server";
-import { parseSettings } from "@/lib/tenant/settings";
-import { StaffMobileOrder } from "@/components/pos/StaffMobileOrder";
-
-export const dynamic = "force-dynamic";
 
 /**
- * Màn gọi món tại bàn trên ĐIỆN THOẠI (ORDER-15) — `/r/{slug}/pos/m`.
- *
- * Nằm dưới `/pos` để dùng lại nguyên guard vai trò của bề mặt POS: nhân viên đăng nhập một lần
- * đầu ca (email + PIN, QD-009) và `session.membershipId` chính là danh tính gõ đơn, nên không có
- * bước "chọn nhân viên" nào. KHÔNG bọc trong `StationScreen`: header của nó là bố cục desktop,
- * ăn mất chiều cao quý giá ở khổ 360px — màn này tự dựng header gọn.
+ * `/pos/m` đã về hưu (ORDER-20, QD-020 D2): POS đầy đủ chạy được trên điện thoại (thanh tab Bàn · Thực đơn ·
+ * Đơn), nên màn gọi món riêng cho điện thoại không còn cần. Giữ đường dẫn để lối tắt / dấu trang đã lưu
+ * trên điện thoại phục vụ vẫn mở đúng chỗ.
  */
-export default async function StaffMobileOrderPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
+export default async function PosMobileRedirect({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-
-  const session = await getSessionMembership(slug);
-  if (!session) redirect(`/r/${slug}/pos/login`);
-  if (!canAccess(session.role, "pos")) redirect(defaultRouteForRole(slug, session.role));
-
-  const supabase = await createClient();
-  const [snapshot, menu, { data: tenantRow }, portions] = await Promise.all([
-    getPosSnapshot(session.tenant.id, slug),
-    getCustomerMenu(slug),
-    supabase.from("tenants").select("settings").eq("id", session.tenant.id).maybeSingle(),
-    getMenuPortions(session.tenant.id, slug),
-  ]);
-
-  const settings = parseSettings(tenantRow?.settings);
-
-  return (
-    <StaffMobileOrder
-      slug={slug}
-      staffName={session.displayName ?? "Nhân viên"}
-      initial={snapshot}
-      menu={menu}
-      portions={portions}
-      counter={settings.service_mode === "counter"}
-    />
-  );
+  redirect(`/r/${slug}/pos`);
 }

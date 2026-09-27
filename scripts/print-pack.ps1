@@ -1,37 +1,39 @@
-# scripts/print-pack.ps1 — Dong goi bo cai dat cau in cho MOT quan, bam mot lan la xong.
+# scripts/print-pack.ps1 - Dong goi BO CAI CAU IN CHUNG cho moi quan (PRINT-11, QD-019 D6, D7).
 #
-# Chay tren MAY DEV (co repo + .env.local). Sinh ra thu muc cau-in-<slug> day du file
-# va mot file .zip de mang di lap: chep sang laptop quan -> double-click CAI-DAT.bat.
+# Chay tren MAY DEV (co repo). Sinh ra thu muc cau-in\ + cau-in.zip - GIONG NHAU cho moi quan.
+# Giai nen ra chi thay CAI-DAT.bat + thu muc bo-cai\ (moi file khac nam trong do) - nguoi lap khong
+# phai chon giua hang chuc file:
+#   - KHONG co mat khau, KHONG co ten quan. Luc cai, nguoi lap go MA KICH HOAT (tao o /super ->
+#     "Ma cai cau in") -> may nhan tai khoan `printer` cua dung quan.
+#   - Kem node\node.exe (Node LTS chinh thuc, da kiem SHA-256): may quan khong can cai Node, khong can winget.
 #
-# Truoc day phai tu tay ghep file + go .env.local, thieu mot dong la print-setup.ps1
-# dung o buoc 3 ("Thieu file .env.local trong thu muc nguon").
+# Truoc 27/09/2026 moi quan mot goi rieng, mat khau tai khoan cau in nam san trong zip (-BridgePassword).
 #
 # Chay:
-#   powershell -ExecutionPolicy Bypass -File print-pack.ps1
-#   powershell -ExecutionPolicy Bypass -File print-pack.ps1 -Slug bun-bo -Chars 32
+#   powershell -ExecutionPolicy Bypass -File scripts\print-pack.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\print-pack.ps1 -AppBase https://ten-mien -NodeMajor 24
 #
-# Tham so (bo qua het cung chay duoc, dung mac dinh ben duoi):
-#   -Slug    Slug quan trong URL /r/<slug>. Mac dinh: qt-food
-#   -BridgePassword  BAT BUOC. Mat khau tai khoan cau in, lay o /super -> "Tai khoan cau in".
-#                    Chi hien mot lan luc cap; mat thi vao /super cap lai.
-#   -BridgeEmail     Mac dinh: print-<slug>@bridge.local (dung nhu /super sinh ra)
-#   -AppUrl  URL trang POS. Mac dinh: https://restaurant-management-zeta.vercel.app/r/<slug>/pos
-#   -Chars   Kho giay may in bep: 48 = 80mm (mac dinh), 32 = 58mm
-#   -OutDir  Thu muc xuat. Mac dinh: <repo>\cau-in-<slug>
+# Tham so:
+#   -AppBase    Dia chi app (de doi ma kich hoat). Mac dinh: https://restaurant-management-zeta.vercel.app
+#   -NodeMajor  Dong Node LTS dong goi kem. Mac dinh 24.
+#   -OutDir     Thu muc xuat. Mac dinh <repo>\cau-in
+#   -NoPause    Khong mo Explorer, khong cho Enter (chay tu dong).
+#   -Upload     Dua cau-in.zip len Storage de chu quan tai o Admin -> May in (PRINT-17). Can
+#               SUPABASE_SERVICE_ROLE_KEY trong .env.local cua repo. Ghi de ban cu.
+#
+# CHI dung ky tu ASCII trong file nay: PowerShell 5.1 doc .ps1 UTF-8 khong BOM theo bang ma ANSI.
 
 param(
-  [string]$Slug,
-  [string]$AppUrl,
-  [int]$Chars = 48,
+  [string]$AppBase = "https://restaurant-management-zeta.vercel.app",
+  [int]$NodeMajor = 24,
   [string]$OutDir,
-  [string]$BridgeEmail,
-  [string]$BridgePassword,
-  # Khong mo Explorer, khong cho Enter o cuoi - de chay tu dong (khong co nguoi ngoi truoc may).
-  [switch]$NoPause
+  [switch]$NoPause,
+  [switch]$Upload
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 function Ok($text) { Write-Host "      OK - $text" -ForegroundColor Green }
 
@@ -46,120 +48,91 @@ function Die($text) {
   Write-Host ""
   Write-Host "  DUNG LAI: $text" -ForegroundColor Red
   Write-Host ""
-  Read-Host "Nhan Enter de dong"
+  if (-not $NoPause) { Read-Host "Nhan Enter de dong" }
   exit 1
 }
 
+if (-not $OutDir) { $OutDir = Join-Path $RepoRoot "cau-in" }
+$AppBase = $AppBase.TrimEnd("/")
+
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor White
-Write-Host " DONG GOI BO CAI DAT CAU IN" -ForegroundColor White
+Write-Host " DONG GOI BO CAI CAU IN (CHUNG MOI QUAN)" -ForegroundColor White
 Write-Host "==========================================" -ForegroundColor White
 
-# ── 1. Doc .env.local cua repo ─────────────────────────────────────────────────
-# Lay dung 2 khoa cau in can. KHONG chep ca file: .env.local cua repo con
-# POSTGRES_PASSWORD / STAFF_PIN_PEPPER — laptop quan khong can, chep sang la rai secret.
+# -- 1. Node LTS portable -------------------------------------------------------
 Write-Host ""
-Write-Host "[1/4] Doc cau hinh tu .env.local cua repo" -ForegroundColor Cyan
-$envPath = Join-Path $RepoRoot ".env.local"
-if (-not (Test-Path $envPath)) {
-  Die "Khong thay $envPath. Chay script nay tren may dev co repo day du."
+Write-Host "[1/4] Tai Node $NodeMajor LTS ban chinh thuc cho Windows x64" -ForegroundColor Cyan
+$index = Invoke-RestMethod -Uri "https://nodejs.org/dist/index.json" -TimeoutSec 60
+$rel = $index | Where-Object { $_.version -like "v$NodeMajor.*" -and $_.lts -and ($_.files -contains "win-x64-zip") } |
+  Select-Object -First 1
+if (-not $rel) { Die "Khong tim thay Node $NodeMajor LTS co ban win-x64-zip tren nodejs.org." }
+$ver = $rel.version
+$zipName = "node-$ver-win-x64.zip"
+$cacheZip = Join-Path $env:TEMP $zipName
+if (-not (Test-Path $cacheZip)) {
+  Invoke-WebRequest -Uri "https://nodejs.org/dist/$ver/$zipName" -OutFile $cacheZip -UseBasicParsing -TimeoutSec 600
 }
 
-$cfg = @{}
-foreach ($raw in (Get-Content $envPath -Encoding UTF8)) {
-  $line = $raw.Trim()
-  if (-not $line -or $line.StartsWith("#")) { continue }
-  $eq = $line.IndexOf("=")
-  if ($eq -lt 1) { continue }
-  $k = $line.Substring(0, $eq).Trim()
-  $v = $line.Substring($eq + 1).Trim()
-  if ($v.Length -gt 1 -and (($v.StartsWith('"') -and $v.EndsWith('"')) -or
-                            ($v.StartsWith("'") -and $v.EndsWith("'")))) {
-    $v = $v.Substring(1, $v.Length - 2)
-  }
-  if (-not $cfg.ContainsKey($k)) { $cfg[$k] = $v }
+# Kiem SHA-256 theo SHASUMS256.txt cua chinh nodejs.org: node.exe se chay duoi SYSTEM tren may moi quan.
+$sums = (Invoke-WebRequest -Uri "https://nodejs.org/dist/$ver/SHASUMS256.txt" -UseBasicParsing -TimeoutSec 60).Content
+$dong = ($sums -split "`n") | Where-Object { $_ -match "\s$([regex]::Escape($zipName))\s*$" } | Select-Object -First 1
+if (-not $dong) { Die "SHASUMS256.txt khong co dong cho $zipName." }
+$mong = ($dong -split "\s+")[0].ToLower()
+$that = (Get-FileHash -Algorithm SHA256 $cacheZip).Hash.ToLower()
+if ($mong -ne $that) {
+  Remove-Item $cacheZip -Force
+  Die "SHA-256 cua $zipName KHONG khop (tai hong hoac bi sua). Da xoa ban tai - chay lai."
 }
+Ok "Node $ver - SHA-256 khop nodejs.org"
 
-# CO Y chi lay khoa CONG KHAI. SUPABASE_SERVICE_ROLE_KEY khong bao gio roi khoi may dev nua
-# (QD-012 §1): no bo qua RLS toan project, mot laptop quan bi mat la lo du lieu MOI nha hang.
-foreach ($k in @("NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY")) {
-  if (-not $cfg[$k]) { Die "Thieu $k trong $envPath" }
-}
-Ok "Da lay NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY (khong lay service-role)"
-
-if (-not $Slug) { $Slug = "qt-food" }
-if (-not $BridgeEmail) { $BridgeEmail = "print-$Slug@bridge.local" }
-if (-not $BridgePassword) {
-  Die "Thieu -BridgePassword. Vao /super -> hang nha hang '$Slug' -> 'Tai khoan cau in' -> 'Cap tai khoan', roi chay lai kem -BridgePassword '<mat khau>'."
-}
-if (-not $AppUrl) { $AppUrl = "https://restaurant-management-zeta.vercel.app/r/$Slug/pos" }
-if (-not $OutDir) { $OutDir = Join-Path $RepoRoot "cau-in-$Slug" }
-$InstallDir = "C:\cau-in-$Slug"
-
-Ok "Quan = $Slug"
-Ok "POS  = $AppUrl"
-
-# ── 2. Chep file ───────────────────────────────────────────────────────────────
+# -- 2. Ghep thu muc ------------------------------------------------------------
 Write-Host ""
 Write-Host "[2/4] Ghep thu muc $OutDir" -ForegroundColor Cyan
-$files = @{
+if (Test-Path $OutDir) { Remove-Item $OutDir -Recurse -Force }
+$BoCai = Join-Path $OutDir "bo-cai"
+New-Item -ItemType Directory -Force -Path (Join-Path $BoCai "node") | Out-Null
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [IO.Compression.ZipFile]::OpenRead($cacheZip)
+try {
+  $entry = $zip.Entries | Where-Object { $_.FullName -like "*/node.exe" } | Select-Object -First 1
+  if (-not $entry) { Die "Trong $zipName khong co node.exe." }
+  [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $BoCai "node\node.exe"), $true)
+} finally { $zip.Dispose() }
+Ok "Da lay node\node.exe"
+
+# Script + ps1 chep nguyen trang; .bat CHUAN HOA ve CRLF (khong phu thuoc git checkout LF hay CRLF).
+$files = [ordered]@{
   "print-bridge.mjs"   = "print-bridge.mjs"
-  "print-bridge.bat"   = "print-bridge.bat"
   "print-scan.ps1"     = "print-scan.ps1"
   "print-setup.ps1"    = "print-setup.ps1"
+  "print-activate.ps1" = "print-activate.ps1"
+  "print-raw.ps1"      = "print-raw.ps1"
+  "go-cai-dat.ps1"     = "go-cai-dat.ps1"
   "print-huongdan.txt" = "HUONG-DAN.txt"
 }
 foreach ($src in $files.Keys) {
   if (-not (Test-Path (Join-Path $PSScriptRoot $src))) { Die "Thieu scripts\$src trong repo." }
+  Copy-Item (Join-Path $PSScriptRoot $src) (Join-Path $BoCai $files[$src]) -Force
 }
+Write-TextFile (Join-Path $BoCai "print-bridge.bat") ([IO.File]::ReadAllText((Join-Path $PSScriptRoot "print-bridge.bat")))
+Ok ("Da chep " + ($files.Count + 1) + " file")
 
-New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-foreach ($src in $files.Keys) {
-  Copy-Item (Join-Path $PSScriptRoot $src) (Join-Path $OutDir $files[$src]) -Force
-}
-Ok ("Da chep " + $files.Count + " file")
-
-# ── 3. Sinh .env.local + CAI-DAT.bat ───────────────────────────────────────────
+# -- 3. Cua ngo cho nguoi lap ---------------------------------------------------
 Write-Host ""
-Write-Host "[3/4] Sinh .env.local va CAI-DAT.bat" -ForegroundColor Cyan
+Write-Host "[3/4] Sinh CAI-DAT.bat, KIEM-TRA-MAY-IN.bat, GO-CAI-DAT.bat" -ForegroundColor Cyan
 
-# PRINTER_HOST co y KHONG ghi o day: print-setup.ps1 buoc 4 tu do may in bep roi ghi vao.
-$envOut = @"
-# Cau hinh cau in bep - quan $Slug
-# File nay do scripts/print-pack.ps1 sinh ra. KHONG gui cho nguoi ngoai.
-#
-# Tai khoan duoi day chi la thanh vien vai tro `printer` cua DUNG quan nay: lo ra ngoai thi
-# thiet hai gioi han trong quan nay, va no khong mo duoc /admin, /pos hay /kds (QD-012 §1).
-# Tenant suy tu chinh token - khong co dong nao chi dinh quan o day, nen khong the cau hinh nham.
-NEXT_PUBLIC_SUPABASE_URL=$($cfg['NEXT_PUBLIC_SUPABASE_URL'])
-NEXT_PUBLIC_SUPABASE_ANON_KEY=$($cfg['NEXT_PUBLIC_SUPABASE_ANON_KEY'])
-PRINT_BRIDGE_EMAIL=$BridgeEmail
-PRINT_BRIDGE_PASSWORD=$BridgePassword
-PRINTER_PORT=9100
-PRINTER_CHARS=$Chars
-POLL_MS=2000
-MAX_JOB_AGE_MIN=30
-"@
-
-Write-TextFile (Join-Path $OutDir ".env.local") $envOut
-Ok "Da ghi .env.local (PRINTER_HOST de trong, luc cai tu do)"
-
-# Chi mot cua ngo duy nhat cho nguoi lap: CAI-DAT.bat. URL POS va thu muc cai
-# nhung san vao day de tai quan bot mot cau hoi de tra loi sai.
-$batOut = @"
+Write-TextFile (Join-Path $OutDir "CAI-DAT.bat") @"
 @echo off
-REM CAI-DAT.bat - Double-click de cai dat cau in cho quan $Slug.
+REM CAI-DAT.bat - Double-click de cai cau in. Dung cho MOI quan: luc cai se hoi MA KICH HOAT.
 REM File nay do scripts/print-pack.ps1 sinh ra, dung sua tay.
 cd /d "%~dp0"
-REM %* de chay lai voi tham so, vd: CAI-DAT.bat -KitchenIp 192.168.1.87
-powershell -ExecutionPolicy Bypass -File "%~dp0print-setup.ps1" -AppUrl "$AppUrl" -InstallDir "$InstallDir" %*
+REM %* de chay lai voi tham so, vd: CAI-DAT.bat -KitchenIp 192.168.1.87 -ActivationCode ABCD-EFGH
+powershell -ExecutionPolicy Bypass -File "%~dp0bo-cai\print-setup.ps1" -ApiBase "$AppBase" %*
 "@
-Write-TextFile (Join-Path $OutDir "CAI-DAT.bat") $batOut
-Ok "Da ghi CAI-DAT.bat (POS = $AppUrl, cai vao $InstallDir)"
 
-# Windows mo file .ps1 bang Notepad khi double-click, khong chay. Nguoi lap tai quan
-# khong go lenh PowerShell duoc -> boc print-scan.ps1 vao mot file .bat.
-$checkOut = @'
+Write-TextFile (Join-Path $BoCai "KIEM-TRA-MAY-IN.bat") @'
 @echo off
 REM KIEM-TRA-MAY-IN.bat - Double-click de do may in va in phieu thu.
 REM File nay do scripts/print-pack.ps1 sinh ra, dung sua tay.
@@ -171,16 +144,43 @@ if not "%IP%"=="" powershell -ExecutionPolicy Bypass -File "%~dp0print-scan.ps1"
 echo.
 pause
 '@
-Write-TextFile (Join-Path $OutDir "KIEM-TRA-MAY-IN.bat") $checkOut
-Ok "Da ghi KIEM-TRA-MAY-IN.bat (do may in + in phieu thu)"
 
-# ── 4. Nen lai de mang di ──────────────────────────────────────────────────────
+Write-TextFile (Join-Path $BoCai "GO-CAI-DAT.bat") @'
+@echo off
+REM GO-CAI-DAT.bat - Double-click de go cau in khoi may nay (hoi xac nhan truoc khi xoa).
+REM File nay do scripts/print-pack.ps1 sinh ra, dung sua tay.
+powershell -ExecutionPolicy Bypass -File "%~dp0go-cai-dat.ps1"
+'@
+Ok "Da ghi 3 file .bat (CRLF)"
+
+# Chot chan: bo cai CHUNG khong duoc mang bat ky bi mat nao.
+$loRi = Get-ChildItem $OutDir -Recurse -File | Where-Object { $_.Extension -ne ".exe" } |
+  Select-String -Pattern '^\s*PRINT_BRIDGE_PASSWORD=\S|^\s*SUPABASE_SERVICE_ROLE_KEY=\S|AGE-SECRET-KEY-' -List
+if ($loRi) { Die ("Bo cai chua bi mat: " + (($loRi | ForEach-Object { $_.Path }) -join ", ")) }
+if (Get-ChildItem $OutDir -Recurse -Force -File -Filter ".env*") { Die "Bo cai co file .env - khong duoc." }
+# Ngoai cung CHI co CAI-DAT.bat + bo-cai\ - them file o ngoai la nguoi lap lai phai doan bam cai nao.
+$ngoai = @(Get-ChildItem $OutDir -Force | ForEach-Object { $_.Name } | Sort-Object)
+if (($ngoai -join ",") -ne "bo-cai,CAI-DAT.bat") { Die ("Ngoai cung bo cai chi duoc co CAI-DAT.bat + bo-cai, dang co: " + ($ngoai -join ", ")) }
+Ok "Khong co mat khau / khoa bi mat nao trong bo cai"
+
+# -- 4. Nen ---------------------------------------------------------------------
 Write-Host ""
 Write-Host "[4/4] Nen thanh file zip" -ForegroundColor Cyan
-$zip = Join-Path $RepoRoot "cau-in-$Slug.zip"
-if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path (Join-Path $OutDir "*") -DestinationPath $zip -Force
-Ok "Da nen: $zip"
+$zipOut = Join-Path (Split-Path -Parent $OutDir) "cau-in.zip"
+if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
+Compress-Archive -Path (Join-Path $OutDir "*") -DestinationPath $zipOut -Force
+Ok ("Da nen: $zipOut (" + [math]::Round((Get-Item $zipOut).Length / 1MB, 1) + " MB)")
+
+if ($Upload) {
+  Write-Host ""
+  Write-Host "[+] Dua bo cai len Storage (Admin -> May in -> Tai bo cai)" -ForegroundColor Cyan
+  Push-Location $RepoRoot
+  try {
+    & node (Join-Path $PSScriptRoot "print-upload.mjs") $zipOut
+    if ($LASTEXITCODE -ne 0) { Die "Dua bo cai len that bai (xem loi o tren)." }
+  } finally { Pop-Location }
+  Ok "Chu quan tai duoc o Admin -> May in"
+}
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Green
@@ -188,16 +188,15 @@ Write-Host " DONG GOI XONG" -ForegroundColor Green
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host " Thu muc : $OutDir"
-Write-Host " File zip: $zip"
+Write-Host " File zip: $zipOut"
+Write-Host " Node    : $ver"
 Write-Host ""
 Write-Host " TAI QUAN:" -ForegroundColor Yellow
-Write-Host "  1. Chep thu muc (hoac giai nen file zip) vao Desktop laptop quan"
-Write-Host "  2. Double-click CAI-DAT.bat -> bam Yes khi Windows xin quyen"
-Write-Host "  3. Chi phai tra loi 2 cau: giay thu ra o BEP hay QUAY, va may in quay la cai nao"
+Write-Host "  1. Chep file zip vao Desktop laptop quan, giai nen (da -Upload: chu quan tu tai o Admin -> May in)"
+Write-Host "  2. Goi nguoi quan ly lay MA KICH HOAT (tao o /super -> 'Ma cai cau in'), song 30 phut"
+Write-Host "  3. Double-click CAI-DAT.bat -> Yes -> go ma -> tra loi: giay thu ra o BEP hay QUAY, may in quay la cai nao"
 Write-Host ""
-Write-Host " CANH BAO: bo nay chua MAT KHAU TAI KHOAN CAU IN cua quan $Slug." -ForegroundColor Yellow
-Write-Host " Lo ra ngoai thi ai cung doc/sua duoc phieu in cua quan nay (chi quan nay - QD-012)." -ForegroundColor Yellow
-Write-Host " Dung gui qua Zalo/email cho nguoi ngoai, dung commit len git." -ForegroundColor Yellow
+Write-Host " Bo cai nay KHONG chua mat khau - gui cho nguoi lap qua Zalo/USB duoc." -ForegroundColor Green
 Write-Host ""
 
 if (-not $NoPause) {

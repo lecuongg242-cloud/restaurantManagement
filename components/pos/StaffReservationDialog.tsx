@@ -89,8 +89,8 @@ export function StaffReservationDialog({
   const labelClass = "flex flex-col gap-xxs text-sm text-slate";
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-md" role="dialog" aria-modal="true" aria-label="Đặt bàn cho khách">
-      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-canvas shadow-modal">
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-md max-sm:p-0" role="dialog" aria-modal="true" aria-label="Đặt bàn cho khách">
+      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none">
         <div className="flex items-center justify-between border-b border-hairline-soft px-lg py-md">
           <h3 className="font-display text-lg text-ink">Đặt bàn cho khách</h3>
           <button type="button" onClick={onClose} aria-label="Đóng" className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface">

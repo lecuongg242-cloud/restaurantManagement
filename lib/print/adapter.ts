@@ -1,9 +1,13 @@
 /**
  * Lớp in trừu tượng (D1, §7). POS/KDS CHỈ gọi PrintAdapter — đổi cầu in sau không sửa nghiệp vụ.
  * V1: BrowserPrintAdapter (mở route in, route tự window.print + ghi log). V1.x: BridgePrintAdapter
- * (ghi print_jobs pending cho cầu in ESC/POS cục bộ poll) — bật bằng NEXT_PUBLIC_PRINT_MODE=bridge.
+ * (ghi print_jobs pending cho cầu in ESC/POS cục bộ poll) — bật theo TỪNG quán bằng
+ * `tenants.settings.print_mode` (PRINT-10). Component lấy adapter qua `usePrintAdapter()`.
  */
-import { queueKitchenTicketPrint } from "@/app/r/[slug]/print/actions";
+import { queueKitchenTicketPrint, queueReceiptPrint, queueCustomerTicketPrint } from "@/app/r/[slug]/print/actions";
+import { thietBiCoMayIn } from "@/lib/print/device";
+import { baoIn } from "@/lib/print/thong-bao-in";
+import type { PrintMode } from "@/lib/tenant/settings";
 
 export type KitchenTicketView = {
   orderId: string;
@@ -100,15 +104,25 @@ function printViaHiddenFrame(url: string): void {
   }, 120000);
 }
 
-/** V1 — in qua trình duyệt: route in nạp vào iframe ẩn (route lo window.print + ghi print_jobs). */
+const KHONG_CO_MAY_IN =
+  "Thiết bị này không nối máy in. Quán đang in từ máy quầy — in ở máy quầy, hoặc bật cầu in trong Cài đặt.";
+const CAU_IN_KHONG_NHAN = "Cầu in ở quầy không chạy (laptop quầy tắt?) — in từ máy quầy.";
+
+/**
+ * In qua trình duyệt: route in nạp vào iframe ẩn (route lo window.print + ghi print_jobs). Thiết bị không
+ * nối máy in (điện thoại, tablet) thì hộp thoại in là vô ích — báo rõ thay vì mở nó (PRINT-16).
+ */
 class BrowserPrintAdapter implements PrintAdapter {
   printKitchenTicket({ slug, orderId, width = "80" }: PrintKitchenArgs): void {
+    if (!thietBiCoMayIn()) return baoIn("loi", KHONG_CO_MAY_IN);
     printViaHiddenFrame(`/r/${slug}/print/kitchen/${orderId}?w=${width}`);
   }
   printCustomerTicket({ slug, orderId, width = "80" }: PrintCustomerArgs): void {
+    if (!thietBiCoMayIn()) return baoIn("loi", KHONG_CO_MAY_IN);
     printViaHiddenFrame(`/r/${slug}/print/customer/${orderId}?w=${width}`);
   }
   printReceipt({ slug, billId, width = "80" }: PrintReceiptArgs): void {
+    if (!thietBiCoMayIn()) return baoIn("loi", KHONG_CO_MAY_IN);
     printViaHiddenFrame(`/r/${slug}/print/receipt/${billId}?w=${width}`);
   }
 }
@@ -123,33 +137,65 @@ class BridgePrintAdapter implements PrintAdapter {
   private browser = new BrowserPrintAdapter();
 
   printKitchenTicket(args: PrintKitchenArgs): void {
-    const fallback = () => this.browser.printKitchenTicket(args);
+    // Đường lui khi cầu in không nhận: in trình duyệt NHƯ TRƯỚC P12, không xét thiết bị — laptop quầy phóng
+    // to chữ 125–150% có thể rộng < 1024 px; báo lỗi ở đó là bếp mất phiếu. Điện thoại thì thấy hộp thoại in
+    // vô ích, nhưng mất phiếu bếp đắt hơn nhiều.
+    const fallback = () =>
+      printViaHiddenFrame(`/r/${args.slug}/print/kitchen/${args.orderId}?w=${args.width ?? "80"}`);
     queueKitchenTicketPrint(args.slug, args.orderId)
       .then((res) => {
         if (!res?.ok) fallback();
       })
       .catch(fallback);
   }
+
+  /**
+   * Hóa đơn / phiếu khách (PRINT-16). Máy CÓ máy in (máy quầy) in trình duyệt NHƯ CŨ — chưa đổi đường in
+   * của máy quầy khi chưa thử in ảnh trên máy thật của quán. Thiết bị không có máy in → ra máy in quầy
+   * qua cầu in.
+   */
   printCustomerTicket(args: PrintCustomerArgs): void {
-    this.browser.printCustomerTicket(args);
+    if (thietBiCoMayIn()) return this.browser.printCustomerTicket(args);
+    xepRaQuay(() => queueCustomerTicketPrint(args.slug, args.orderId), "phiếu khách", () =>
+      printViaHiddenFrame(`/r/${args.slug}/print/customer/${args.orderId}?w=${args.width ?? "80"}`)
+    );
   }
   printReceipt(args: PrintReceiptArgs): void {
-    this.browser.printReceipt(args);
+    if (thietBiCoMayIn()) return this.browser.printReceipt(args);
+    xepRaQuay(() => queueReceiptPrint(args.slug, args.billId), "hóa đơn", () =>
+      printViaHiddenFrame(`/r/${args.slug}/print/receipt/${args.billId}?w=${args.width ?? "80"}`)
+    );
   }
 }
 
-let instance: PrintAdapter | null = null;
+/**
+ * `inNhuCu`: cầu in CHƯA KHAI máy in quầy (bản cũ, vd qt-food trước khi cài lại) → in trình duyệt như trước
+ * P12. Không có nhánh này thì laptop quầy rộng < 1024 px (Windows phóng to chữ) sẽ báo lỗi thay vì in.
+ */
+function xepRaQuay(
+  xep: () => Promise<{ ok: true } | { ok: false; lyDo: "cau-in" | "chua-khai" | "loi" }>,
+  ten: string,
+  inNhuCu: () => void
+): void {
+  xep()
+    .then((r) => {
+      if (r.ok) baoIn("ok", `Đã gửi ${ten} ra máy in quầy.`);
+      else if (r.lyDo === "chua-khai") inNhuCu();
+      else baoIn("loi", r.lyDo === "cau-in" ? CAU_IN_KHONG_NHAN : `Không gửi được ${ten} — thử lại.`);
+    })
+    .catch(() => baoIn("loi", `Mất kết nối — chưa gửi được ${ten}, thử lại.`));
+}
+
+const instances: Partial<Record<PrintMode, PrintAdapter>> = {};
 
 /**
- * Adapter theo cấu hình: NEXT_PUBLIC_PRINT_MODE=bridge → cầu in ESC/POS; mặc định = trình duyệt.
- * Nơi gọi (POS/KDS) không đổi.
+ * Adapter theo chế độ in của quán: `bridge` → cầu in ESC/POS; `browser` → trình duyệt. Mỗi chế độ giữ
+ * một adapter (không trạng thái riêng theo quán, nên dùng chung được). Nơi gọi (POS/KDS) không đổi.
  */
-export function getPrintAdapter(): PrintAdapter {
-  if (!instance) {
-    instance =
-      process.env.NEXT_PUBLIC_PRINT_MODE === "bridge"
-        ? new BridgePrintAdapter()
-        : new BrowserPrintAdapter();
-  }
-  return instance;
+export function getPrintAdapter(mode: PrintMode): PrintAdapter {
+  const co = instances[mode];
+  if (co) return co;
+  const moi = mode === "bridge" ? new BridgePrintAdapter() : new BrowserPrintAdapter();
+  instances[mode] = moi;
+  return moi;
 }

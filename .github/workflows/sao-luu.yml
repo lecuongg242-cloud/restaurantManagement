@@ -1,0 +1,86 @@
+name: Sao lưu hằng đêm
+
+# OPS-09 / QD-019 D1. Một bản sao lưu = dữ liệu + ảnh + tự kiểm (`day-du`), khóa bằng age, cất ngoài
+# Supabase 90 ngày. Không ai phải nhớ chạy, không ai phải bật máy.
+#
+# Repo có thể public: artifact tải được bởi bất kỳ ai đăng nhập GitHub. Vì vậy CI chỉ giữ KHÓA CÔNG
+# KHAI — bản sao lưu được khóa ngay trên runner, bản chưa khóa bị xóa trước khi upload. Khóa bí mật
+# chỉ nằm ở chỗ chủ dự án. Khôi phục: docs/50-PhienBan/KhoiPhucTuSaoLuu.md
+
+on:
+  schedule:
+    # 19:00 UTC = 02:00 giờ VN — ngoài giờ bán của mọi quán.
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sao-luu
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sao-luu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      POSTGRES_URL_NON_POOLING: ${{ secrets.BACKUP_DB_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.BACKUP_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.BACKUP_SERVICE_ROLE_KEY }}
+      AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+    steps:
+      # Thiếu secrets mà vẫn xanh là loại cổng không bảo vệ gì — dừng hẳn, để GitHub gửi email báo lỗi.
+      - name: Kiểm đủ secrets
+        run: |
+          thieu=""
+          [ -n "$POSTGRES_URL_NON_POOLING" ] || thieu="$thieu BACKUP_DB_URL"
+          [ -n "$NEXT_PUBLIC_SUPABASE_URL" ] || thieu="$thieu BACKUP_SUPABASE_URL"
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] || thieu="$thieu BACKUP_SERVICE_ROLE_KEY"
+          [ -n "$AGE_RECIPIENT" ] || thieu="$thieu BACKUP_AGE_RECIPIENT"
+          if [ -n "$thieu" ]; then
+            echo "::error::Thiếu secrets:$thieu — không sao lưu được."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cài thư viện
+        run: npm ci
+
+      - name: Cài age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
+      - name: Đặt tên theo ngày VN
+        run: echo "NGAY=$(TZ=Asia/Ho_Chi_Minh date +%F)" >> "$GITHUB_ENV"
+
+      # `day-du` thoát mã 1 nếu tự kiểm HỎNG (thiếu dòng, sai mã băm, thiếu ảnh) → workflow đỏ.
+      - name: Sao lưu dữ liệu + ảnh + tự kiểm
+        run: node scripts/db-backup.mjs day-du "sao-luu/$NGAY"
+
+      - name: Đóng gói và khóa
+        run: |
+          tar -czf - -C sao-luu "$NGAY" | age -r "$AGE_RECIPIENT" -o "sao-luu-$NGAY.tar.gz.age"
+          # Bản chưa khóa không được sống tới bước upload.
+          rm -rf sao-luu
+          # Tệp ra phải thật là dữ liệu age, không phải tar/JSON lọt qua.
+          dau=$(head -c 21 "sao-luu-$NGAY.tar.gz.age")
+          if [ "$dau" != "age-encryption.org/v1" ]; then
+            echo "::error::Tệp sao lưu không phải dữ liệu age — dừng, không upload."
+            exit 1
+          fi
+          ls -l "sao-luu-$NGAY.tar.gz.age"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sao-luu-${{ env.NGAY }}
+          path: sao-luu-${{ env.NGAY }}.tar.gz.age
+          retention-days: 90
+          if-no-files-found: error
+          # Đã nén + khóa — nén thêm chỉ tốn thời gian.
+          compression-level: 0

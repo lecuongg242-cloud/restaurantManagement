@@ -39,7 +39,7 @@ export function SearchField({
         inputMode="search"
         placeholder={placeholder}
         aria-label={ariaLabel}
-        className="h-11 w-full rounded-full border border-hairline-strong bg-canvas pl-9 pr-9 text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm"
+        className="h-11 w-full rounded-full border border-hairline-strong bg-canvas pl-9 pr-9 text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 lg:text-sm"
       />
       {value && (
         <button

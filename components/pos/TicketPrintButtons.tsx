@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Printer, Receipt, Loader2, Check, AlertTriangle } from "lucide-react";
-import { getPrintAdapter } from "@/lib/print/adapter";
+import { usePrintAdapter, usePrintMode } from "@/lib/print/print-mode";
 import type { OrderPrintState, TicketPrintState } from "@/lib/print/adapter";
 import { getOrderPrintStatus } from "@/app/r/[slug]/print/actions";
 import { gioVn } from "@/lib/time/vn";
@@ -25,7 +25,6 @@ const BTN =
   "inline-flex h-8 w-full items-center justify-center gap-xxs whitespace-nowrap rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
 
 /** Cầu in ESC/POS: phiếu bếp in tự động ở bếp → chữ trên chip nói theo "gửi bếp", không phải "in". */
-const BRIDGE = process.env.NEXT_PUBLIC_PRINT_MODE === "bridge";
 
 // Cửa sổ hỏi lại PHẢI dài hơn ngưỡng quá hạn (PRINT-06), nếu không chip không bao giờ kịp đổi sang
 // đỏ. Hằng số nằm ở lib/print/cau-in.ts để test khẳng định được quan hệ đó.
@@ -40,6 +39,8 @@ function hhmm(iso: string | null): string {
 }
 
 export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: string }) {
+  const printer = usePrintAdapter();
+  const bridge = usePrintMode() === "bridge";
   const [print, setPrint] = useState<OrderPrintState>({ kitchen: EMPTY, customer: EMPTY });
   const polls = useRef(0);
 
@@ -87,13 +88,13 @@ export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: s
     polls.current = 0;
     // Phản hồi ngay (giữ nguyên số lần đã in); poll sẽ xác nhận bằng dữ liệu thật.
     setPrint((p) => ({ ...p, kitchen: { ...p.kitchen, status: "pending" } }));
-    getPrintAdapter().printKitchenTicket({ slug, orderId });
+    printer.printKitchenTicket({ slug, orderId });
     setTimeout(refresh, 1200); // in trình duyệt ghi 'printed' gần như tức thì
   };
   const printCustomer = () => {
     if (dangGui) return;
     khoaNut("customer");
-    getPrintAdapter().printCustomerTicket({ slug, orderId });
+    printer.printCustomerTicket({ slug, orderId });
     setTimeout(refresh, 1200); // route in ghi log khi mở → đọc lại để cập nhật số lần
   };
 
@@ -109,7 +110,7 @@ export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: s
       <button type="button" onClick={printCustomer} disabled={dangGui !== null} className={BTN}>
         <Receipt className="h-3.5 w-3.5" aria-hidden /> Phiếu khách
       </button>
-      <PrintChip state={print.kitchen} onRetry={printKitchen} bridgeKitchen={BRIDGE} />
+      <PrintChip state={print.kitchen} onRetry={printKitchen} bridgeKitchen={bridge} />
       <PrintChip state={print.customer} onRetry={printCustomer} />
     </div>
   );

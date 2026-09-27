@@ -1,5 +1,15 @@
+import type { Metadata } from "next";
 import { isTenantActive } from "@/lib/tenant/active";
+import { thuongHieuQuan } from "@/lib/tenant/thuong-hieu";
 import { TenantSuspended } from "@/components/tenant/TenantSuspended";
+
+/** Tab trình duyệt mang tên + logo của quán (mọi bề mặt: khách, POS, KDS, admin). */
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const quan = await thuongHieuQuan(slug);
+  if (!quan) return {};
+  return { title: quan.ten, icons: { icon: `/r/${slug}/favicon.png` } };
+}
 
 /**
  * Layout tenant (bao mọi bề mặt /r/[slug]/*). Ngoài việc đánh dấu data-tenant-slug để chứng minh

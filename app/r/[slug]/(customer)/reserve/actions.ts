@@ -1,7 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createReservation } from "@/lib/reservations/reservations";
+import { RULES, checkRateLimit, clientIp, tooManyMessage } from "@/lib/security/rate-limit";
 
 /** Chuẩn hóa giá trị datetime-local (giờ VN, không tz) → ISO có offset +07:00. */
 function toVnIso(raw: string): string {
@@ -13,6 +15,10 @@ function toVnIso(raw: string): string {
 export async function submitReservation(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");
   const base = `/r/${slug}/reserve`;
+
+  // TENANT-07: khóa theo IP + quán, chặn trước khi ghi.
+  const rl = await checkRateLimit(RULES.reservation, [clientIp(await headers()), slug]);
+  if (!rl.ok) redirect(`${base}?error=${encodeURIComponent(tooManyMessage(rl.retryAfterS))}`);
 
   const result = await createReservation({
     slug,

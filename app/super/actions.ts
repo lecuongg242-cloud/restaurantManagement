@@ -7,6 +7,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSuperAdmin } from "@/lib/auth/session";
 import { slugify } from "@/lib/utils";
 import { provisionPrintBridgeAccount } from "@/lib/print/bridge-account";
+import { createActivationCode, revokePrintBridge } from "@/lib/print/activation";
+import { gioVn } from "@/lib/time/vn";
 
 /** Tra tài khoản auth theo email (phân trang listUsers) — trả null nếu không có. */
 async function findAuthUserByEmail(
@@ -304,5 +306,55 @@ export async function createPrintBridgeAccount(
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Không cấp được tài khoản cầu in." };
+  }
+}
+
+/**
+ * Tạo mã kích hoạt cầu in cho một quán (PRINT-11, QD-019 D6). Người lắp gõ mã này vào bộ cài chung —
+ * không còn gói cài riêng từng quán mang sẵn mật khẩu. Từ PRINT-17 chủ quán cũng tự tạo được ở
+ * Admin → Máy in (`taoMaKichHoat`); lối này giữ cho quản trị hệ thống lắp hộ.
+ */
+export async function createBridgeActivationCode(
+  _prev: SuperActionState,
+  formData: FormData
+): Promise<SuperActionState> {
+  const su = await isSuperAdmin();
+  if (!su) redirect("/super/login");
+
+  const tenantId = String(formData.get("tenant_id") ?? "").trim();
+  if (!tenantId) return { error: "Thiếu nhà hàng." };
+
+  const admin = createAdminClient();
+  const { data: tenant } = await admin.from("tenants").select("id, status").eq("id", tenantId).maybeSingle();
+  if (!tenant) return { error: "Không tìm thấy nhà hàng." };
+  if (tenant.status !== "active") return { error: "Nhà hàng đang tạm ngưng — không cấp cầu in." };
+
+  try {
+    const { code, expiresAt } = await createActivationCode(admin, { tenantId, createdBy: null });
+    const het = gioVn(expiresAt);
+    return {
+      ok: `${code.slice(0, 4)}-${code.slice(4)}
+
+Đọc mã này cho người lắp. Dùng một lần, hết hạn lúc ${het}.`,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Không tạo được mã kích hoạt." };
+  }
+}
+
+/** Thu hồi cầu in của một quán (máy mất, quán ngừng dùng) — cầu in mất quyền ngay. */
+export async function revokeBridge(_prev: SuperActionState, formData: FormData): Promise<SuperActionState> {
+  const su = await isSuperAdmin();
+  if (!su) redirect("/super/login");
+
+  const tenantId = String(formData.get("tenant_id") ?? "").trim();
+  if (!tenantId) return { error: "Thiếu nhà hàng." };
+
+  try {
+    const n = await revokePrintBridge(createAdminClient(), tenantId);
+    revalidatePath("/super");
+    return { ok: n > 0 ? "Đã thu hồi. Cầu in của quán không in được nữa." : "Quán chưa có cầu in nào." };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Không thu hồi được." };
   }
 }

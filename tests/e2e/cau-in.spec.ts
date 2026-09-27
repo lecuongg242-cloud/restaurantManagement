@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
+import { getPrintMode, setPrintMode, type PrintMode } from "./tenant-mode";
 
 config({ path: ".env.local" });
 config();
@@ -60,9 +61,19 @@ async function vaoPos(page: Page) {
   await page.goto(`/r/${SLUG}/pos`, { waitUntil: "networkidle" });
 }
 
+let printModeCu: PrintMode = "browser";
+
 test.beforeAll(async () => {
   const { data: t } = await admin.from("tenants").select("id").eq("slug", SLUG).single();
   tenantId = t!.id as string;
+  // Spec này kiểm đường cầu in → quán phải ở chế độ cầu in (PRINT-10: chế độ theo từng quán, trước đây
+  // spec ngầm dựa vào biến môi trường chung của cả hệ thống).
+  printModeCu = await getPrintMode(SLUG);
+  await setPrintMode(SLUG, "bridge");
+});
+
+test.afterAll(async () => {
+  await setPrintMode(SLUG, printModeCu);
 });
 
 test.beforeEach(() => {

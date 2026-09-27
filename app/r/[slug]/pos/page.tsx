@@ -6,6 +6,7 @@ import { getCustomerMenu } from "@/lib/orders/customer-menu";
 import { getMenuPortions } from "@/lib/inventory/pos-portions";
 import { createClient } from "@/lib/supabase/server";
 import { parseSettings } from "@/lib/tenant/settings";
+import { PrintModeProvider } from "@/lib/print/print-mode";
 import { StationScreen } from "@/components/staff/StationScreen";
 import { PosBoard } from "@/components/pos/PosBoard";
 
@@ -54,18 +55,20 @@ export default async function PosHome({
 
   return (
     <StationScreen slug={slug} surface="pos" fill>
-      <PosBoard
-        slug={slug}
-        tenantId={session.tenant.id}
-        initial={snapshotData}
-        menu={menu}
-        portions={portions}
-        cancelStaff={cancelStaff}
-        canCancelWithoutPin={isPrincipal}
-        canBackdatePayment={isPrincipal}
-        allowDiscount={allowDiscount}
-        serviceMode={tenantSettings.service_mode}
-      />
+      <PrintModeProvider mode={tenantSettings.print_mode}>
+        <PosBoard
+          slug={slug}
+          tenantId={session.tenant.id}
+          initial={snapshotData}
+          menu={menu}
+          portions={portions}
+          cancelStaff={cancelStaff}
+          canCancelWithoutPin={isPrincipal}
+          canBackdatePayment={isPrincipal}
+          allowDiscount={allowDiscount}
+          serviceMode={tenantSettings.service_mode}
+        />
+      </PrintModeProvider>
     </StationScreen>
   );
 }

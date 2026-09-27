@@ -77,5 +77,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // Bỏ qua asset tĩnh; chạy cho mọi route ứng dụng (để refresh phiên toàn cục).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // `api/health` (OPS-10): dịch vụ theo dõi gọi 5 phút/lần mãi mãi — không cần phiên, không cần log.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

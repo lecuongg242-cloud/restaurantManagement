@@ -1,112 +1,84 @@
-import { test, expect, type Page } from "@playwright/test";
-import { getServiceMode, setServiceMode, type ServiceMode } from "./tenant-mode";
+import { test, expect } from "@playwright/test";
+import { getServiceMode, setServiceMode, getPrintMode, setPrintMode, type ServiceMode, type PrintMode } from "./tenant-mode";
+import { donBan } from "./don-ban";
+import { createClient } from "@supabase/supabase-js";
 
 /**
- * E2E ORDER-15 + ORDER-16 — nhân viên cầm ĐIỆN THOẠI gõ đơn tại bàn (/pos/m) → đơn vào thẳng
- * `confirmed` (KHÔNG qua hàng chờ duyệt) → POS quầy hiện banner "Đơn cần in phiếu" để thu ngân in.
+ * E2E ORDER-15 + ORDER-16 — nhân viên cầm ĐIỆN THOẠI gõ đơn tại bàn → đơn vào thẳng `confirmed` (KHÔNG qua
+ * hàng chờ duyệt) → POS quầy hiện banner "Đơn cần in phiếu" để thu ngân in.
  *
- * Chạy trên server đang chạy (E2E_BASE_URL). Dùng tenant demo `pho-viet` như p3.spec.ts.
+ * Từ 12-05 (ORDER-20) điện thoại dùng CHÍNH `/pos` (thanh tab Bàn · Thực đơn · Đơn); `/pos/m` chỉ còn chuyển
+ * hướng để lối tắt cũ trên điện thoại phục vụ vẫn mở đúng chỗ. Dùng tenant demo `pho-viet`.
  */
 const SLUG = "pho-viet";
-const OWNER_EMAIL = "ownerA@pho-viet.test";
-const OWNER_PASS = "DemoPass123!";
+const OWNER = { email: "ownerA@pho-viet.test", pass: "DemoPass123!" };
 const PHONE = { width: 360, height: 780 }; // khổ nhỏ nhất cam kết (ORDER-01/15)
-const SHOTS = "test-results/shots"; // trong repo, đã gitignore
+const SHOTS = "test-results/shots";
+const BAN = "T1";
 
-async function loginStaff(page: Page) {
-  await page.goto(`/r/${SLUG}/pos/m`);
-  if (page.url().includes("/login")) {
-    await page.locator('input[name="email"]').fill(OWNER_EMAIL);
-    await page.locator('input[name="secret"]').fill(OWNER_PASS);
-    await page.getByRole("button", { name: /Đăng nhập/ }).click();
-    await page.waitForFunction(() => !location.pathname.includes("/login"), null, {
-      timeout: 60000,
-    });
-  }
-  await page.goto(`/r/${SLUG}/pos/m`);
-}
-
-/**
- * Hai bộ test này thao tác trên SƠ ĐỒ BÀN ở POS — sơ đồ chỉ render khi quán ở chế độ bàn.
- * Tự dựng điều kiện rồi trả lại nguyên trạng, thay vì phụ thuộc cài đặt sẵn có của tenant dùng chung.
- */
 let modeCu: ServiceMode = "table";
+let printCu: PrintMode = "browser";
+let tenantId = "";
 
 test.beforeAll(async () => {
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false },
+  });
+  tenantId = (await admin.from("tenants").select("id").eq("slug", SLUG).single()).data!.id as string;
   modeCu = await getServiceMode(SLUG);
+  printCu = await getPrintMode(SLUG);
   await setServiceMode(SLUG, "table");
+  await setPrintMode(SLUG, "browser");
+  await donBan(tenantId, [BAN]);
 });
 
 test.afterAll(async () => {
+  await donBan(tenantId, [BAN]);
   await setServiceMode(SLUG, modeCu);
+  await setPrintMode(SLUG, printCu);
 });
 
-test("ORDER-15: gõ đơn từ điện thoại ở 360px → ORDER-16: POS quầy nhắc in phiếu", async ({
-  browser,
-}) => {
-  const ctx = await browser.newContext({ reducedMotion: "reduce", viewport: PHONE });
+test("ORDER-15: gõ đơn từ điện thoại ở 360px → ORDER-16: POS quầy nhắc in phiếu", async ({ browser }) => {
+  const ctx = await browser.newContext({ reducedMotion: "reduce", viewport: PHONE, isMobile: true, hasTouch: true });
   const phone = await ctx.newPage();
 
-  await loginStaff(phone);
+  await phone.goto(`/r/${SLUG}/admin/login`);
+  await phone.fill('input[name="email"]', OWNER.email);
+  await phone.fill('input[name="password"]', OWNER.pass);
+  await Promise.all([phone.waitForLoadState("networkidle"), phone.click('button[type="submit"]')]);
 
-  // Bước 1 — danh sách bàn.
-  await expect(phone.getByText("Gọi món tại bàn")).toBeVisible({ timeout: 30000 });
-  const tableTile = phone.locator("main section li button").first();
-  await tableTile.waitFor({ timeout: 20000 });
-  const tableName = (await tableTile.locator("span").first().innerText()).trim();
-  await phone.screenshot({ path: `${SHOTS}/order15-1-chon-ban.png` });
-  await tableTile.click();
+  // Lối tắt CŨ `/pos/m` trên điện thoại phục vụ → mở đúng POS mới.
+  await phone.goto(`/r/${SLUG}/pos/m`, { waitUntil: "networkidle" });
+  await expect(phone).toHaveURL(new RegExp(`/r/${SLUG}/pos$`));
+  const nav = phone.getByRole("navigation", { name: "Chuyển màn POS" });
+  await expect(nav).toBeVisible({ timeout: 30000 });
 
-  // Bước 2 — thực đơn của đúng bàn đó.
-  await expect(phone.getByText(`Bàn ${tableName}`).first()).toBeVisible();
+  // Bước 1 — chọn bàn ở tab Bàn → tự sang Thực đơn.
+  await nav.getByRole("button", { name: /^Bàn/ }).click();
+  await phone.getByRole("button", { name: new RegExp(`^${BAN}\\b`) }).click();
+  await expect(phone.getByLabel("Tìm món")).toBeVisible();
+  await phone.screenshot({ path: `${SHOTS}/order15-1-thuc-don.png` });
 
-  // Không vỡ ở 360px: trang không được cuộn NGANG.
-  const overflowX = await phone.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-  );
-  expect(overflowX).toBeLessThanOrEqual(1);
+  // Bước 2 — thêm một món (món có tùy chọn → hộp chọn, chờ nó hiện).
+  await phone.locator('button[aria-label^="Thêm "]:not([disabled])').first().click();
+  const themVaoGio = phone.getByRole("button", { name: /^Thêm vào giỏ/ });
+  await expect(themVaoGio.or(nav.getByLabel(/món chưa gửi/)).first()).toBeVisible({ timeout: 10000 });
+  if (await themVaoGio.isVisible()) await themVaoGio.click();
 
-  // Thêm một món còn bán (món có tùy chọn → sheet mở, bấm xác nhận).
-  const item = phone.locator('button[aria-label^="Thêm "]:not([disabled])').first();
-  await item.waitFor({ timeout: 20000 });
-  await item.click();
-  // Món có tùy chọn → sheet mở, nút xác nhận kèm giá ("Thêm vào giỏ 50.000₫"). Sheet mount sau
-  // animation nên PHẢI waitFor (isVisible() không retry — cùng bẫy đã ghi trong p3.spec.ts).
-  const addBtn = phone.getByRole("button", { name: /^Thêm vào giỏ/ });
-  try {
-    await addBtn.waitFor({ state: "visible", timeout: 5000 });
-    await addBtn.click();
-  } catch {
-    /* món không có tùy chọn → đã vào thẳng giỏ */
-  }
-
-  // Thanh giỏ dính đáy → mở giỏ → gửi.
-  const cartBar = phone.getByRole("button", { name: /Xem giỏ/ });
-  await expect(cartBar).toBeVisible({ timeout: 10000 });
-  await phone.screenshot({ path: `${SHOTS}/order15-2-thuc-don.png` });
-  await cartBar.click();
-
-  // Giỏ của nhân viên KHÔNG hỏi tên/SĐT khách (khác giỏ khách QR — ORDER-10).
+  // Bước 3 — tab Đơn → gửi. Nhân viên gõ hộ nên KHÔNG hỏi tên/SĐT khách (khác giỏ khách QR — ORDER-10).
+  await nav.getByRole("button", { name: /^Đơn/ }).click();
   await expect(phone.locator("#cust-name")).toHaveCount(0);
-  await expect(phone.getByText("Chưa có tên")).toHaveCount(0);
-
-  const submit = phone.getByRole("button", { name: /^Gửi về quầy$/ });
-  await expect(submit).toBeEnabled();
-  await phone.screenshot({ path: `${SHOTS}/order15-3-gio.png` });
-  await submit.click();
-
-  // Xác nhận tại chỗ — nhân viên biết chắc đơn đã đi trước khi rời bàn.
-  await expect(phone.getByText(/Đã gửi về quầy · Bàn/)).toBeVisible({ timeout: 20000 });
-  await phone.screenshot({ path: `${SHOTS}/order15-4-da-gui.png` });
+  const truoc = await phone.getByText(/Đơn #\d+/).count();
+  await phone.getByRole("button", { name: /^Xác nhận thêm \d+ món/ }).click();
+  await expect(phone.getByText(/Đơn #\d+/)).toHaveCount(truoc + 1, { timeout: 20000 });
+  await phone.screenshot({ path: `${SHOTS}/order15-2-da-gui.png` });
 
   // ORDER-16 — POS quầy (tablet ngang) phải tự nhắc in phiếu cho đơn vừa gõ.
   const counter = await ctx.newPage();
   await counter.setViewportSize({ width: 1366, height: 768 });
   await counter.goto(`/r/${SLUG}/pos`);
   await expect(counter.getByText(/Đơn cần in phiếu \(\d+\)/)).toBeVisible({ timeout: 30000 });
-  await expect(
-    counter.locator("button", { hasText: new RegExp(`^Bàn ${tableName}`) }).first()
-  ).toBeVisible();
+  await expect(counter.locator("button", { hasText: new RegExp(`^Bàn ${BAN}`) }).first()).toBeVisible();
   await counter.screenshot({ path: `${SHOTS}/order16-banner-can-in.png` });
 
   await ctx.close();

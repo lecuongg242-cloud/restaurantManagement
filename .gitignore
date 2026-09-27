@@ -3,6 +3,9 @@ node_modules/
 # Bộ triển khai cầu in cho từng quán (thư mục cau-in-<slug> + file .zip do scripts/print-pack.ps1
 # sinh ra): chứa SUPABASE_SERVICE_ROLE_KEY. Mang đi lắp máy, KHÔNG commit.
 /cau-in-*
+# Bộ cài cầu in CHUNG (P11 11-05): không mật khẩu, nhưng kèm node.exe ~80 MB — sinh lại bằng print-pack.ps1.
+/cau-in/
+/cau-in.zip
 .env*
 !.env.example
 !.env.local.example
@@ -21,3 +24,6 @@ supabase/.temp/
 
 # Báo cáo tạm của cổng CI test RLS
 rls-report.json
+
+# Ảnh gốc cổng chặn POS ≥1024 (ORDER-19): phụ thuộc dữ liệu DB dùng chung — chụp lại trước mỗi lần sửa bố cục POS.
+/tests/e2e/pos-kho-lon.spec.ts-snapshots/

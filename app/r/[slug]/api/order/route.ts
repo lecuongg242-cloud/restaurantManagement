@@ -3,6 +3,7 @@
  * Không dùng cookie phiên. Validate + snapshot ở server (create-order.ts).
  */
 import { NextResponse } from "next/server";
+import { RULES, checkRateLimit, clientIp, tooManyResponse } from "@/lib/security/rate-limit";
 import { createQrOrder } from "@/lib/orders/create-order";
 import type { OrderLineInput } from "@/lib/orders/types";
 
@@ -30,6 +31,10 @@ export async function POST(
     idempotencyKey?: unknown;
   };
   const qrToken = typeof b.qrToken === "string" ? b.qrToken : "";
+
+  // TENANT-07: chặn TRƯỚC mọi thao tác ghi. Khóa theo token bàn — cả quán chung một wifi.
+  const rl = await checkRateLimit(RULES.order, [qrToken || clientIp(req.headers)]);
+  if (!rl.ok) return tooManyResponse(rl);
   const note = typeof b.note === "string" ? b.note : undefined;
   const customerName = typeof b.customerName === "string" ? b.customerName : undefined;
   const customerPhone = typeof b.customerPhone === "string" ? b.customerPhone : undefined;

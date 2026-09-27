@@ -175,6 +175,40 @@ P10 kết thúc bằng **"chủ quán biết lãi từng món và hụt vì đâ
 0045–0049 đã áp; 568 unit · 248 RLS · E2E 6/6; qt-food đối soát lãi gộp lệch 0đ. Chờ 4 checkpoint
 người thật; qt-food chưa bật.
 
+## P11 — Chuẩn bị lên 50 quán
+
+Chi tiết: `30-KeHoach/P11/00-TongQuan.md` · quyết định `QD-019` · số đo nền `40-KiemTra/PERF-04-DoRealtimeQtFood.md`.
+Đo thật: tải không chặn đường 50–100 quán; thứ chặn đường là vận hành.
+
+- [~] 11-01 **Sao lưu tự động mỗi đêm**, khóa `age`, ngoài Supabase (OPS-09).
+- [~] 11-02 **Theo dõi lỗi (Sentry) + sống/chết (`/api/health`)** (OPS-10).
+- [~] 11-03 **Giới hạn tần suất đường ẩn danh** (TENANT-07).
+- [~] 11-04 **Chế độ in theo từng quán** (PRINT-10).
+- [~] 11-05 **Bộ cài cầu in chung + mã kích hoạt + Node portable** (PRINT-11).
+- [~] 11-06 **Cầu in tự cập nhật + bảng cầu in `/super`** (PRINT-12, 13).
+- [~] 11-07 **Bộ tài liệu bàn giao** (OPS-11).
+
+*27/09/2026: 7/7 plan code/tài liệu xong, migration 0050–0053 đã áp; từng plan còn phần nghiệm thu cần người/thiết bị thật — xem `P11/11-0x-SUMMARY.md`.*
+
+P11 kết thúc bằng **"nhận quán mới không cần đóng gói riêng, có người được báo khi hệ thống lỗi, có bản
+sao mỗi đêm ngoài Supabase, một quán không kéo chậm quán khác"**.
+
+## P12 — POS và in trên mọi thiết bị
+
+Chi tiết: `30-KeHoach/P12/00-TongQuan.md` · quyết định `QD-020`. Hai nhánh song song: in (chờ P11 11-04..06)
+và màn hình (không chờ).
+
+- [~] 12-01 **Hóa đơn có dấu thành ảnh trên server** + thử in thật trước khi xây (PRINT-14).
+- [~] 12-02 **Cầu in hai máy in (bếp + quầy), LAN hoặc USB** (PRINT-15).
+- [~] 12-03 **In từ mọi thiết bị** qua cầu in (PRINT-16) — code xong (máy nào in đâu tự theo khổ màn hình); chờ
+  in máy thật ở qt-food.
+- [~] 12-04 **POS co giãn: iPad/tablet dọc**, khổ ≥1024 không đổi, tải lại khi máy thức dậy (ORDER-19).
+- [~] 12-05 **POS đầy đủ trên điện thoại**; `/pos/m` về hưu (ORDER-20) — code xong (`/pos/m` chuyển hướng); chờ
+  điện thoại thật + đo tải.
+
+P12 kết thúc bằng **"nhân viên cầm điện thoại hoặc iPad làm trọn một bàn — gọi món, thu tiền, bấm in —
+và hóa đơn có dấu ra ở máy in quầy, dù máy đó cắm USB hay dây mạng"**.
+
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
 |---|---|

@@ -6,6 +6,9 @@ import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
 import { listOnlineOrders } from "@/lib/orders/online";
 import { StationScreen } from "@/components/staff/StationScreen";
 import { OnlineQueue } from "@/components/pos/OnlineQueue";
+import { createClient } from "@/lib/supabase/server";
+import { parseSettings } from "@/lib/tenant/settings";
+import { PrintModeProvider } from "@/lib/print/print-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +27,13 @@ export default async function PosOnlinePage({
   if (!session) redirect(`/r/${slug}/pos/login`);
   if (!canAccess(session.role, "pos")) redirect(defaultRouteForRole(slug, session.role));
 
-  const orders = await listOnlineOrders(session.tenant.id);
+  const supabase = await createClient();
+  const [orders, { data: tenantRow }] = await Promise.all([
+    listOnlineOrders(session.tenant.id),
+    // Chế độ in của quán (PRINT-10) — nút "In hóa đơn" của hàng chờ đi đúng đường in.
+    supabase.from("tenants").select("settings").eq("id", session.tenant.id).maybeSingle(),
+  ]);
+  const printMode = parseSettings(tenantRow?.settings).print_mode;
 
   return (
     <StationScreen slug={slug} surface="pos">
@@ -37,12 +46,14 @@ export default async function PosOnlinePage({
           Đơn mang về / giao của khách. Nhận đơn để xuống bếp, đánh dấu sẵn sàng, rồi thu tiền hoàn tất.
         </p>
 
-        <OnlineQueue
-          slug={slug}
-          tenantId={session.tenant.id}
-          orders={orders}
-          canBackdatePayment={session.role === "owner" || session.role === "manager"}
-        />
+        <PrintModeProvider mode={printMode}>
+          <OnlineQueue
+            slug={slug}
+            tenantId={session.tenant.id}
+            orders={orders}
+            canBackdatePayment={session.role === "owner" || session.role === "manager"}
+          />
+        </PrintModeProvider>
       </div>
     </StationScreen>
   );
