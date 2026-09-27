@@ -162,5 +162,71 @@
 | INV-09 | Chốt sổ ngày bất biến | Chốt ngày tạo một bản ghi tồn cuối · lượng dùng · giá vốn · hao hụt theo nguyên liệu và giá vốn theo món. Quên chốt → tự chốt khi mở ngày kế tiếp. Tồn đầu ngày sau = tồn đếm (nếu đã kiểm) hoặc tồn lý thuyết. Test: chốt ngày D, sửa định lượng ngày D+1 → báo cáo ngày D **không đổi một đồng** | P10 | ◐ code+kiểm xong (10-03): 10/10 DB thật — tự chốt D1..D3 không chốt hôm nay, sửa định lượng sau chốt không đổi số, update/delete 0 dòng; chờ checkpoint |
 | INV-10 | Tắt mặc định, không hồi quy | Quán chưa khai nguyên liệu nào: `/pos`, `/menu`, `/admin/reports` hiện **y hệt trước P10** (E2E hồi quy trên tenant demo không có dữ liệu INV). Không migration nào đổi cột hiện có của `menu_items`, `order_items`, `bills` | P10 | ☑ E2E: quán chưa khai nguyên liệu → POS không nhãn, /menu không đổi, báo cáo không có hai khối P10; create-order + đóng bill không đổi dòng nào |
 
+## PAY — VietQR theo hóa đơn (P13, `QD-021`)
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| PAY-01 | Cấu hình tài khoản nhận | Owner nhập ngân hàng (chọn trong danh sách NAPAS), số TK, tên chủ TK ở `/admin/settings`; lưu trong `tenants.settings`; số TK sai định dạng → báo lỗi, không lưu. Manager/cashier không sửa được (test quyền). Chưa cấu hình → POS **không** hiện QR, chuyển khoản ghi nhận như cũ | P13 | ☐ |
+| PAY-02 | Mã VietQR đúng chuẩn, đúng số tiền | Chuỗi QR dựng theo EMVCo/NAPAS: test so **byte-khớp** với ≥ 3 chuỗi mẫu tham chiếu (có/không số tiền, nội dung có khoảng trắng) và CRC16 đúng. Số tiền = `bills.total` của bill đang thu (sau giảm giá/phí/VAT, bill tách dùng tổng bill con). Nội dung ≤ 25 ký tự ASCII, duy nhất trong quán ≥ 1 năm. **Quét thật** bằng app ≥ 3 ngân hàng khác nhau (ví dụ VCB, MB, TCB): hiện đúng tên TK, số tiền, nội dung — chụp màn hình | P13 | ☐ |
+| PAY-03 | QR hiện ở POS và trên phiếu in | Chọn "Chuyển khoản" trong hộp thanh toán → QR lớn ≥ 240px + số tiền + nội dung; nút "Đã nhận tiền" đóng bill như chuyển khoản hiện nay (`pay_bill` không đổi nghiệp vụ). Phiếu tạm tính và hóa đơn (in trình duyệt **và** ảnh PNG PRINT-14) có QR khi quán bật tùy chọn "In QR trên phiếu"; quét được trên **giấy in nhiệt thật** 80mm và 58mm (ảnh chụp). Chạy được ở 360px (POS điện thoại) | P13 | ☐ |
+
+## SUB — Thuê bao, gia hạn, khóa khi quá hạn (P13, `QD-021`)
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| SUB-01 | Hạn dùng của quán | `tenants.paid_until` (ngày, rỗng = không giới hạn). Quán hiện có (qt-food, demo) giữ rỗng sau migration — **không** quán nào bị khóa khi áp. `/super` hiện cột hạn dùng + trạng thái (còn hạn / sắp hết / ân hạn / đã khóa), sắp xếp được theo hạn | P13 | ☐ |
+| SUB-02 | Nhắc trước và trong ân hạn | Còn ≤ N ngày (QD-021 U1): owner/manager thấy banner vàng ở `/admin` **và** `/pos` kèm ngày hết hạn + nút "Gia hạn". Quá hạn nhưng trong ân hạn (U2): banner đỏ, vẫn bán bình thường. Nhân viên cashier/waiter/kitchen **không** thấy banner. Ngày tính theo **giờ Việt Nam** (test chạy `TZ=UTC` với mốc 23:30 và 00:30 giờ VN) | P13 | ☐ |
+| SUB-03 | Khóa tự động khi hết ân hạn | Hết ân hạn → hành vi **giống hệt** `suspended` (TENANT-06): admin/POS/KDS hiện màn "Hết hạn sử dụng" kèm cách gia hạn, trang khách không gọi món được, RLS chặn đọc/ghi (ma trận TENANT-05 thêm ca quá hạn). **Không xóa** dữ liệu. Super-admin vẫn vào được | P13 | ☐ |
+| SUB-04 | Gia hạn tay qua VietQR | Owner mở `/admin` → **Gia hạn**: hạn hiện tại, giá tháng/năm, QR VietQR tới TK nền tảng với nội dung `GH {slug}`. Super-admin ghi nhận ở `/super` (số tháng, số tiền, ghi chú) → dòng mới trong `subscription_payments` + `paid_until` cộng dồn **từ max(hôm nay, hạn cũ)**; quán đang bị khóa mở lại trong ≤ 1 lần tải trang. Nhật ký chỉ super-admin và owner quán đó đọc được (test RLS) | P13 | ☐ |
+
+## EINV — Hóa đơn điện tử từ máy tính tiền (P14, `QD-022` — CHỜ liên hệ nhà cung cấp)
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| EINV-01 | Cấu hình HĐĐT theo quán | Owner bật/tắt HĐĐT, chọn nhà cung cấp, nhập MST + thông tin đăng nhập API; thông tin bí mật lưu **mã hóa**, không trả về trình duyệt, không ghi log (grep log test). Nút "Kiểm tra kết nối" gọi môi trường thật/thử của nhà cung cấp và báo đúng/sai | P14 | ☐ |
+| EINV-02 | Phát hành khi đóng bill, không làm chậm thu tiền | Quán bật HĐĐT: đóng bill → tạo việc phát hành trong hàng đợi; `pay_bill` **không** chờ nhà cung cấp (đo BILL-04 vẫn ≤ 5s). Lỗi mạng/nhà cung cấp → thử lại có giới hạn, không phát hành trùng (khóa idempotency theo bill). Bill hiện trạng thái: chờ / đã cấp mã (kèm mã tra cứu) / lỗi | P14 | ☐ |
+| EINV-03 | Hóa đơn in có thông tin tra cứu | Hóa đơn đã cấp mã in kèm mã cơ quan thuế + đường tra cứu/QR tra cứu theo quy định; số liệu khớp bill (test so tổng, VAT) | P14 | ☐ |
+| EINV-04 | Adapter nhà cung cấp | Giao diện chung + ≥ 1 adapter chạy trên môi trường thử của nhà cung cấp (VNPAY hoặc Viettel, QD-022 D2): phát hành 20 hóa đơn mẫu gồm có giảm giá, phí phục vụ, VAT 0/8/10%, bill tách — 20/20 được cấp mã | P14 | ☐ |
+| EINV-05 | Sổ S1a/S2a-HKD | `/admin/reports` xuất sổ doanh thu theo mẫu TT 152/2025 (S1a-HKD; S2a-HKD theo nhóm ngành) cho khoảng ngày chọn, Excel + PDF; tổng khớp báo cáo doanh thu (quy ước BILL-05). Được kế toán/đại lý thuế xác nhận đúng mẫu | P14 | ☐ |
+
+## BRANCH — Chuỗi nhiều chi nhánh (P15, `QD-023` — chờ chốt D1)
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| BRANCH-01 | Thương hiệu + chi nhánh = tenant | Bảng `brands`, `tenants.brand_id`, `brand_members`. Super-admin tạo thương hiệu, gắn quán có sẵn, tạo chi nhánh mới (chép cài đặt, không chép dữ liệu bán). Quán lẻ `brand_id` rỗng, ảnh admin/POS trước/sau không đổi. `auth_tenant_ids()` không đổi định nghĩa | P15 | ☐ |
+| BRANCH-02 | Một tài khoản chủ cho mọi chi nhánh | Owner/manager thương hiệu đăng nhập **một** lần vào được mọi chi nhánh; chi nhánh mới tự có membership của họ; bỏ người khỏi thương hiệu → mất quyền ở mọi chi nhánh. Tái dùng email owner **không** đặt lại mật khẩu | P15 | ☐ |
+| BRANCH-03 | Chuyển chi nhánh + tổng quan chuỗi | Bộ chọn chi nhánh ở header admin/POS (chỉ hiện khi thuộc ≥ 2 chi nhánh cùng thương hiệu); `/b/{brand}/admin` hiện hôm nay (giờ VN) từng chi nhánh: doanh thu, số HĐ, bàn đang mở, cầu in, hạn dùng + tổng chuỗi = Σ chi nhánh | P15 | ☐ |
+| BRANCH-04 | Đồng bộ thực đơn | Chi nhánh gốc → xem trước → đồng bộ: thêm/sửa/ẩn theo `source_id`, **không** đụng hết món, **không** ghi đè giá đã khóa ở chi nhánh; chạy hai lần liên tiếp lần hai không đổi gì; order cũ không đổi | P15 | ☐ |
+| BRANCH-05 | Báo cáo gộp + so sánh | RPC nhận mảng tenant; tổng chuỗi = Σ báo cáo từng chi nhánh (20 bill mẫu, có bill tách); người không thuộc chi nhánh X không thấy số của X dù truyền id X; bảng so sánh chi nhánh | P15 | ☐ |
+| BRANCH-06 | Khách chọn chi nhánh | `/b/{brand}` công khai liệt kê chi nhánh đang hoạt động (bị khóa/hết hạn không hiện), giờ mở theo giờ VN, dẫn vào đặt món online/đặt bàn đúng chi nhánh; 360px không vỡ | P15 | ☐ |
+| BRANCH-07 | Không rò chéo chi nhánh | Ma trận RLS thêm thương hiệu 2 chi nhánh: cashier B1 đọc B2 = **0 dòng** và ghi bị chặn ở **mọi** bảng mang `tenant_id`; owner thương hiệu đọc cả hai. E2E: order ở B2 không hiện ở POS/KDS B1 | P15 | ☐ |
+
+| BRANCH-08 | Thuê bao theo thương hiệu | Một lần ghi nhận gia hạn → mọi chi nhánh đang hoạt động cùng một `paid_until` (= max(hôm nay VN, hạn muộn nhất) + số tháng), trong một giao dịch, một dòng nhật ký. Số tiền = đơn giá × số chi nhánh đang hoạt động, chi nhánh thứ 2 trở đi có giảm (QD-023 D9). Chi nhánh mới giữa kỳ nhận hạn chung, không thu bù; chi nhánh tắt không bị tính | P15 | ☐ |
+
+## REPORT (mở rộng) + CUST — Báo cáo sâu & khách hàng (P16)
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| REPORT-15 | Báo cáo lịch sử không bị viết lại | Bill lưu `table_label`, `area_label`; món lưu `category_name` lúc bán. Xóa bàn / đổi nhóm món → báo cáo kỳ cũ **không đổi**. Backfill: tổng doanh thu trước/sau bằng nhau; mọi khối báo cáo cũ trên qt-food không đổi số | P16 | ☑ 0056 áp production 27/09/2026; báo cáo trước/sau giống hệt; 278/278 RLS (16-01-SUMMARY) |
+| REPORT-16 | Báo cáo theo nhân viên | Mỗi nhân viên: đơn/món/tiền nhận, HĐ/tiền thu (tách tiền mặt/chuyển khoản), món hủy, lượt/tiền giảm giá — theo quy ước P16 `00-TongQuan`. Σ tiền thu = doanh thu kỳ (BILL-05). Có dòng "Khách tự gọi", "Không rõ", "Nhân viên đã nghỉ". Chỉ owner/manager | P16 | ☐ |
+| REPORT-17 | Hiệu quả bàn/khu | Mỗi bàn/khu: số phiên, thời gian ngồi TB (giờ VN), doanh thu, doanh thu/phiên, doanh thu/giờ ngồi; Σ theo bàn + "Không gắn bàn" = doanh thu kỳ | P16 | ☐ |
+| REPORT-18 | Xu hướng nhóm món + so sánh chi nhánh | Doanh thu/số lượng nhóm món theo ngày/tuần/tháng (tuần bắt đầu thứ Hai giờ VN); màn chuỗi so sánh chi nhánh: TB/HĐ, tỷ lệ hủy, tỷ lệ giảm giá, doanh thu/bàn | P16 | ☐ |
+| REPORT-19 | Xuất Excel | Mọi khối báo cáo có nút xuất; file mở đúng tiếng Việt trên Excel Windows tiếng Việt + Google Sheets; tổng cột tiền = số trên màn; cashier → 403; ghi nhật ký xuất | P16 | ☐ |
+| CUST-01 | SĐT khách một dạng | Mọi đường ghi (QR, online, POS mang về, đặt bàn) chuẩn hóa SĐT ở server (`+84`/`84`/dấu cách/dấu chấm → `0…`); POS mang về có SĐT không tên vẫn lưu SĐT; production sau backfill: số SĐT **hợp lệ** chưa chuẩn = 0 (chuỗi không phải SĐT giữ nguyên) | P16 | ☑ 0056 áp production 27/09/2026; báo cáo trước/sau giống hệt; 278/278 RLS (16-01-SUMMARY) |
+| CUST-02 | Danh sách khách | `/admin/khach-hang`: theo SĐT — tên gần nhất, số lần đến, tổng chi, lần đầu/gần nhất, kênh hay dùng; tìm, sắp xếp, phân trang (≤ 100/trang); lịch sử hóa đơn + đặt bàn của một khách; màn chuỗi gộp khách nhiều chi nhánh. Một bill chỉ quy cho một SĐT (không nhân đôi tiền) | P16 | ☐ |
+| CUST-03 | Ghi chú khách + bảo vệ dữ liệu | Ghi chú tay theo SĐT; chỉ owner/manager đọc (RLS: cashier = 0 dòng); SĐT không hiện trên POS/KDS; xuất danh sách khách chỉ owner, có nhật ký | P16 | ☐ |
+
+## OFFLINE — Bán khi quán mất mạng (P17, `QD-024`)
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| OFFLINE-01 | Máy quầy mất mạng không trắng màn | Rút mạng rồi tải lại POS ở máy quầy → vẫn hiện sơ đồ bàn, thực đơn, đơn/bill đang mở (dữ liệu lúc mất mạng, có ghi giờ), nút ghi khóa kèm lý do + banner "dùng điện thoại"; chip trạng thái mạng; snapshot không chứa PIN/token/bí mật (test liệt kê khóa) | P17 | ☐ |
+| OFFLINE-02 | Cầu in tự lên mạng dự phòng | Wifi quán mất → PC quầy tự nối mạng dự phòng đã lưu lúc cài trong ≤ 60 giây; phiếu tạo trong lúc mất mạng (< 30 phút) in bù đúng một lần; máy in nối LAN/USB vẫn in được | P17 | ☐ |
+| OFFLINE-03 | Cảnh báo in kẹt toàn quán | Nhịp tim cầu in quá hạn → mọi POS (điện thoại, máy quầy) + KDS hiện banner kèm số phiếu chờ và danh sách phiếu (bàn, giờ, món); có mạng lại → banner tắt; phiếu > 30 phút hiện "Không in bù". Quán chế độ `browser` không bao giờ thấy banner | P17 | ☐ |
+| OFFLINE-04 | Diễn tập mất mạng đạt | Rút router 20 phút giờ thấp điểm: gọi món + thu tiền trên điện thoại 5G; 0 phiếu mất, 0 phiếu trùng, doanh thu khớp; hướng dẫn "Khi quán mất mạng" trong tài liệu bàn giao | P17 | ☐ |
+
+## AI — Phân tích & dự báo (P18, `QD-025`)
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| AI-01 | Dự báo doanh thu, số HĐ, số món | Job đêm tính 7–14 ngày tới cho mỗi quán active, lưu bảng; một quán lỗi không chặn quán khác; job lỗi → màn hiện bản hôm trước kèm ngày + báo kênh trực sự cố | P18 | ☐ |
+| AI-02 | Dự báo có kiểm chứng | Backtest 4 tuần → MAPE hiện trên màn; chỉ hiện dự báo khi ≥ 6 tuần có bán **và** MAPE ≤ ngưỡng (QD-025 U3); luôn có khoảng sai số. Theo dõi 2 tuần thật ghi trong SUMMARY | P18 | ☐ |
+| AI-03 | Gợi ý nhập nguyên liệu | Quán bật kho: nhu cầu nguyên liệu = món dự báo × định lượng (cùng hàm bung định lượng của P10) − tồn lý thuyết, làm tròn theo đơn vị nhập; liệt kê món chưa khai định lượng | P18 | ☐ |
+| AI-04 | Nhận xét tuần tiếng Việt | Mỗi thứ Hai: đoạn ≤ 200 chữ + 1–3 gợi ý; **mọi con số** trong đoạn văn khớp dữ liệu đầu vào (kiểm tự động, không khớp → dùng bản mẫu cố định); dữ liệu gửi đi không có SĐT/tên khách/tên nhân viên (test) | P18 | ☐ |
+| AI-05 | Phát hiện bất thường | Luật cứng phát hiện (doanh thu lệch > 2σ so với cùng thứ, tỷ lệ hủy tăng, món top rơi hạng) — mỗi luật có test dương/âm; mô hình chỉ diễn giải; chi phí AI = 0đ (chuỗi nguồn miễn phí QD-025 D7, hết hạn mức thì dùng mẫu câu cố định) | P18 | ☐ |
+
 ## Tiêu chí phát hành V1 (map từ `00-TongThe.md` §7)
 Onboard ≤15' (TENANT-03) · KDS ≤3s (ORDER-04) · đóng bill ≤5s (BILL-04) · doanh thu khớp 100% (BILL-05) · RLS test (TENANT-02) · 2 tenant demo prod (P6) · mobile 360px ≤6 chạm (ORDER-01) · hóa đơn 80mm đủ (PRINT-03) · phiếu bếp (PRINT-02; nghiệm thu "tự in ≤5s" hoãn tới khi có cầu in cục bộ + phần cứng — V1 nghiệm thu bấm-in + PDF preview).

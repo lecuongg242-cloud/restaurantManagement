@@ -9,6 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { activeTenantBySlug } from "@/lib/tenant/active";
 import { createClient } from "@/lib/supabase/server";
 import type { Reservation, ReservationCounts, ReservationView } from "./types";
+import { phoneForStorage } from "@/lib/orders/guest-contact";
 
 const VN_OFFSET = 7 * 3600 * 1000;
 const DAY = 86400000;
@@ -56,7 +57,7 @@ function normalizeReservation(input: {
 }): { value: NormalizedReservation } | { error: string } {
   const name = input.customerName?.trim();
   if (!name) return { error: "Vui lòng nhập tên người đặt." };
-  const phone = input.customerPhone?.trim();
+  const phone = phoneForStorage(input.customerPhone);
   if (!phone) return { error: "Vui lòng nhập số điện thoại để liên hệ." };
 
   const partySize = Number(input.partySize);
@@ -70,7 +71,7 @@ function normalizeReservation(input: {
   return {
     value: {
       name: name.slice(0, 80),
-      phone: phone.slice(0, 20),
+      phone,
       partySize,
       reservedAtIso: new Date(reservedMs).toISOString(),
       note: input.note?.trim() ? input.note.trim().slice(0, 500) : null,

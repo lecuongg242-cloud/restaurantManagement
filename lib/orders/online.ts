@@ -17,6 +17,7 @@ import {
   type CreateOrderResult,
 } from "./create-order";
 import { broadcastOrderStatus } from "./broadcast";
+import { phoneForStorage } from "./guest-contact";
 import { historyStatuses, type HistoryStatusFilter } from "./history-filter";
 import type { BillStatus, PaymentMethod } from "@/lib/billing/types";
 import type { OrderItemStatus, OrderStatus } from "./types";
@@ -48,7 +49,7 @@ export async function createOnlineOrder(
 
   const name = input.customerName?.trim();
   if (!name) return { error: "Vui lòng nhập tên để nhân viên liên hệ." };
-  const phone = input.customerPhone?.trim();
+  const phone = phoneForStorage(input.customerPhone);
   if (!phone) return { error: "Vui lòng nhập số điện thoại." };
 
   const address = input.address?.trim();
@@ -58,7 +59,7 @@ export async function createOnlineOrder(
   const note = input.note?.trim() ? input.note.trim().slice(0, 500) : null;
   const customerContact: Record<string, unknown> = {
     name: name.slice(0, 50),
-    phone: phone.slice(0, 20),
+    phone,
   };
   if (input.channel === "delivery") customerContact.address = address!.slice(0, 200);
 

@@ -55,6 +55,17 @@ export function isValidPhone(raw: string): boolean {
   return /^0\d{9,10}$/.test(normalizePhone(raw));
 }
 
+/**
+ * Dạng SĐT lưu vào DB — gọi ở SERVER cho mọi đường ghi (QR, online, POS mang về, đặt bàn) để một
+ * khách chỉ có một dạng số (CUST-01). SĐT Việt Nam hợp lệ → dạng 0…; chuỗi khác giữ nguyên (đã cắt)
+ * để không mất thông tin khách gõ; rỗng → null.
+ */
+export function phoneForStorage(raw: string | null | undefined): string | null {
+  const trimmed = raw?.trim() ?? "";
+  if (!trimmed) return null;
+  return (isValidPhone(trimmed) ? normalizePhone(trimmed) : trimmed).slice(0, 20);
+}
+
 export function isValidName(raw: string): boolean {
   return raw.trim().length >= 2;
 }

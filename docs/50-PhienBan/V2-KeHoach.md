@@ -8,6 +8,11 @@
 > **1 QĐ (`QD-0xx`) + danh sách yêu cầu đo được (`20-DanhSachYeuCau/`) + kế hoạch chi tiết (`30-KeHoach/`)**
 > được duyệt **trước khi code** — không code thẳng từ file này.
 
+> **Cập nhật 27/09/2026 — đã chuyển thành kế hoạch chính thức:** V2-A → **P15** (`QD-023`: **đổi hướng**, chi nhánh = tenant +
+> tầng thương hiệu thay vì thêm `branch_id`), REPORT của V2-B → **P16** (mã mới REPORT-15..19 vì REPORT-04..14 đã dùng),
+> V2-C → **P17** (`QD-024`). KDS bump-bar **không làm** (chủ dự án giữ KDS chỉ xem, `QD-021` C4). DELIV-* chưa xếp lịch.
+> BILLING của V3-A được thay một phần bởi **P13** (`QD-021`: thuê bao gia hạn tay, một gói). File này giữ để tham khảo lịch sử.
+
 ## Thay đổi phạm vi V2 (27/07/2026)
 - **Bổ sung — trọng tâm mới:** hỗ trợ **một nhà hàng có nhiều chi nhánh** (multi-branch). Đây là thay đổi
   nền tảng (chạm schema rộng), nên xếp **đầu V2**.

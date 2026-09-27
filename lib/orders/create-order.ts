@@ -10,6 +10,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activeTenantBySlug } from "@/lib/tenant/active";
+import { phoneForStorage } from "@/lib/orders/guest-contact";
 import { parseSettings } from "@/lib/tenant/settings";
 import { isDuplicateKeyError, normalizeIdempotencyKey } from "@/lib/idempotency";
 import type { OrderLineInput } from "./types";
@@ -344,8 +345,7 @@ export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrde
   // Tên bắt buộc để phân biệt khách cùng bàn; SĐT tùy chọn.
   const name = input.customerName?.trim();
   if (!name) return { error: "Vui lòng nhập tên để nhân viên phục vụ đúng người." };
-  const phone = input.customerPhone?.trim() ? input.customerPhone.trim().slice(0, 20) : null;
-  const customerContact = { name: name.slice(0, 50), phone };
+  const customerContact = { name: name.slice(0, 50), phone: phoneForStorage(input.customerPhone) };
 
   const admin = createAdminClient();
 
@@ -494,10 +494,14 @@ export async function createStaffTakeawayOrder(
   const validated = await validateAndBuildLines(admin, tenantId, lines);
   if ("error" in validated) return { error: validated.error };
 
+  // Chỉ có SĐT (không tên) vẫn lưu — trước đây mất luôn SĐT khi thu ngân không gõ tên (CUST-01).
   const name = input.customerName?.trim();
+  const phone = phoneForStorage(input.customerPhone);
   const customerContact = name
-    ? { name: name.slice(0, 50), phone: input.customerPhone?.trim() ? input.customerPhone.trim().slice(0, 20) : null }
-    : null;
+    ? { name: name.slice(0, 50), phone }
+    : phone
+      ? { phone }
+      : null;
 
   return insertOrderGraph(admin, {
     tenantId,

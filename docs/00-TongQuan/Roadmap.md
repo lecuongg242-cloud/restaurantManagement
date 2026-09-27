@@ -209,6 +209,69 @@ và màn hình (không chờ).
 P12 kết thúc bằng **"nhân viên cầm điện thoại hoặc iPad làm trọn một bàn — gọi món, thu tiền, bấm in —
 và hóa đơn có dấu ra ở máy in quầy, dù máy đó cắm USB hay dây mạng"**.
 
+## Thương mại hóa — thứ tự đã chốt (27/09/2026)
+
+Nguồn: `00-TongQuan/PhanTichDoiThu.md`. Chủ dự án chốt thứ tự: P13 VietQR + thuê bao → P14 hóa đơn điện tử →
+chuỗi nhiều chi nhánh → báo cáo sâu + danh sách khách → bán khi mất mạng → AI dự báo. Để sau: voucher/chiến
+dịch ưu đãi, mua hàng/công nợ. KDS giữ nguyên (phiếu giấy là chính). Một gói cước, chưa chia gói.
+
+## P13 — VietQR theo hóa đơn và thuê bao gia hạn tay
+
+Chi tiết: `30-KeHoach/P13/00-TongQuan.md` · quyết định `QD-021`. Hai nhánh song song: VietQR (13-01 → 13-02) và
+thuê bao (13-03); 13-04 ghép hai nhánh.
+
+- [ ] 13-01 **VietQR**: dựng mã EMVCo, tài khoản nhận của quán, QR trong hộp thanh toán POS (PAY-01..03).
+- [ ] 13-02 **QR trên phiếu tạm tính và hóa đơn in** (PAY-03).
+- [ ] 13-03 **Hạn dùng, nhắc, khóa tự động** khi quá ân hạn (SUB-01..03) — chờ chốt số ngày nhắc/ân hạn.
+- [ ] 13-04 **Gia hạn tay** qua VietQR + ghi nhận ở `/super` (SUB-04) — chờ chốt giá.
+
+P13 kết thúc bằng **"khách quét QR trên màn hoặc trên giấy, đúng tiền; quán có hạn dùng, được nhắc, tự khóa
+khi quá ân hạn và mở lại ngay khi gia hạn"**.
+
+## P14 — Hóa đơn điện tử từ máy tính tiền + sổ hộ kinh doanh (CHỜ)
+
+Chi tiết: `30-KeHoach/P14/00-TongQuan.md` · quyết định `QD-022`. **Chờ chủ dự án liên hệ nhà cung cấp**
+(ưu tiên VNPAY-Invoice miễn phí tới 2028; dự phòng Viettel SInvoice). 14-04 làm trước được.
+
+- [ ] 14-01 Cấu hình HĐĐT + hàng đợi phát hành + giao diện adapter (EINV-01, 02).
+- [ ] 14-02 Adapter nhà cung cấp đầu tiên (EINV-04).
+- [ ] 14-03 Hóa đơn in có mã tra cứu + trạng thái (EINV-03).
+- [ ] 14-04 Xuất sổ S1a/S2a-HKD (EINV-05).
+
+## P15 — Chuỗi nhiều chi nhánh
+
+Chi tiết: `30-KeHoach/P15/00-TongQuan.md` · quyết định `QD-023` (**chờ chốt**: chi nhánh = tenant + tầng thương hiệu, thay
+hướng `branch_id` của V2-A). Yêu cầu BRANCH-01..08.
+
+- [ ] 15-01 Thương hiệu + tạo chi nhánh + một tài khoản chủ · 15-02 Bộ chọn chi nhánh + tổng quan chuỗi · 15-03 Đồng bộ thực đơn
+  · 15-04 Báo cáo gộp · 15-05 Trang `/b/{brand}` cho khách · 15-06 Cách ly chi nhánh + nghiệm thu
+  · 15-07 Thuê bao theo thương hiệu (một ngày hết hạn, tiền theo số chi nhánh).
+
+## P16 — Báo cáo sâu và danh sách khách hàng
+
+Chi tiết: `30-KeHoach/P16/00-TongQuan.md`. Yêu cầu REPORT-15..19, CUST-01..03.
+
+- [ ] 16-01 Dữ liệu nguồn sạch · 16-02 Theo nhân viên · 16-03 Bàn/khu + nhóm món + so sánh chi nhánh · 16-04 Xuất Excel
+  · 16-05 Danh sách khách.
+
+## P17 — Bán khi quán mất mạng
+
+Chi tiết: `30-KeHoach/P17/00-TongQuan.md` · quyết định `QD-024` (chủ dự án 27/09: mất wifi thì order bằng điện thoại 5G; chờ chốt
+cách lấy mạng dự phòng cho cầu in). Yêu cầu OFFLINE-01..04, OPS-04.
+
+- [ ] 17-01 PWA + đọc offline ở máy quầy · 17-02 Cầu in có mạng dự phòng + cảnh báo in kẹt toàn quán · 17-03 Diễn tập mất mạng + tài liệu.
+
+## P18 — AI phân tích và dự báo
+
+Chi tiết: `30-KeHoach/P18/00-TongQuan.md` · quyết định `QD-025`. Yêu cầu AI-01..05.
+
+- [ ] 18-01 Dự báo doanh thu/món + backtest · 18-02 Gợi ý nhập nguyên liệu · 18-03 Nhận xét tuần + bất thường.
+
+## P19, P20 — Để sau
+
+- P19 Voucher và ưu đãi — khung phạm vi `30-KeHoach/P19/00-TongQuan.md`.
+- P20 Mua hàng, nhà cung cấp, công nợ, sổ thu chi — khung phạm vi `30-KeHoach/P20/00-TongQuan.md`.
+
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
 |---|---|
