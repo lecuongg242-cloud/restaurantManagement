@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import {
   BadgeCheck,
   Bell,
@@ -48,6 +49,12 @@ export default function MarketingHome() {
         <div className="mt-xl">
           <LeadForm variant="compact" />
         </div>
+        <p className="mt-md text-sm text-slate">
+          Cần máy móc gì?{" "}
+          <Link href="/huong-dan-cai-dat" className="font-medium text-primary underline-offset-4 hover:underline">
+            Xem quán cần chuẩn bị gì →
+          </Link>
+        </p>
       </section>
 
       <div className="h-6 w-full bg-sunset" />
@@ -236,7 +243,10 @@ export default function MarketingHome() {
 
       <footer className="border-t border-hairline py-xl">
         <p className="mx-auto max-w-5xl px-lg text-sm text-steel">
-          Hệ thống quản lý nhà hàng · Gọi món QR, POS, màn hình bếp, đặt bàn &amp; báo cáo.
+          Hệ thống quản lý nhà hàng · Gọi món QR, POS, màn hình bếp, đặt bàn &amp; báo cáo. ·{" "}
+          <Link href="/huong-dan-cai-dat" className="text-primary underline-offset-4 hover:underline">
+            Cần chuẩn bị gì
+          </Link>
         </p>
       </footer>
     </main>
