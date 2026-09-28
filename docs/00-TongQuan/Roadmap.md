@@ -272,6 +272,11 @@ Chi tiết: `30-KeHoach/P18/00-TongQuan.md` · quyết định `QD-025`. Yêu c�
 - P19 Voucher và ưu đãi — khung phạm vi `30-KeHoach/P19/00-TongQuan.md`.
 - P20 Mua hàng, nhà cung cấp, công nợ, sổ thu chi — khung phạm vi `30-KeHoach/P20/00-TongQuan.md`.
 
+## P21 — Ứng dụng Windows cho máy thu ngân (CHỜ QUYẾT)
+
+Ghi phương án 29/09/2026 (chủ dự án chưa chọn): bọc web app bằng Electron + gộp cầu in (đề xuất), Tauri, hoặc giữ PWA;
+bán khi mất Internet trong LAN là dự án riêng. Chi tiết + đối thủ + câu hỏi cần chốt: `30-KeHoach/P21/00-TongQuan.md`.
+
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
 |---|---|
