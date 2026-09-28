@@ -13,6 +13,8 @@ const supabaseHost = (() => {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Phiên bản kho của service worker POS (P17 17-01): mỗi bản deploy một kho mới, kho cũ bị xóa.
+  env: { NEXT_PUBLIC_BUILD_ID: (process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 12) },
   experimental: {
     /**
      * Server Action mặc định chỉ nhận body 1MB → form "Nhận diện nhà hàng" gửi logo + ảnh bìa

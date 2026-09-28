@@ -36,6 +36,9 @@ export async function middleware(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   if (slug) requestHeaders.set("x-tenant-slug", slug);
+  // Layout /r/[slug] cần biết đang ở trang nào: quán HẾT HẠN vẫn phải mở được trang đăng nhập + Gia hạn
+  // (lối thoát duy nhất, SUB-04) trong khi mọi trang khác hiện màn "Hết hạn sử dụng".
+  requestHeaders.set("x-pathname", pathname);
 
   let response = NextResponse.next({ request: { headers: requestHeaders } });
 
@@ -78,5 +81,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // Bỏ qua asset tĩnh; chạy cho mọi route ứng dụng (để refresh phiên toàn cục).
   // `api/health` (OPS-10): dịch vụ theo dõi gọi 5 phút/lần mãi mãi — không cần phiên, không cần log.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // `sw.js` (P17): service worker POS + lượt dò mạng 20 giây/lần của mỗi máy POS — tệp tĩnh, không cần phiên.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

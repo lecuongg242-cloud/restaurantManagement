@@ -1,6 +1,7 @@
 # QD-025 — AI phân tích và dự báo
 
-**Ngày:** 27/09/2026 · **Trạng thái:** ĐỀ XUẤT — chờ chốt U1–U3. **Kế hoạch:** `30-KeHoach/P18/` · **Yêu cầu:** AI-01..05
+**Ngày:** 27/09/2026 · **Trạng thái:** ĐÃ TRIỂN KHAI (P18, 28/09/2026) theo các đề xuất D1–D10; U3 dùng mặc định 25%;
+U1 để xem lại khi > 100 quán. Chỉnh trong lúc làm: xem "Bổ sung 28/09/2026" cuối tệp. **Kế hoạch:** `30-KeHoach/P18/` · **Yêu cầu:** AI-01..05
 **Liên quan:** QD-017 (định lượng), P16 (báo cáo sâu), QD-019 (hạ tầng, trực sự cố)
 
 ## Bối cảnh (rà code 27/09/2026)
@@ -50,6 +51,15 @@ So sánh gói miễn phí (tra 27/09/2026 — các hạn mức miễn phí thay 
 |---|---|---|
 | U1 | Khi số quán vượt hạn mức miễn phí | Xem lại khi > 100 quán hoặc khi một nguồn cắt hạn mức; lúc đó mới cân nhắc gói trả phí |
 | U3 | Ngưỡng MAPE để hiện dự báo | 25% cho doanh thu ngày |
+
+## Bổ sung 28/09/2026 (khi triển khai P18)
+
+| # | Việc | Chọn | Vì sao |
+|---|---|---|---|
+| D5a | Thước đo độ chính xác | **Sai lệch có trọng số theo doanh thu** (Σ\|dự báo − thực tế\| ÷ Σ thực tế, còn gọi WAPE) thay cho MAPE thường; ngưỡng vẫn 25% | qt-food ngày 09/09/2026 chỉ bán 760.000đ (nghỉ sớm): MAPE thường của 4 tuần lên 67% chỉ vì một ngày, WAPE = 23,0%. Ngày bán đều thì hai cách bằng nhau |
+| D2a | Gợi ý nhập tính khi nào | **Lúc mở màn "Nhập hôm nay"** (từ số món dự báo job đêm đã ghi × định lượng − tồn lúc đó), không ghi sẵn trong job | Dùng tồn MỚI NHẤT (sáng nay đã nhập thì gợi ý tự giảm) và dùng thẳng hàm TypeScript của P10 (`requiredQty`) |
+| D8a | Lịch rải | Đêm thứ Hai làm tối đa `MAX_NHAN_XET_MOI_DEM` quán (xếp theo `tenant_id`), quán còn lại các đêm sau trong tuần; mỗi quán một nhận xét / tuần (index duy nhất) | Nhận xét luôn về tuần vừa hết; dưới 20 quán thì mọi quán nhận sáng thứ Hai |
+| D11 | Bất thường hằng ngày | Luật "doanh thu hôm qua lệch > 2σ so với cùng thứ 8 tuần trước" chạy MỖI đêm, viết bằng mẫu câu (không gọi AI) | 0 chi phí; nhận xét tuần vẫn nhắc lại |
 
 ## Hệ quả
 

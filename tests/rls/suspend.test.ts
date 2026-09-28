@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { signInAs, OWNER_A, OWNER_B } from "./setup";
 import { adminClient, cleanupFixtures, seedFixtures } from "./fixtures";
+import { CA_HAN, HOM_NAY } from "../tenant/ca-han";
+import { GRACE_DAYS, homNayHanDung, subscriptionState } from "@/lib/tenant/subscription";
 
 /**
  * TENANT-06 — Ngưng một nhà hàng là cắt quyền THẬT, không phải một nhãn trên màn super-admin.
@@ -36,10 +38,26 @@ beforeAll(async () => {
   tenantB = ids.tenantB;
 }, 120_000);
 
+/** Chỉ tenant demo B. `null` = không giới hạn (trạng thái gốc của mọi quán). */
+async function setPaidUntil(slug: string, paidUntil: string | null) {
+  if (!SUSPENDABLE.has(slug)) {
+    throw new Error(`Từ chối đổi hạn dùng "${slug}" — chỉ cho phép: ${[...SUSPENDABLE].join(", ")}.`);
+  }
+  const { error } = await adminClient().from("tenants").update({ paid_until: paidUntil }).eq("slug", slug);
+  if (error) throw error;
+}
+
+/** Ngày cách "hôm nay theo lịch hạn dùng" (giờ VN, đổi ngày 04:00) `n` ngày. */
+function ngayCach(n: number): string {
+  const t = homNayHanDung();
+  return new Date(Date.UTC(+t.slice(0, 4), +t.slice(5, 7) - 1, +t.slice(8, 10) + n)).toISOString().slice(0, 10);
+}
+
 afterAll(async () => {
   // Bật lại TRƯỚC khi dọn: để treo trạng thái suspended thì lần chạy sau (và các bộ test khác)
   // sẽ đỏ hàng loạt vì "không tìm thấy nhà hàng".
   await setStatus(OWNER_B.slug, "active");
+  await setPaidUntil(OWNER_B.slug, null);
   await cleanupFixtures();
 }, 120_000);
 
@@ -96,5 +114,66 @@ describe("Khóa nhà hàng bằng tenants.status", () => {
       const { data } = await b.from(table).select("id").eq("tenant_id", tenantB);
       expect((data ?? []).length, `${table}: bật lại phải thấy dữ liệu cũ`).toBeGreaterThan(0);
     }
+  }, 60_000);
+});
+
+/**
+ * SUB-03 — quá hạn dùng + ân hạn thì khóa ĐÚNG như suspended (0057), không ai phải bấm. Gia hạn là mở ngay.
+ */
+describe("Khóa nhà hàng khi hết hạn dùng (paid_until)", () => {
+  it.each(CA_HAN)("MỘT định nghĩa: SQL tenant_usable_on và TS cho cùng kết quả — $ten", async (c) => {
+    const { data, error } = await adminClient().rpc("tenant_usable_on", {
+      p_status: "active",
+      p_paid_until: c.paidUntil,
+      p_today: HOM_NAY,
+    });
+    expect(error).toBeNull();
+    expect(data).toBe(c.dungDuoc);
+    expect(subscriptionState(c.paidUntil, HOM_NAY) !== "locked").toBe(c.dungDuoc);
+  });
+
+  it("SQL: quán suspended thì không dùng được dù còn hạn", async () => {
+    const { data } = await adminClient().rpc("tenant_usable_on", {
+      p_status: "suspended",
+      p_paid_until: null,
+      p_today: HOM_NAY,
+    });
+    expect(data).toBe(false);
+  });
+
+  it("đang trong ân hạn (quá GRACE_DAYS ngày) → owner B vẫn đọc được", async () => {
+    await setStatus(OWNER_B.slug, "active");
+    await setPaidUntil(OWNER_B.slug, ngayCach(-GRACE_DAYS));
+    const b = await freshOwnerB();
+    const { data } = await b.from("orders").select("id").eq("tenant_id", tenantB);
+    expect((data ?? []).length).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("quá ân hạn → owner B đọc orders, bills = 0 dòng, không ghi được; quán A không ảnh hưởng", async () => {
+    await setStatus(OWNER_B.slug, "active");
+    await setPaidUntil(OWNER_B.slug, ngayCach(-GRACE_DAYS - 1));
+    const b = await freshOwnerB();
+    for (const table of ["orders", "bills", "memberships", "tenants"]) {
+      const { data, error } = await b.from(table).select("id");
+      expect(error).toBeNull();
+      expect(data ?? [], `${table}: quán hết hạn vẫn đọc được`).toHaveLength(0);
+    }
+    const { error: ghi } = await b.from("menu_categories").insert({ tenant_id: tenantB, name: "SAU-KHI-HET-HAN" });
+    expect(ghi, "quán hết hạn vẫn chèn được dữ liệu").not.toBeNull();
+
+    const a = await signInAs(OWNER_A.email, OWNER_A.password);
+    const { data: dataA } = await a.from("orders").select("id").eq("tenant_id", tenantA);
+    expect((dataA ?? []).length).toBeGreaterThan(0);
+  }, 60_000);
+
+  it("đặt lại paid_until tương lai → đọc lại được NGAY, dữ liệu còn nguyên", async () => {
+    await setPaidUntil(OWNER_B.slug, ngayCach(-GRACE_DAYS - 1));
+    await setPaidUntil(OWNER_B.slug, ngayCach(30));
+    const b = await freshOwnerB();
+    for (const table of TABLES) {
+      const { data } = await b.from(table).select("id").eq("tenant_id", tenantB);
+      expect((data ?? []).length, `${table}: gia hạn xong phải thấy dữ liệu cũ`).toBeGreaterThan(0);
+    }
+    await setPaidUntil(OWNER_B.slug, null);
   }, 60_000);
 });

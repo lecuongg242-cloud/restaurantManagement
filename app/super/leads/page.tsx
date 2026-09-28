@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isSuperAdmin } from "@/lib/auth/session";
 import { listLeads, type LeadStatus } from "@/lib/marketing/leads";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { SuperPageHeader } from "@/components/super/SuperShell";
 import { updateLeadStatus } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -23,26 +23,15 @@ export default async function LeadsPage() {
   const newCount = leads.filter((l) => l.status === "new").length;
 
   return (
-    <div className="mx-auto min-h-screen max-w-4xl bg-canvas px-lg py-xl">
-      <header className="flex flex-col gap-md sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-steel">Quản trị hệ thống</p>
-          <h1 className="mt-xxs font-display text-3xl text-ink">Khách quan tâm</h1>
-          <p className="mt-xs text-sm text-steel">
-            {leads.length} liên hệ · {newCount} chưa gọi.
-          </p>
-        </div>
-        <Button asChild variant="secondary">
-          <Link href="/super">← Về Super Admin</Link>
-        </Button>
-      </header>
+    <div>
+      <SuperPageHeader title="Khách quan tâm" description={`${leads.length} liên hệ · ${newCount} chưa gọi.`} />
 
       {leads.length === 0 ? (
-        <div className="mt-xl grid place-items-center rounded-lg border border-hairline py-xxl text-center">
+        <div className="mt-lg grid place-items-center rounded-lg border border-hairline bg-canvas py-xxl text-center">
           <p className="text-sm text-steel">Chưa có ai để lại liên hệ.</p>
         </div>
       ) : (
-        <ul className="mt-xl flex flex-col gap-sm">
+        <ul className="mt-lg flex flex-col gap-sm">
           {leads.map((l) => (
             <li
               key={l.id}

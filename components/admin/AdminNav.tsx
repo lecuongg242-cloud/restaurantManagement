@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, LayoutDashboard, Package, QrCode, Settings, UtensilsCrossed, Users, type LucideIcon, Printer } from "lucide-react";
+import { BarChart3, Building2, Contact, LayoutDashboard, Package, QrCode, Settings, UtensilsCrossed, Users, type LucideIcon, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canManage, type ManageSection } from "@/lib/auth/rbac";
 import type { Role } from "@/lib/auth/session";
@@ -40,7 +40,9 @@ export function AdminNav({
     { key: "inventory", label: "Nguyên liệu", icon: Package, href: `${base}/inventory`, section: "inventory" },
     { key: "tables", label: "Bàn & QR", icon: QrCode, href: `${base}/tables`, section: "tables" },
     { key: "reports", label: "Báo cáo", icon: BarChart3, href: `${base}/reports`, section: "reports" },
+    { key: "customers", label: "Khách hàng", icon: Contact, href: `${base}/khach-hang`, section: "customers" },
     { key: "printers", label: "Máy in", icon: Printer, href: `${base}/printers`, section: "printers" },
+    { key: "branches", label: "Chi nhánh", icon: Building2, href: `${base}/chi-nhanh`, section: "branches" },
     { key: "settings", label: "Cài đặt", icon: Settings, href: `${base}/settings`, section: "settings" },
   ];
   const items = allItems.filter((item) => !item.section || canManage(role, item.section));

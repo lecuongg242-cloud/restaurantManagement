@@ -71,9 +71,25 @@ export function uploadMenuImage(tenantId: string, itemId: string, file: File) {
   return uploadImage(file, tenantId, itemId);
 }
 
-/** Xóa 1 object trong bucket theo path (bỏ qua lỗi nếu không tồn tại). */
+/**
+ * Xóa 1 object trong bucket theo path (bỏ qua lỗi nếu không tồn tại) — CHỈ khi không còn dòng nào dùng nó.
+ *
+ * Chuỗi nhiều chi nhánh (P15) dùng chung file ảnh: đồng bộ thực đơn chép ĐƯỜNG DẪN ảnh món sang chi nhánh, tạo chi
+ * nhánh chép đường dẫn logo/ảnh bìa (QD-014 — chép đường dẫn, không chép file). Một chi nhánh thay ảnh mà xóa file
+ * cũ là làm mất ảnh của chi nhánh gốc. Nên phải gọi SAU khi đã ghi đường dẫn mới vào DB, và kiểm mọi chỗ tham chiếu
+ * (đường dẫn tương đối hoặc URL đầy đủ cũ đều kết thúc bằng `path`).
+ */
 export async function deleteMenuImage(path: string | null): Promise<void> {
   if (!path) return;
   const admin = createAdminClient();
+  const duoi = `%${path}`;
+  const [mon, logo, bia] = await Promise.all([
+    admin.from("menu_items").select("id", { count: "exact", head: true }).like("image_url", duoi),
+    admin.from("tenants").select("id", { count: "exact", head: true }).like("logo_url", duoi),
+    admin.from("tenants").select("id", { count: "exact", head: true }).like("cover_url", duoi),
+  ]);
+  // Lỗi đếm → không xóa: để sót một file thừa rẻ hơn nhiều so với xóa nhầm ảnh đang hiện cho khách.
+  if (mon.error || logo.error || bia.error) return;
+  if ((mon.count ?? 0) + (logo.count ?? 0) + (bia.count ?? 0) > 0) return;
   await admin.storage.from(MENU_BUCKET).remove([path]);
 }

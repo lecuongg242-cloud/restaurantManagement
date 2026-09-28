@@ -27,6 +27,10 @@ export type Item = {
   active: boolean;
   created_at: string;
   updated_at: string;
+  /** Chuỗi (P15, 0063): id món ở chi nhánh gốc; rỗng = món riêng của quán. */
+  source_id?: string | null;
+  /** Chi nhánh đã tự sửa giá → đồng bộ thực đơn không ghi đè giá. */
+  price_locked?: boolean;
 };
 
 /** Món kèm các nhóm tùy chọn đã gắn (dùng khi render ItemDialog). */

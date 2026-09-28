@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { defaultRouteForRole, canAccess } from "@/lib/auth/rbac";
 import { getSessionMembership } from "@/lib/auth/session";
+import { ownerForRenewal } from "@/lib/tenant/renewal";
 
 /**
  * Đăng nhập owner/manager vào khu admin. Lỗi trả TẠI CHỖ ({error}) để form
@@ -24,6 +25,9 @@ export async function ownerSignIn(
   // Phải có membership ở tenant này.
   const session = await getSessionMembership(slug);
   if (!session) {
+    // Quán hết hạn (0057): RLS đã loại quán nên không thấy membership — nhưng OWNER vẫn phải vào được
+    // trang Gia hạn, lối thoát duy nhất (SUB-04).
+    if (await ownerForRenewal(slug)) redirect(`/r/${slug}/admin/gia-han`);
     await supabase.auth.signOut();
     return { error: "Tài khoản không thuộc nhà hàng này." };
   }

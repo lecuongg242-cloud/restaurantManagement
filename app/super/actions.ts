@@ -9,22 +9,9 @@ import { slugify } from "@/lib/utils";
 import { provisionPrintBridgeAccount } from "@/lib/print/bridge-account";
 import { createActivationCode, revokePrintBridge } from "@/lib/print/activation";
 import { gioVn } from "@/lib/time/vn";
-
-/** Tra tài khoản auth theo email (phân trang listUsers) — trả null nếu không có. */
-async function findAuthUserByEmail(
-  admin: ReturnType<typeof createAdminClient>,
-  email: string
-) {
-  const target = email.trim().toLowerCase();
-  for (let page = 1; page <= 20; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) return null;
-    const hit = data.users.find((u) => (u.email ?? "").toLowerCase() === target);
-    if (hit) return hit;
-    if (data.users.length < 200) break;
-  }
-  return null;
-}
+import { bankByBin } from "@/lib/payments/banks";
+import { khongDauInHoa } from "@/lib/payments/vietqr";
+import { provisionOwner } from "@/lib/tenant/provision-owner";
 
 /** Đăng nhập super-admin (email/mật khẩu Supabase). */
 export async function superSignIn(formData: FormData) {
@@ -93,39 +80,16 @@ export async function createTenant(formData: FormData) {
 
   const tenantId = tenant!.id;
 
-  // 2) Tạo auth user owner — hoặc TÁI DÙNG nếu email đã tồn tại.
-  //    Xoá nhà hàng KHÔNG xoá tài khoản auth của owner, nên email có thể còn "mồ côi"
-  //    từ một nhà hàng đã xoá trước đó → tái dùng tài khoản đó và đặt lại mật khẩu theo form.
-  let ownerId: string;
-  let ownerCreated = false;
-  const { data: created, error: uErr } = await admin.auth.admin.createUser({
-    email: ownerEmail,
-    password: ownerPassword,
-    email_confirm: true,
-    user_metadata: { full_name: ownerEmail },
-  });
-
-  if (created?.user) {
-    ownerId = created.user.id;
-    ownerCreated = true;
-  } else if (uErr && /already|registered|exists/i.test(uErr.message)) {
-    const existing = await findAuthUserByEmail(admin, ownerEmail);
-    if (!existing) {
-      await admin.from("tenants").delete().eq("id", tenantId);
-      fail("Email đã tồn tại nhưng không tra được tài khoản. Hãy dùng email khác.");
-    }
-    ownerId = existing!.id;
-    // Đặt lại mật khẩu + confirm email: tài khoản mồ côi có thể CHƯA confirm email
-    // → Supabase chặn đăng nhập ("email_not_confirmed"). Confirm để owner vào được ngay.
-    await admin.auth.admin.updateUserById(ownerId, {
-      password: ownerPassword,
-      email_confirm: true,
-    });
-  } else {
+  // 2) Tài khoản owner: tạo mới, hoặc TÁI DÙNG nếu email đã có. Chủ đang dùng ở quán khác (chủ chuỗi) thì
+  //    GIỮ mật khẩu cũ; tài khoản mồ côi thì đặt mật khẩu theo form (lib/tenant/provision-owner.ts).
+  const chu = await provisionOwner(admin, ownerEmail, ownerPassword);
+  if (!chu.ok) {
     await admin.from("tenants").delete().eq("id", tenantId);
-    fail(`Không tạo được owner: ${uErr?.message ?? "email có thể đã dùng"}`);
+    fail(chu.error);
     return;
   }
+  const ownerId = chu.userId;
+  const ownerCreated = chu.created;
 
   // 3) Profile + membership owner.
   await admin.from("profiles").upsert({ id: ownerId, full_name: ownerEmail });
@@ -143,8 +107,10 @@ export async function createTenant(formData: FormData) {
     fail(`Không gán được owner: ${mErr.message}`);
   }
 
-  revalidatePath("/super");
-  redirect(`/super?created=${encodeURIComponent(tenant!.slug)}`);
+  revalidatePath("/super", "layout");
+  redirect(
+    `/super/nha-hang?created=${encodeURIComponent(tenant!.slug)}${chu.passwordSet ? "" : "&giu_mat_khau=1"}`
+  );
 }
 
 /**
@@ -220,7 +186,7 @@ export async function setTenantStatus(
     .eq("id", tenantId);
   if (error) return { error: error.message };
 
-  revalidatePath("/super");
+  revalidatePath("/super", "layout");
   return {};
 }
 
@@ -261,7 +227,7 @@ export async function deleteTenant(
   const { error } = await admin.from("tenants").delete().eq("id", tenantId);
   if (error) return { error: `Không xoá được: ${error.message}` };
 
-  revalidatePath("/super");
+  revalidatePath("/super", "layout");
   return {};
 }
 
@@ -298,7 +264,7 @@ export async function createPrintBridgeAccount(
       slug: tenant.slug,
       name: tenant.name,
     });
-    revalidatePath("/super");
+    revalidatePath("/super", "layout");
     return {
       ok:
         `PRINT_BRIDGE_EMAIL=${email}\nPRINT_BRIDGE_PASSWORD=${password}\n\n` +
@@ -352,9 +318,194 @@ export async function revokeBridge(_prev: SuperActionState, formData: FormData):
 
   try {
     const n = await revokePrintBridge(createAdminClient(), tenantId);
-    revalidatePath("/super");
+    revalidatePath("/super", "layout");
     return { ok: n > 0 ? "Đã thu hồi. Cầu in của quán không in được nữa." : "Quán chưa có cầu in nào." };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Không thu hồi được." };
   }
+}
+
+/**
+ * Sửa `paid_until` TAY (13-03) — dự phòng và cách sửa khi ghi nhận nhầm (nhật ký gia hạn chỉ thêm, không
+ * xóa). Để trống = KHÔNG GIỚI HẠN. Service role vì authenticated không có quyền cột này (0020).
+ */
+export async function setPaidUntil(
+  _prev: SuperActionState,
+  formData: FormData
+): Promise<SuperActionState> {
+  const su = await isSuperAdmin();
+  if (!su) redirect("/super/login");
+
+  const tenantId = String(formData.get("tenant_id") ?? "").trim();
+  const raw = String(formData.get("paid_until") ?? "").trim();
+  if (raw && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return { error: "Ngày không hợp lệ." };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("tenants")
+    .update({ paid_until: raw || null, updated_at: new Date().toISOString() })
+    .eq("id", tenantId)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: "Không tìm thấy nhà hàng." };
+
+  revalidatePath("/super", "layout");
+  return { ok: raw ? "Đã đặt hạn dùng." : "Đã chuyển sang không giới hạn." };
+}
+
+/**
+ * Ghi nhận một lần gia hạn (13-04, SUB-04; 0059). Ba kiểu:
+ *  - `thang`: cộng N tháng từ max(hôm nay, hạn cũ) — `record_subscription_payment`.
+ *  - `ngay`: đặt hạn tới đúng ngày chọn trên lịch — `record_subscription_until`.
+ *  - `vv`: vĩnh viễn, quán thành không giới hạn — `record_subscription_lifetime`.
+ * Gọi RPC bằng PHIÊN super-admin (không phải service role): RPC tự kiểm is_super_admin(), đổi hạn và ghi
+ * nhật ký trong một giao dịch, lưu người ghi = auth.uid().
+ */
+export async function recordRenewal(
+  _prev: SuperActionState,
+  formData: FormData
+): Promise<SuperActionState> {
+  const su = await isSuperAdmin();
+  if (!su) redirect("/super/login");
+
+  const tenantId = String(formData.get("tenant_id") ?? "").trim();
+  const kieu = String(formData.get("kieu") ?? "thang");
+  const amount = Number(String(formData.get("amount") ?? "").replace(/[^\d]/g, ""));
+  const note = String(formData.get("note") ?? "").trim().slice(0, 500) || null;
+  const startLimited = formData.get("start_limited") === "on";
+  if (!Number.isInteger(amount) || amount < 0) return { error: "Số tiền không hợp lệ." };
+
+  const supabase = await createClient();
+  let res;
+  if (kieu === "vv") {
+    res = await supabase.rpc("record_subscription_lifetime", { p_tenant: tenantId, p_amount: amount, p_note: note });
+  } else if (kieu === "ngay") {
+    const until = String(formData.get("until") ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) return { error: "Chưa chọn ngày hết hạn." };
+    res = await supabase.rpc("record_subscription_until", {
+      p_tenant: tenantId,
+      p_until: until,
+      p_amount: amount,
+      p_note: note,
+      p_start_limited: startLimited,
+    });
+  } else {
+    const months = Number(formData.get("months"));
+    if (!(Number.isInteger(months) && months >= 1 && months <= 120)) return { error: "Số tháng phải từ 1 đến 120." };
+    res = await supabase.rpc("record_subscription_payment", {
+      p_tenant: tenantId,
+      p_months: months,
+      p_amount: amount,
+      p_note: note,
+      p_start_limited: startLimited,
+    });
+  }
+
+  const { data, error } = res;
+  if (error) {
+    const m = error.message;
+    return {
+      error: /KHONG GIOI HAN/.test(m)
+        ? "Quán đang KHÔNG GIỚI HẠN — tích “Chuyển quán sang có hạn” nếu thật sự muốn."
+        : /sau han hien tai/.test(m)
+          ? "Ngày chọn phải sau hạn hiện tại. Muốn rút ngắn hạn thì dùng “Sửa hạn tay”."
+          : /sau hom nay/.test(m)
+            ? "Ngày hết hạn phải sau hôm nay."
+            : m,
+    };
+  }
+
+  revalidatePath("/super", "layout");
+  if (kieu === "vv") return { ok: "Đã chuyển quán sang VĨNH VIỄN (không giới hạn)." };
+  const after = (data as { paid_until_after?: string } | null)?.paid_until_after;
+  return { ok: after ? `Đã gia hạn tới ${after.split("-").reverse().join("/")}.` : "Đã ghi nhận." };
+}
+
+/**
+ * Lưu cấu hình nền tảng (0060) — tài khoản nhận tiền gia hạn, số hỗ trợ (giá theo gói: `savePlan`). Ghi bằng PHIÊN super-admin
+ * (RLS `platform_settings_super` kiểm lần nữa). Kiểm từng trường và báo lỗi cụ thể: số tài khoản sai là tiền
+ * của quán chuyển đi lạc. Để trống số tài khoản = gỡ tài khoản (trang Gia hạn thôi hiện QR, trừ khi có env).
+ */
+export async function savePlatformSettings(
+  _prev: SuperActionState,
+  formData: FormData
+): Promise<SuperActionState> {
+  const su = await isSuperAdmin();
+  if (!su) redirect("/super/login");
+
+  const bin = String(formData.get("bank_bin") ?? "").trim();
+  const accountNo = String(formData.get("bank_account_no") ?? "").replace(/[\s.-]/g, "");
+  const accountName = khongDauInHoa(String(formData.get("bank_account_name") ?? "")).slice(0, 50);
+  const supportPhone = String(formData.get("support_phone") ?? "").trim().slice(0, 30);
+
+  if (accountNo) {
+    if (!bankByBin(bin)) return { error: "Chưa chọn ngân hàng." };
+    if (!/^\d{6,19}$/.test(accountNo)) return { error: "Số tài khoản chỉ gồm chữ số, 6–19 số." };
+    if (!accountName) return { error: "Thiếu tên chủ tài khoản." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("platform_settings")
+    .upsert({
+      id: true,
+      bank_bin: accountNo ? bin : null,
+      bank_account_no: accountNo || null,
+      bank_account_name: accountNo ? accountName : null,
+      support_phone: supportPhone || null,
+      updated_at: new Date().toISOString(),
+      updated_by: su.userId,
+    })
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: "Không lưu được (thiếu quyền super-admin?)." };
+
+  revalidatePath("/super", "layout");
+  return { ok: "Đã lưu cài đặt nền tảng." };
+}
+
+/**
+ * Thêm / sửa một gói dịch vụ (0061). Có `plan_id` = sửa. Thời hạn: số tháng 1–120, hoặc tích "vĩnh viễn".
+ * Ghi bằng phiên super-admin (RLS `platform_plans_super`).
+ */
+export async function savePlan(_prev: SuperActionState, formData: FormData): Promise<SuperActionState> {
+  const su = await isSuperAdmin();
+  if (!su) redirect("/super/login");
+
+  const id = String(formData.get("plan_id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim().slice(0, 60);
+  const vinhVien = formData.get("lifetime") === "on";
+  const months = Number(formData.get("months"));
+  const price = Number(String(formData.get("price") ?? "").replace(/[^\d]/g, ""));
+  const visible = formData.get("visible") === "on";
+
+  if (!name) return { error: "Thiếu tên gói." };
+  if (!vinhVien && !(Number.isInteger(months) && months >= 1 && months <= 120)) {
+    return { error: "Thời hạn phải từ 1 đến 120 tháng (hoặc tích Vĩnh viễn)." };
+  }
+  if (!Number.isInteger(price) || price <= 0 || price > 2_000_000_000) return { error: "Giá phải là số tiền dương (đồng)." };
+
+  const row = { name, months: vinhVien ? null : months, price, visible };
+  const supabase = await createClient();
+  const { data, error } = id
+    ? await supabase.from("platform_plans").update(row).eq("id", id).select("id")
+    : await supabase.from("platform_plans").insert(row).select("id");
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: "Không lưu được (thiếu quyền super-admin?)." };
+
+  revalidatePath("/super", "layout");
+  return { ok: id ? "Đã lưu gói." : `Đã thêm gói “${name}”.` };
+}
+
+/** Xóa một gói (0061). Lịch sử gia hạn giữ nguyên — nhật ký lưu số tháng + số tiền, không trỏ tới gói. */
+export async function deletePlan(_prev: SuperActionState, formData: FormData): Promise<SuperActionState> {
+  const su = await isSuperAdmin();
+  if (!su) redirect("/super/login");
+  const id = String(formData.get("plan_id") ?? "").trim();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("platform_plans").delete().eq("id", id).select("id");
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: "Không xóa được." };
+  revalidatePath("/super", "layout");
+  return { ok: "Đã xóa gói." };
 }

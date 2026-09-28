@@ -220,12 +220,12 @@ dịch ưu đãi, mua hàng/công nợ. KDS giữ nguyên (phiếu giấy là ch
 Chi tiết: `30-KeHoach/P13/00-TongQuan.md` · quyết định `QD-021`. Hai nhánh song song: VietQR (13-01 → 13-02) và
 thuê bao (13-03); 13-04 ghép hai nhánh.
 
-- [ ] 13-01 **VietQR**: dựng mã EMVCo, tài khoản nhận của quán, QR trong hộp thanh toán POS (PAY-01..03).
-- [ ] 13-02 **QR trên phiếu tạm tính và hóa đơn in** (PAY-03).
+- [ ] 13-01 **VietQR**: tài khoản nhận của quán + dựng mã EMVCo (PAY-01, 02).
+- [ ] 13-02 **In mã QR chuyển khoản trên hóa đơn** — không hiện trên màn (PAY-03).
 - [ ] 13-03 **Hạn dùng, nhắc, khóa tự động** khi quá ân hạn (SUB-01..03) — chờ chốt số ngày nhắc/ân hạn.
 - [ ] 13-04 **Gia hạn tay** qua VietQR + ghi nhận ở `/super` (SUB-04) — chờ chốt giá.
 
-P13 kết thúc bằng **"khách quét QR trên màn hoặc trên giấy, đúng tiền; quán có hạn dùng, được nhắc, tự khóa
+P13 kết thúc bằng **"khách quét mã QR in trên hóa đơn, đúng tiền; quán có hạn dùng, được nhắc, tự khóa
 khi quá ân hạn và mở lại ngay khi gia hạn"**.
 
 ## P14 — Hóa đơn điện tử từ máy tính tiền + sổ hộ kinh doanh (CHỜ)
@@ -233,9 +233,9 @@ khi quá ân hạn và mở lại ngay khi gia hạn"**.
 Chi tiết: `30-KeHoach/P14/00-TongQuan.md` · quyết định `QD-022`. **Chờ chủ dự án liên hệ nhà cung cấp**
 (ưu tiên VNPAY-Invoice miễn phí tới 2028; dự phòng Viettel SInvoice). 14-04 làm trước được.
 
-- [ ] 14-01 Cấu hình HĐĐT + hàng đợi phát hành + giao diện adapter (EINV-01, 02).
+- [ ] 14-01 Cấu hình HĐĐT, xuất **theo yêu cầu từng hóa đơn** (mặc định) hoặc mọi hóa đơn + hàng đợi + adapter (EINV-01, 02).
 - [ ] 14-02 Adapter nhà cung cấp đầu tiên (EINV-04).
-- [ ] 14-03 Hóa đơn in có mã tra cứu + trạng thái (EINV-03).
+- [ ] 14-03 In riêng phiếu HĐĐT có mã/QR tra cứu + trạng thái (EINV-03).
 - [ ] 14-04 Xuất sổ S1a/S2a-HKD (EINV-05).
 
 ## P15 — Chuỗi nhiều chi nhánh

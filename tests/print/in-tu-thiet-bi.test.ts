@@ -95,6 +95,26 @@ describe("quán bridge", () => {
     expect(iframe[0]).toMatch(/\/print\/kitchen\/o1/);
   });
 
+  it("P17: phiếu bếp từ ĐIỆN THOẠI khi cầu in mất kết nối → server xếp hàng chờ (cờ gửi lên), báo phiếu đang chờ, không mở hộp thoại in", async () => {
+    dungMoiTruong(390);
+    queueKitchenTicketPrint.mockResolvedValue({ ok: true, cho: true });
+    (await import("@/lib/print/adapter")).getPrintAdapter("bridge").printKitchenTicket({ slug: "q", orderId: "o1" });
+    await cho();
+    expect(queueKitchenTicketPrint).toHaveBeenCalledWith("q", "o1", true);
+    expect(iframe).toEqual([]);
+    expect(thongBao[0]).toMatchObject({ loai: "loi" });
+    expect(thongBao[0].noiDung).toMatch(/mất kết nối.*30 phút/);
+  });
+
+  it("P17: máy CÓ máy in không xin xếp hàng khi cầu in chết (giữ đường lui in trình duyệt)", async () => {
+    dungMoiTruong(1280);
+    queueKitchenTicketPrint.mockResolvedValue({ ok: true });
+    (await import("@/lib/print/adapter")).getPrintAdapter("bridge").printKitchenTicket({ slug: "q", orderId: "o1" });
+    await cho();
+    expect(queueKitchenTicketPrint).toHaveBeenCalledWith("q", "o1", false);
+    expect(thongBao).toEqual([]);
+  });
+
   it("máy < 1024 px + cầu in CHƯA KHAI máy in quầy (qt-food trước khi cài lại) → hóa đơn in trình duyệt, không báo lỗi", async () => {
     dungMoiTruong(910);
     queueReceiptPrint.mockResolvedValue({ ok: false, lyDo: "chua-khai" });

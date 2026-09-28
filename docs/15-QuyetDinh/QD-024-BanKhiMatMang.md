@@ -1,6 +1,6 @@
 # QD-024 — Bán khi quán mất mạng: điện thoại 5G làm tiếp, cầu in có mạng dự phòng
 
-**Ngày:** 27/09/2026 · **Trạng thái:** ĐỀ XUẤT — hướng đã đổi theo thông tin chủ dự án (27/09/2026, xem C1); chờ chốt C2.
+**Ngày:** 27/09/2026 · **Trạng thái:** ĐÃ TRIỂN KHAI (P17, 28/09/2026) theo C1 + đề xuất C2 (hotspot điện thoại quản lý); chủ dự án xác nhận C2 sau buổi diễn tập 17-03.
 **Kế hoạch:** `30-KeHoach/P17/` · **Yêu cầu:** OFFLINE-01..04, OPS-04
 **Thay thế:** QD-005 D14 ("online-only") ở phần đọc offline; `50-PhienBan/V2-KeHoach.md` §V2-C giữ để tham khảo.
 **Liên quan:** QD-019/020 (cầu in, in từ mọi thiết bị), QD-021 D1 (VietQR dựng tại chỗ)

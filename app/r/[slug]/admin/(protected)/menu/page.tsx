@@ -14,7 +14,7 @@ import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { ModifierGroupPicker } from "@/components/menu/ModifierGroupPicker";
 import { CategoryManager } from "./CategoryManager";
 import { ItemDialog } from "./ItemDialog";
-import { createCategory, deleteItem, reorderItem } from "./actions";
+import { createCategory, deleteItem, followChainPrice, reorderItem } from "./actions";
 import type { Category, Item, ModifierGroup } from "@/lib/menu/types";
 import { urlAnh } from "@/lib/storage/public-url";
 
@@ -207,6 +207,16 @@ export default async function MenuPage({
                         </div>
                         {it.description && (
                           <p className="mt-xxs line-clamp-2 text-xs text-steel">{it.description}</p>
+                        )}
+                        {it.source_id && it.price_locked && (
+                          <form action={followChainPrice} className="mt-xxs flex flex-wrap items-center gap-xs text-xs">
+                            <input type="hidden" name="slug" value={slug} />
+                            <input type="hidden" name="id" value={it.id} />
+                            <span className="text-steel">Giá riêng chi nhánh ·</span>
+                            <button type="submit" className="text-primary underline-offset-4 hover:underline">
+                              Theo giá chuỗi
+                            </button>
+                          </form>
                         )}
                       </div>
                     </div>

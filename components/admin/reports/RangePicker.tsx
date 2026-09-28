@@ -26,13 +26,15 @@ type Props = {
   canGoNext: boolean;
   /** Ngày VN hôm nay — chặn chọn tương lai. */
   today: string;
+  /** Tham số giữ nguyên khi đổi kỳ (vd `cn` — chi nhánh đang lọc ở báo cáo chuỗi). */
+  keep?: Record<string, string>;
 };
 
 /**
  * Chọn kỳ báo cáo (REPORT-05): preset nhanh + khoảng tùy chọn + điều hướng kỳ trước/sau.
  * Lịch dùng `<input type="date">` gốc của trình duyệt — không thêm dependency.
  */
-export function RangePicker({ base, preset, offset, fromDay, toDay, baseFrom, baseTo, canGoNext, today }: Props) {
+export function RangePicker({ base, preset, offset, fromDay, toDay, baseFrom, baseTo, canGoNext, today, keep }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
@@ -64,7 +66,7 @@ export function RangePicker({ base, preset, offset, fromDay, toDay, baseFrom, ba
   }, [open]);
 
   const go = (params: Record<string, string>) => {
-    const q = new URLSearchParams(params);
+    const q = new URLSearchParams({ ...params, ...keep });
     startTransition(() => router.push(`${base}?${q.toString()}`));
   };
 

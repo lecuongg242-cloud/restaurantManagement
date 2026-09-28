@@ -10,8 +10,9 @@ Theo NĐ 254/2026 (thay NĐ 70/2025), quán ăn uống doanh thu > 1 tỷ/năm *
 tạo từ máy tính tiền. Mọi đối thủ đều có và đang dùng nó làm lý do chính để kéo khách; POS365 và KiotViet
 còn tặng miễn phí. Không có HĐĐT thì quán cỡ qt-food (~3,7 tỷ/năm) phải chạy song song một phần mềm khác.
 
-**P14 kết thúc bằng: quán bật HĐĐT → mỗi bill đóng xong tự được cấp mã của cơ quan thuế trong vài giây mà
-thu ngân không phải chờ; hóa đơn in có mã tra cứu; quán nhỏ xuất được sổ S1a/S2a-HKD để kê khai.**
+**P14 kết thúc bằng: khách cần hóa đơn điện tử → thu ngân tích "Xuất hóa đơn điện tử" cho bill đó (nhập MST công ty nếu có) →
+bill được cấp mã của cơ quan thuế mà thu ngân không phải chờ, và một phiếu HĐĐT riêng có mã/QR tra cứu in ra cho khách; quán diện
+bắt buộc bật được chế độ phát hành mọi hóa đơn; quán nhỏ xuất được sổ S1a/S2a-HKD để kê khai.**
 
 ## Điều kiện bắt đầu
 
@@ -27,9 +28,9 @@ thu ngân không phải chờ; hóa đơn in có mã tra cứu; quán nhỏ xu�
 
 | Plan | Yêu cầu | Phụ thuộc | Giá trị khi dừng ở đây |
 |---|---|---|---|
-| 14-01 Cấu hình HĐĐT + hàng đợi phát hành + giao diện adapter | EINV-01, EINV-02 | Điều kiện 3 | Khung sẵn sàng; thêm nhà cung cấp chỉ là viết một adapter |
+| 14-01 Cấu hình HĐĐT (theo yêu cầu / mọi hóa đơn) + ô yêu cầu xuất + hàng đợi + giao diện adapter | EINV-01, EINV-02 | Điều kiện 3 | Khung sẵn sàng; thêm nhà cung cấp chỉ là viết một adapter |
 | 14-02 Adapter nhà cung cấp đầu tiên (VNPAY hoặc Viettel) | EINV-04 | 14-01, điều kiện 1 | Quán thật phát hành được HĐĐT |
-| 14-03 Hóa đơn in có mã tra cứu + trạng thái trên POS/admin | EINV-03 | 14-02 | Khách nhận hóa đơn hợp lệ |
+| 14-03 In riêng phiếu HĐĐT + trạng thái trên POS/admin | EINV-03 | 14-02 | Khách nhận hóa đơn hợp lệ |
 | 14-04 Xuất sổ S1a/S2a-HKD | EINV-05 | điều kiện 2 | Quán ≤ 1 tỷ kê khai được, 0đ |
 
 ## Phát hiện khi rà code (27/09/2026)

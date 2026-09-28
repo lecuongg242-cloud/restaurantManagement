@@ -28,7 +28,7 @@ Ví dụ: qt-food ~3,7 tỷ/năm ⇒ thuộc diện bắt buộc.
 | D1 | Cách nối | **Gọi API nhà cung cấp HĐĐT** (họ lo truyền dữ liệu lên cơ quan thuế). Hệ thống chỉ lưu **thông tin đăng nhập API của từng quán** (mã hóa) | Hóa đơn gắn MST của quán ⇒ quán ký hợp đồng trực tiếp với nhà cung cấp; nền tảng không trả phí | Tự làm T-VAN nối thẳng cơ quan thuế — cần giấy phép |
 | D2 | Nhà cung cấp đầu tiên | **VNPAY-Invoice nếu mở được đối tác API** (miễn phí cho hộ kinh doanh, không giới hạn, tới 31/12/2028; KiotViet/Sapo/iPOS/POS365 đã tích hợp). **Dự phòng: Viettel SInvoice** (tài liệu công khai, có môi trường demo) | Đúng ưu tiên miễn phí; Viettel cho phép làm trước khi có hợp đồng | MISA meInvoice (200–833đ/HĐ), M-invoice (thu 3,5tr/ngày hỗ trợ tích hợp) — giữ làm lựa chọn thêm |
 | D3 | Kiến trúc | **Một lớp adapter** (giao diện chung: phát hành, tra trạng thái, hủy/thay thế) + mỗi nhà cung cấp một adapter | Quán tự chọn nhà cung cấp mình đã có hợp đồng; đổi bên không đụng POS | Viết thẳng cho một bên |
-| D4 | Lúc phát hành | **Tự động khi đóng bill** (quán bật chế độ HĐĐT); gửi **bất đồng bộ** qua hàng đợi, thử lại khi lỗi. Đóng bill **không chờ** nhà cung cấp | Không làm chậm thu tiền (BILL-04 ≤ 5s); mất mạng/nhà cung cấp lỗi không chặn bán | Phát hành đồng bộ trong `pay_bill` |
+| D4 | Lúc phát hành | **Hai chế độ theo quán.** **"Theo yêu cầu" (mặc định — chủ dự án chốt 27/09/2026):** thu ngân tích "Xuất hóa đơn điện tử" cho **từng** bill khi khách cần, nhập thông tin người mua nếu có, và **in riêng một phiếu HĐĐT** cho khách; bill khác không phát hành. **"Mọi hóa đơn":** tự phát hành mọi bill đóng — cho quán diện bắt buộc nếu kế toán xác nhận luật đòi mọi lần bán. Cả hai: gửi **bất đồng bộ** qua hàng đợi, thử lại khi lỗi; đóng bill **không chờ** nhà cung cấp | Đúng cách chủ dự án muốn quán dùng; không tốn lượt hóa đơn cho khách không cần; vẫn có đường tuân thủ đầy đủ | Chỉ tự động mọi bill; phát hành đồng bộ trong `pay_bill` |
 | D5 | Hộ ≤ 1 tỷ | **Xuất sổ S1a-HKD / S2a-HKD** từ dữ liệu bán hàng (Excel/PDF) — không cần nhà cung cấp | 0đ, làm được ngay, dùng cho mọi quán | Tự làm phần mềm kế toán — ngoài phạm vi |
 | D6 | Chữ ký số | **Không làm** cho luồng máy tính tiền | Không bắt buộc (bảng trên) | Tích hợp HSM/USB token |
 
@@ -42,4 +42,8 @@ Ví dụ: qt-food ~3,7 tỷ/năm ⇒ thuộc diện bắt buộc.
 ## Chưa quyết
 
 - Có tính phí nền tảng cho tính năng HĐĐT không (hiện: không — gộp trong thuê bao, QD-021 C2).
-- Hóa đơn cho khách yêu cầu xuất tên công ty/MST người mua — làm ngay P14 hay sau.
+- **Pháp lý của chế độ "Theo yêu cầu":** hộ ≤ 1 tỷ dùng tự nguyện nên chắc chắn được. Quán > 1 tỷ (diện bắt buộc) có được chỉ lập
+  khi khách yêu cầu, hay phải lập **mọi** lần bán (NĐ 254/2026 + TT 91/2026)? — **kế toán/đại lý thuế xác nhận** (điều kiện 2 của
+  P14). Nếu phải lập mọi lần: quán đó dùng chế độ "Mọi hóa đơn", phiếu HĐĐT vẫn chỉ in khi khách yêu cầu.
+- Xuất HĐĐT cho bill **đã thanh toán** muộn tới khi nào (đề xuất: trong cùng ngày kinh doanh) — kế toán xác nhận.
+- Thông tin người mua (tên công ty, MST, địa chỉ, email) nhập ngay ở ô yêu cầu xuất — làm trong P14 (14-01).

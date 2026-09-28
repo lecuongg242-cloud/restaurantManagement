@@ -11,7 +11,7 @@ import { CAU_LOI } from "@/lib/print/ma-chu-quan";
 import { trangThaiMayIn, type NhipTim } from "@/lib/print/cau-in";
 import { demPhieuHomNay } from "@/lib/print/cau-in-db";
 import { resolveRange } from "@/lib/billing/report-range";
-import { cachDay, gioNgayNamVn, gioVn } from "@/lib/time/vn";
+import { cachDay, gioNgayNamVn, gioNgayVn, gioVn } from "@/lib/time/vn";
 
 /**
  * Màn "Máy in" (PRINT-09) — chủ quán mở ra là biết cầu in có chạy không và máy in bếp có phản hồi
@@ -88,7 +88,7 @@ export default async function PrintersPage({
   const [{ data: nhipRow }, dem, boCai] = await Promise.all([
     supabase
       .from("printer_heartbeats")
-      .select("seen_at, printer_ok, printer_host, printer_checked_at, counter_ok, counter_target, counter_checked_at")
+      .select("seen_at, printer_ok, printer_host, printer_checked_at, counter_ok, counter_target, counter_checked_at, last_gap_from, last_gap_seconds")
       .eq("tenant_id", tenantId)
       .maybeSingle(),
     demPhieuHomNay(supabase, tenantId, resolveRange({ preset: "today" }).fromUtc),
@@ -103,6 +103,8 @@ export default async function PrintersPage({
           counter_ok: boolean | null;
           counter_target: string | null;
           counter_checked_at: string | null;
+          last_gap_from: string | null;
+          last_gap_seconds: number | null;
         })
       | null) ?? null;
   const tt = trangThaiMayIn(nhip, now);
@@ -139,6 +141,13 @@ export default async function PrintersPage({
 
             {nhip?.seen_at && (
               <Dong nhan="Báo sống lần cuối" giaTri={`${gioVn(nhip.seen_at)} · ${cachDay(nhip.seen_at, now)}`} />
+            )}
+            {/* P17 17-02: lần mất kết nối gần nhất (vd wifi quán mất) và bao lâu mới lên lại. */}
+            {nhip?.last_gap_from && nhip.last_gap_seconds != null && (
+              <Dong
+                nhan="Mất kết nối gần nhất"
+                giaTri={`${gioNgayVn(nhip.last_gap_from)} · ${thoiLuong(nhip.last_gap_seconds)}`}
+              />
             )}
             {tt.cauIn !== "song" && (
               <p className="text-sm text-slate">
@@ -279,4 +288,12 @@ export default async function PrintersPage({
       )}
     </div>
   );
+}
+
+/** 75 → "1 phút 15 giây"; 3700 → "1 giờ 2 phút". */
+function thoiLuong(giay: number): string {
+  if (giay < 60) return `${giay} giây`;
+  const phut = Math.floor(giay / 60);
+  if (phut < 60) return `${phut} phút${giay % 60 ? ` ${giay % 60} giây` : ""}`;
+  return `${Math.floor(phut / 60)} giờ${phut % 60 ? ` ${phut % 60} phút` : ""}`;
 }

@@ -5,8 +5,16 @@ import { getKdsTickets } from "@/lib/orders/kds";
 import { getCustomerMenu } from "@/lib/orders/customer-menu";
 import { StationScreen } from "@/components/staff/StationScreen";
 import { KdsBoard } from "@/components/kds/KdsBoard";
+import { manifestMeta } from "@/lib/offline/manifest-meta";
+import { createClient } from "@/lib/supabase/server";
+import { parseSettings } from "@/lib/tenant/settings";
+import { PrintModeProvider } from "@/lib/print/print-mode";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  return manifestMeta((await params).slug, "kds");
+}
 
 /**
  * Màn hình bếp KDS (03-03). StationScreen lo login trạm + chọn nhân viên (kitchen); khi đã chọn
@@ -24,14 +32,19 @@ export default async function KdsHome({
   if (!canAccess(session.role, "kds")) redirect(defaultRouteForRole(slug, session.role));
 
   // `menu` cho drawer "Báo hết món" (MENU-04) — getCustomerMenu trả CẢ món đang hết.
-  const [tickets, menu] = await Promise.all([
+  const supabase = await createClient();
+  const [tickets, menu, { data: tenantRow }] = await Promise.all([
     getKdsTickets(session.tenant.id),
     getCustomerMenu(slug),
+    // Chế độ in: băng "máy in quầy mất kết nối" chỉ có ở quán dùng cầu in (P17 17-02).
+    supabase.from("tenants").select("settings").eq("id", session.tenant.id).maybeSingle(),
   ]);
 
   return (
     <StationScreen slug={slug} surface="kds" fill>
-      <KdsBoard slug={slug} tenantId={session.tenant.id} initial={tickets} menu={menu} />
+      <PrintModeProvider mode={parseSettings(tenantRow?.settings).print_mode}>
+        <KdsBoard slug={slug} tenantId={session.tenant.id} initial={tickets} menu={menu} />
+      </PrintModeProvider>
     </StationScreen>
   );
 }

@@ -24,10 +24,13 @@ export function ReceiptForm({
   slug,
   ingredients,
   prefill,
+  goiY = {},
 }: {
   slug: string;
   ingredients: ReceiptIngredient[];
   prefill: string[];
+  /** P18 18-02: gợi ý nhập (đơn vị nhập) theo dự báo hôm nay — nguyên liệu id → số. Rỗng = không có gợi ý. */
+  goiY?: Record<string, number>;
 }) {
   const [rows, setRows] = useState<Row[]>(() => {
     const start = prefill.length > 0 ? prefill : [""];
@@ -40,6 +43,16 @@ export function ReceiptForm({
   };
   const update = (key: number, patch: Partial<Row>) =>
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const coGoiY = Object.keys(goiY).length > 0;
+  /** Chép gợi ý vào ô số lượng; nguyên liệu được gợi ý mà chưa có dòng thì thêm dòng. Không đụng ô giá. */
+  const dienTheoGoiY = () => {
+    const co = new Set(rows.map((r) => r.ingredient_id));
+    const them = Object.keys(goiY)
+      .filter((id) => !co.has(id))
+      .map((id, i) => ({ key: nextKey + i, ingredient_id: id, qty: "", price: "" }));
+    setNextKey(nextKey + them.length);
+    setRows([...rows, ...them].map((r) => (goiY[r.ingredient_id] ? { ...r, qty: String(goiY[r.ingredient_id]) } : r)));
+  };
 
   return (
     <form action={recordReceipts} className="flex flex-col gap-sm">
@@ -70,7 +83,9 @@ export function ReceiptForm({
               inputMode="decimal"
               value={r.qty}
               onChange={(e) => update(r.key, { qty: e.target.value })}
-              placeholder="0"
+              // Gợi ý theo dự báo hôm nay (P18) nằm ngay trong ô trống — không thêm cột làm chật dòng trên điện thoại.
+              placeholder={goiY[r.ingredient_id] ? `gợi ý ${goiY[r.ingredient_id]}` : "0"}
+              title={goiY[r.ingredient_id] ? `Gợi ý theo dự báo hôm nay: ${goiY[r.ingredient_id]}` : undefined}
               className="w-20 text-right tabular-nums"
             />
             <span className="w-10 shrink-0 text-sm text-steel">{unitOf(r.ingredient_id)}</span>
@@ -102,6 +117,15 @@ export function ReceiptForm({
         >
           + Thêm nguyên liệu khác
         </button>
+        {coGoiY && (
+          <button
+            type="button"
+            onClick={dienTheoGoiY}
+            className="inline-flex min-h-11 items-center rounded-md border border-hairline-strong px-md text-sm text-ink hover:bg-surface"
+          >
+            Điền theo gợi ý
+          </button>
+        )}
         <SubmitButton size="sm" className="h-11 sm:h-9" pendingLabel="Đang ghi…">
           Ghi phiếu nhập
         </SubmitButton>

@@ -1,6 +1,7 @@
 # QD-023 — Chuỗi nhiều chi nhánh: chi nhánh = tenant, thêm tầng thương hiệu
 
-**Ngày:** 27/09/2026 · **Trạng thái:** ĐỀ XUẤT — chờ chủ dự án chốt D1 (đổi hướng so với V2-A) và U1–U3.
+**Ngày:** 27/09/2026 · **Trạng thái:** ĐÃ CHỐT 27/09/2026 — D1, D4, D7, U1 chủ dự án chọn sau khi xem bảng đối thủ
+(`30-KeHoach/P15/00-TongQuan.md` §Đối thủ làm thế nào); U2, U3 theo đề xuất mặc định.
 **Kế hoạch:** `30-KeHoach/P15/` · **Yêu cầu:** BRANCH-01..08
 **Thay thế:** nguyên tắc kiến trúc ở `50-PhienBan/V2-KeHoach.md` §V2-A (dòng 57–63: thêm `branch_id` vào từng bảng).
 **Liên quan:** QD-009 (email + PIN), QD-012 (cách ly tenant), QD-021 D6–D8 (hạn dùng theo tenant)
@@ -44,7 +45,7 @@ vì RLS vẫn cho qua (cùng tenant).
 | # | Việc | Chọn (đề xuất) | Vì sao |
 |---|---|---|---|
 | D8 | Ai trả, trả mấy lần | **Thương hiệu là một tài khoản thanh toán:** một ngày hết hạn chung cho mọi chi nhánh, một lần chuyển khoản, một mã QR gia hạn (nội dung `GH {brand}`), một dòng nhật ký | Chủ chuỗi không phải nhớ nhiều ngày hết hạn; không có chuyện một chi nhánh bị khóa vì quên gia hạn riêng |
-| D9 | Tính bao nhiêu | **Đơn giá × số chi nhánh đang hoạt động**, có bậc giảm từ chi nhánh thứ 2 (mức giảm chốt cùng QD-021 U3) | Một giá cố định cho cả thương hiệu ⇒ chuỗi 10 quán trả như 1 quán, trong khi hỗ trợ, cài đặt, máy in, hạ tầng nhân 10. Mọi đối thủ đều tính theo chi nhánh (KiotViet +270–375k, CUKCUK +199–499k/chi nhánh) |
+| D9 | Tính bao nhiêu | **Giá gói × số chi nhánh đang hoạt động, KHÔNG giảm** (chốt 27/09/2026, giống KiotViet/CUKCUK). Gói = các gói super-admin tự đặt (`platform_plans`, 0061) | Một giá cố định cho cả thương hiệu ⇒ chuỗi 10 quán trả như 1 quán, trong khi hỗ trợ, cài đặt, máy in, hạ tầng nhân 10. Mọi đối thủ đều tính theo chi nhánh (KiotViet +270–375k, CUKCUK +199–499k/chi nhánh) |
 | D10 | Mở chi nhánh giữa kỳ | Chi nhánh mới dùng **ngay**, hết hạn cùng ngày chung, **không thu bù** kỳ đang chạy; kỳ gia hạn sau tính đủ số chi nhánh | Đơn giản, không phải tính tiền lẻ theo ngày; khuyến khích mở thêm |
 | D11 | Đóng một chi nhánh | Owner tắt chi nhánh → không tính ở kỳ sau; dữ liệu giữ nguyên | Không phạt khách |
 | D12 | Kỹ thuật | **Giữ `paid_until` trên từng tenant** (cổng khóa `auth_tenant_ids()` của QD-021 D7 không đổi). Ghi nhận gia hạn thương hiệu = RPC đặt `paid_until` của **mọi** chi nhánh về cùng một ngày trong **một** giao dịch | Không thêm join `brands` vào hàm nằm trong mọi policy |
@@ -55,9 +56,9 @@ Quán lẻ (không thương hiệu) gia hạn như QD-021 D8. Plan: `30-KeHoach/
 
 | # | Việc | Đề xuất mặc định |
 |---|---|---|
-| U1 | Mức giảm từ chi nhánh thứ 2 | Chốt cùng giá ở QD-021 U3 (ví dụ −20%) |
-| U2 | Đồng bộ thực đơn có ghi đè giá chi nhánh đã sửa không | Không — chỉ chép món mới, tên, ảnh, nhóm, tùy chọn; giá chỉ chép khi chi nhánh chưa sửa |
-| U3 | Đồng bộ luôn định lượng/nguyên liệu (P10) không | Chưa — để sau; mỗi chi nhánh tự khai |
+| U1 | Mức giảm từ chi nhánh thứ 2 | **Chốt: không giảm** — giá gói × số chi nhánh |
+| U2 | Đồng bộ thực đơn có ghi đè giá chi nhánh đã sửa không | **Chốt: không** — giá chỉ chép khi chi nhánh chưa sửa (`price_locked`) |
+| U3 | Đồng bộ luôn định lượng/nguyên liệu (P10) không | **Chốt: chưa** — mỗi chi nhánh tự khai |
 
 ## Hệ quả
 
@@ -66,3 +67,11 @@ Quán lẻ (không thương hiệu) gia hạn như QD-021 D8. Plan: `30-KeHoach/
 - Sửa `app/super/actions.ts:109-122`: tái dùng tài khoản owner **không** được đặt lại mật khẩu.
 - Khách hàng (P16), voucher (P19) sau này cần phạm vi "toàn thương hiệu" ⇒ đọc qua mảng tenant như D5.
 - V2-KeHoach §V2-A giữ để tham khảo lịch sử; BRANCH-* chính thức nằm trong `00-Requirements.md`.
+
+## Sửa 27/09/2026 (chủ dự án, sau khi dùng thử)
+
+| # | Trước | Nay | Vì sao |
+|---|---|---|---|
+| D2' | Super-admin tạo thương hiệu / chi nhánh | **Chủ quán tự tạo chi nhánh** trong admin quán (mục **Chi nhánh** → + Tạo chi nhánh). Lần đầu tự lập chuỗi, quán đang mở là chi nhánh gốc. Không giới hạn số lượng; chi nhánh mới dùng ngay tới hạn chung, **tính vào lần gia hạn sau**; chuỗi đang không giới hạn → chi nhánh mới có hạn từ hôm nay (RPC `create_my_branch`, 0067). `/super` → Thương hiệu giữ để hỗ trợ / sửa | KiotViet ("Tạo chi nhánh"), CUKCUK ("Thêm nhà hàng"), POS365 ("Thêm mới chi nhánh") đều để chủ quán tự làm |
+| D3' | Khu quản trị chuỗi riêng `/b/{brand}/admin` | **Bỏ.** Mọi thứ trong admin quán: mục **Chi nhánh** (tổng quan hôm nay cả chuỗi, tạo chi nhánh, đồng bộ thực đơn), **Báo cáo** có phạm vi "Chi nhánh này / Tất cả chi nhánh", **Gia hạn** tính cả chuỗi. Ô chọn chi nhánh ở góc trên giữ nguyên. Trang khách `/b/{brand}` giữ | Không đối thủ nào có trang quản trị chuỗi riêng; thêm một địa chỉ phải nhớ gây khó cho chủ quán |
+| — | Gỡ nhầm phải sửa tay trong DB | `/super` → Thương hiệu: **Gỡ khỏi thương hiệu**, **Xóa thương hiệu…**; `memberships.brand_id` tách quyền do chuỗi cấp khỏi quyền vốn có (0066) | Gắn nhầm qt-food 27/09/2026 |

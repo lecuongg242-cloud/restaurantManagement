@@ -12,6 +12,11 @@ Hệ thống quản lý nhà hàng dạng **SaaS multi-tenant**: Gọi món + PO
 - Báo cáo sau mỗi phần: file đã đổi, bằng chứng (ảnh/log/test output), trạng thái từng cam kết.
 - Quyết định quan trọng ghi vào `docs/15-QuyetDinh/QD-00X-*.md`.
 - Tối đa 3 vòng sửa cho một phần; kẹt thì đơn giản hóa hoặc đổi cách.
+- **Tham khảo đối thủ TRƯỚC khi làm (chủ dự án yêu cầu 27/09/2026 — "cần giống theo").** Trước khi lập plan hoặc code bất kỳ
+  tính năng nào, tra xem đối thủ (KiotViet, Sapo FnB, CUKCUK, iPOS, POS365 — xem `docs/00-TongQuan/PhanTichDoiThu.md`) làm
+  tính năng đó thế nào: luồng thao tác, màn hình, giấy in, cài đặt, chữ trên nút. Nguồn: trang hướng dẫn sử dụng chính thức,
+  video hướng dẫn, bài đánh giá. Ghi kết quả vào mục **"Đối thủ làm thế nào"** trong `00-TongQuan.md` của P đó (kèm link nguồn
+  + ngày tra) và **làm theo cách của họ** — chủ quán đã quen. Khác đối thủ thì phải ghi lý do và được chủ dự án đồng ý.
 
 ## Nguyên tắc code (Karpathy guidelines)
 1. **Think before coding** — nêu giả định, hỏi khi mơ hồ, không đoán.

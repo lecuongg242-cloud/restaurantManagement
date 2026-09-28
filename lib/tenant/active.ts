@@ -19,7 +19,9 @@ export async function activeTenantBySlug<T = Record<string, unknown>>(
     .from("tenants")
     .select(columns)
     .eq("slug", slug)
-    .eq("status", "active")
+    // Cột tính `usable` (0057) = đang active VÀ còn hạn dùng (kể cả ân hạn) — cùng hàm SQL với
+    // auth_tenant_ids(), không chép điều kiện sang đây.
+    .eq("usable", true)
     .maybeSingle();
   return (data as T | null) ?? null;
 }
@@ -30,7 +32,7 @@ type TenantReader = {
     select: (columns: string) => {
       eq: (column: string, value: string) => {
         maybeSingle: () => Promise<{
-          data: { status: string } | null;
+          data: { status: string; usable?: boolean | null } | null;
           error: { message: string } | null;
         }>;
       };
@@ -52,14 +54,27 @@ type TenantReader = {
  *  - slug không tồn tại → cho qua, để trang con trả 404 đúng nghĩa thay vì "tạm ngưng" sai nghĩa.
  */
 export async function isTenantActive(slug: string, client?: TenantReader): Promise<boolean> {
+  return (await tenantGate(slug, client)) === "ok";
+}
+
+/**
+ * Như `isTenantActive` nhưng nói rõ VÌ SAO chặn — màn "Hết hạn sử dụng" (có lối gia hạn cho chủ quán)
+ * khác màn "Tạm ngưng" (không có lối nào). `expired` = còn `active` nhưng quá `paid_until` + ân hạn.
+ */
+export async function tenantGate(
+  slug: string,
+  client?: TenantReader
+): Promise<"ok" | "suspended" | "expired"> {
   const reader = client ?? (createAdminClient() as unknown as TenantReader);
   const { data, error } = await reader
     .from("tenants")
-    .select("status")
+    .select("status, usable")
     .eq("slug", slug)
     .maybeSingle();
 
-  if (error) return true;
-  if (!data) return true;
-  return data.status === "active";
+  if (error) return "ok";
+  if (!data) return "ok";
+  if (data.status !== "active") return "suspended";
+  // `usable` null/thiếu (DB chưa có 0057) ⇒ không có bằng chứng dương ⇒ cho qua.
+  return data.usable === false ? "expired" : "ok";
 }

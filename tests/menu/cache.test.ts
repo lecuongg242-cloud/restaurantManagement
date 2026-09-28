@@ -15,6 +15,7 @@ import { menuTag } from "@/lib/menu/cache";
 const FILE_MENU = "app/r/[slug]/admin/(protected)/menu/actions.ts";
 const FILE_MODIFIERS = "app/r/[slug]/admin/(protected)/menu/modifiers/actions.ts";
 const FILE_ONBOARDING = "app/r/[slug]/admin/(protected)/onboarding/actions.ts";
+const FILE_BRAND_SYNC = "app/r/[slug]/admin/(protected)/chi-nhanh/thuc-don/actions.ts";
 
 /** Tách từng `export async function` thành (tên, thân) để soi riêng. */
 function cacHamXuat(path: string): { ten: string; than: string }[] {
@@ -52,13 +53,19 @@ describe("mọi hàm ghi thực đơn đều xóa cache", () => {
     ).toEqual([]);
   });
 
+  it("đồng bộ thực đơn chuỗi (P15) xóa cache mọi chi nhánh được đồng bộ", () => {
+    const sync = cacHamXuat(FILE_BRAND_SYNC).find((h) => h.ten === "syncMenuAction");
+    expect(sync, "không tìm thấy syncMenuAction — đổi tên rồi?").toBeTruthy();
+    expect(sync!.than).toContain("revalidateMenu");
+  });
+
   it("seedSampleMenu trong onboarding cũng xóa cache", () => {
     const seed = cacHamXuat(FILE_ONBOARDING).find((h) => h.ten === "seedSampleMenu");
     expect(seed, "không tìm thấy seedSampleMenu — đổi tên rồi?").toBeTruthy();
     expect(seed!.than).toContain("revalidateMenu");
   });
 
-  it("phủ đủ 16 hàm ghi ở hai tệp thực đơn (đổi số này thì phải kiểm lại danh sách)", () => {
-    expect(cacHamXuat(FILE_MENU).length + cacHamXuat(FILE_MODIFIERS).length).toBe(16);
+  it("phủ đủ 17 hàm ghi ở hai tệp thực đơn (đổi số này thì phải kiểm lại danh sách)", () => {
+    expect(cacHamXuat(FILE_MENU).length + cacHamXuat(FILE_MODIFIERS).length).toBe(17);
   });
 });

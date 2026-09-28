@@ -6,10 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/rbac";
 import {
+  parseBank,
   parseSettings,
   serializeSettings,
   type TenantSettings,
 } from "@/lib/tenant/settings";
+import { bankByBin } from "@/lib/payments/banks";
+import { khongDauInHoa } from "@/lib/payments/vietqr";
 import { uploadImage, deleteMenuImage, duongDanAnh } from "@/lib/storage/images";
 import { setFlash } from "@/lib/flash";
 
@@ -175,6 +178,70 @@ export async function updateSettings(formData: FormData) {
 
   revalidatePath(settingsPath(slug));
   await setFlash("ok", "Đã lưu cấu hình.");
+}
+
+/**
+ * Lưu tài khoản nhận chuyển khoản (PAY-02). CHỈ owner — `requireSettingsManager` = canManage "settings".
+ * Số tài khoản sai là tiền khách chuyển đi lạc, nên kiểm từng trường và báo lỗi cụ thể thay vì lặng
+ * lẽ bỏ khối `bank` như `parseSettings`. Để trống số tài khoản = gỡ tài khoản (hóa đơn thôi in QR).
+ */
+export async function updateBank(formData: FormData) {
+  const slug = String(formData.get("slug") ?? "");
+  const session = await requireSettingsManager(slug);
+
+  const bin = String(formData.get("bank_bin") ?? "").trim();
+  const accountNo = String(formData.get("bank_account_no") ?? "").replace(/[\s.-]/g, "");
+  const accountName = khongDauInHoa(String(formData.get("bank_account_name") ?? ""));
+
+  let bank: TenantSettings["bank"];
+  if (accountNo) {
+    if (!bankByBin(bin)) return setFlash("error", "Chưa chọn ngân hàng.");
+    if (!/^\d{6,19}$/.test(accountNo)) return setFlash("error", "Số tài khoản chỉ gồm chữ số, 6–19 số.");
+    if (!accountName) return setFlash("error", "Thiếu tên chủ tài khoản.");
+    bank = parseBank({ bin, account_no: accountNo, account_name: accountName.slice(0, 50) });
+    if (!bank) return setFlash("error", "Thông tin tài khoản không hợp lệ.");
+  }
+
+  const supabase = await createClient();
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("settings")
+    .eq("id", session.tenant.id)
+    .maybeSingle();
+
+  const next: TenantSettings = serializeSettings({
+    ...parseSettings(tenant?.settings),
+    bank,
+    print_qr_on_receipt: formData.get("print_qr_on_receipt") === "on",
+  });
+
+  const failed = await updateTenant(supabase, session.tenant.id, {
+    settings: next,
+    updated_at: new Date().toISOString(),
+  });
+  if (failed) return setFlash("error", failed);
+
+  revalidatePath(settingsPath(slug));
+  await setFlash("ok", bank ? "Đã lưu tài khoản nhận chuyển khoản." : "Đã gỡ tài khoản nhận chuyển khoản.");
+}
+
+/** Thông tin công khai của quán — địa chỉ, SĐT, giờ mở cửa (hiện trên trang chuỗi /b/{brand}, P15 15-05). */
+export async function updateBranchInfo(formData: FormData) {
+  const slug = String(formData.get("slug") ?? "");
+  const session = await requireSettingsManager(slug);
+  const supabase = await createClient();
+  const { data: tenant } = await supabase.from("tenants").select("settings").eq("id", session.tenant.id).maybeSingle();
+  const next: TenantSettings = serializeSettings({
+    ...parseSettings(tenant?.settings),
+    address: String(formData.get("address") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    open_time: String(formData.get("open_time") ?? ""),
+    close_time: String(formData.get("close_time") ?? ""),
+  });
+  const failed = await updateTenant(supabase, session.tenant.id, { settings: next, updated_at: new Date().toISOString() });
+  if (failed) return setFlash("error", failed);
+  revalidatePath(settingsPath(slug));
+  await setFlash("ok", "Đã lưu thông tin quán.");
 }
 
 /** Upload logo tenant vào menu-images/{tenant_id}/logo-{rand}; cập nhật logo_url. */

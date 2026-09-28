@@ -21,6 +21,30 @@ màn và chỉ đường sang điện thoại.**
 | 17-02 Cầu in có mạng dự phòng + cảnh báo in kẹt toàn quán | OFFLINE-02, OFFLINE-03 | QD-024 C2 | Bếp vẫn nhận phiếu khi wifi quán mất |
 | 17-03 Diễn tập mất mạng + tài liệu | OFFLINE-04 | 17-01, 17-02 | Có bằng chứng quán bán liền mạch khi rút mạng; nhân viên biết làm gì |
 
+## Đối thủ làm thế nào (tra 28/09/2026)
+
+| | Bán khi rớt Internet | In bếp khi rớt mạng | Chữ / cảnh báo trên màn |
+|---|---|---|---|
+| **KiotViet FnB** | "Offline First": tự chuyển giữa Internet và mạng LAN nội bộ, tự đồng bộ khi có mạng [1] | Qua LAN; lệnh in lỗi được giữ để in lại [2] | Pop-up ngay khi in lỗi; biểu tượng lỗi in kèm **số lệnh lỗi**, bấm vào → chọn đơn → **"In lại"**; xem ở "Lịch sử báo bếp" [2] |
+| **Sapo FnB** | App thu ngân / phục vụ / PC nối nhau qua LAN, tự động [3]. **Tắt khi offline**: QR/thanh toán tích hợp, đơn Grab/Shopee, HĐĐT, quản lý khách, đơn web/QR [3] | "In LAN: tem, in bếp, tạm tính, hóa đơn" — máy in nối IP [3] | Bản bán lẻ: dòng chữ đỏ góc trên "Mất kết nối internet, bạn vẫn có thể tạo đơn hàng Offline" [4]; dặn không tắt máy / xóa bộ nhớ đệm / dùng tab ẩn danh |
+| **CUKCUK** | Mô hình "Kết nối Offline": một PC cài CUKCUK Server tại quán, IP tĩnh [5]; dữ liệu đẩy lên sau, quản lý không xem báo cáo tức thời [6] | Qua máy chủ tại quán [5] | không tìm thấy |
+| **iPOS (FABi)** | Máy chủ nội bộ + máy trạm/PDA (IP tĩnh) | Máy in IP tĩnh cùng dải; "máy POS mất mạng local" là lý do không in được [8] | "Mất kết nối, chạm để tải lại" [7] |
+| **POS365** | Giao dịch lưu trên máy đang bán; cửa sổ "Đơn hàng Offline (Chờ đồng bộ)" + nút "Đồng bộ đơn hàng" (đồng bộ bằng tay) [9] | không tìm thấy | — |
+
+Không hãng nào làm PWA; KiotViet, Sapo, iPOS có app gốc [2][10].
+
+**Ta làm theo:** tự động (không bắt bật tay) · **dòng chữ đỏ trên cùng** khi mất mạng (Sapo) · **biểu tượng in kèm số phiếu kẹt, bấm → danh sách phiếu** (KiotViet) · khóa rõ ràng các việc cần mạng.
+**Ta khác (đã được chủ dự án chốt, QD-024 C1):** đối thủ bán offline nhờ **máy chủ LAN tại quán**; ta dùng **điện thoại 5G** vẫn tới
+được server, máy quầy mất mạng chỉ xem. Lý do: web không mở được socket LAN, và không phải đồng bộ ngược (không lệch tiền, số phiếu).
+
+Nguồn: [1] kiotviet.vn/kiotviet-hoan-toan-moi-hoat-dong-on-dinh-ngay-ca-khi-mat-ket-noi-internet ·
+[2] kiotviet.vn/huong-dan-su-dung-kiotviet/thu-ngan-bar-cafe-nha-hang/thong-bao-loi-in-che-bien ·
+[3] help.sapo.vn/huong-dan-su-dung-chuc-nang-ban-hang-offline · [4] help.sapo.vn/chuyen-che-do-ban-tu-online-sang-offline ·
+[5] helpv2.cukcuk.vn/vi/kb/ket_noi_offline · [6] trienkhai.cukcuk.vn (… khi bị cắt mạng internet …) ·
+[7] huongdan.ipos.vn/docs/htkt-khac-phuc-loi-phan-mem/ban-hang/mat-ket-noi-cham-de-tai-lai ·
+[8] huongdan.ipos.vn/docs/htkt-khac-phuc-loi-phan-mem/ban-hang/khong-in-duoc-phieu-order ·
+[9] pos365.vn/docs/tao-hoa-don-o-che-do-offline-va-dong-bo-2323.html · [10] play.google.com (com.sapo.fnb.hub)
+
 ## Phát hiện khi rà code (27/09/2026)
 
 - Mọi ghi là server action; POS `force-dynamic`; **không** có manifest, service worker, IndexedDB (OPS-04 ☐).

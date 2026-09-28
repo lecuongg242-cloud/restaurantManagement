@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
 import { OwnerLoginForm } from "./OwnerLoginForm";
+import { ownerForRenewal } from "@/lib/tenant/renewal";
 
 export default async function AdminLoginPage({
   params,
@@ -17,6 +18,8 @@ export default async function AdminLoginPage({
     if (canAccess(session.role, "admin")) redirect(`/r/${slug}/admin`);
     redirect(defaultRouteForRole(slug, session.role));
   }
+  // Owner đã đăng nhập của quán hết hạn (RLS loại quán nên `session` rỗng) → thẳng trang Gia hạn.
+  if (await ownerForRenewal(slug)) redirect(`/r/${slug}/admin/gia-han`);
 
   // Trang login là public (chưa có phiên) → đọc tên tenant qua service role.
   const admin = createAdminClient();

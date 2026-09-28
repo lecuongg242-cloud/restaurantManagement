@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isSuperAdmin } from "@/lib/auth/session";
 import { createTenant } from "../actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
+import { SuperPageHeader } from "@/components/super/SuperShell";
 
 export default async function NewTenantPage({
   searchParams,
@@ -14,25 +14,23 @@ export default async function NewTenantPage({
   const { error } = await searchParams;
 
   return (
-    <div className="mx-auto min-h-screen max-w-lg bg-canvas p-lg">
-      <Link href="/super" className="text-sm text-primary underline-offset-4 hover:underline">
-        ← Danh sách nhà hàng
-      </Link>
-      <h1 className="mt-md font-display text-2xl text-ink">Tạo nhà hàng mới</h1>
-      <p className="mt-xxs text-sm text-steel">
-        Tạo tenant + tài khoản owner. Owner đăng nhập tại /r/[slug]/admin/login.
-      </p>
+    <div>
+      <SuperPageHeader
+        title="Tạo nhà hàng"
+        description="Tạo tenant + tài khoản owner. Owner đăng nhập tại /r/[slug]/admin/login."
+      />
+      <div className="mt-lg max-w-xl rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
 
       {error && (
         <p
           role="alert"
-          className="mt-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
+          className="mb-md rounded-md border border-status-late bg-cream-soft px-md py-sm text-sm text-status-late"
         >
           {error}
         </p>
       )}
 
-      <form action={createTenant} className="mt-lg flex flex-col gap-md">
+      <form action={createTenant} className="flex flex-col gap-md">
         <label className="flex flex-col gap-xxs text-sm text-slate">
           Tên nhà hàng
           <Input name="name" required placeholder="Phở Việt" />
@@ -57,6 +55,7 @@ export default async function NewTenantPage({
           Tạo nhà hàng
         </SubmitButton>
       </form>
+      </div>
     </div>
   );
 }

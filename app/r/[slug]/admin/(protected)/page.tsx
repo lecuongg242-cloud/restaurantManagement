@@ -4,15 +4,17 @@ import { canManage } from "@/lib/auth/rbac";
 import { Card, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getOnboardingState } from "./onboarding/actions";
+import { getDuBao, getNhanXet } from "@/lib/forecast/read";
+import { ForecastCard } from "@/components/admin/forecast/ForecastCard";
+import { InsightCard } from "@/components/admin/forecast/InsightCard";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Tổng quan admin — hiện CHỈ là thẻ điều hướng, không có số liệu tiền, nên không cần guard
- * `canManage` riêng (layout đã lọc owner|manager).
+ * Tổng quan admin — thẻ điều hướng + (P18) dự báo 7 ngày tới và nhận xét tuần.
  *
- * ⚠️ AUTH-05: nếu sau này thêm KPI doanh thu vào đây thì PHẢI bọc bằng
- * `canManage(role, "reports")` — không thì rò rỉ đúng thứ trang Báo cáo đang chặn.
+ * ⚠️ AUTH-05: số liệu tiền (dự báo, nhận xét) bọc bằng `canManage(role, "reports")` — cùng quyền trang Báo cáo; RLS
+ * của bảng dự báo (0073) cũng chỉ cho chủ / quản lý.
  * Thẻ điều hướng cũng ẩn/hiện theo cùng `canManage` như sidebar, để không dẫn người dùng
  * tới trang họ sẽ bị đá ra.
  */
@@ -28,6 +30,10 @@ export default async function AdminDashboard({
   const { ok } = await searchParams;
   const session = await getSessionMembership(slug);
   const state = await getOnboardingState(slug);
+  const xemSo = !!session && canManage(session.role, "reports");
+  const [duBao, nx] = xemSo
+    ? await Promise.all([getDuBao(session!.tenant.id), getNhanXet(session!.tenant.id, session!.membershipId)])
+    : [null, null];
 
   return (
     <div className="w-full">
@@ -60,6 +66,13 @@ export default async function AdminDashboard({
             <Link href={`/r/${slug}/admin/onboarding`}>Bắt đầu thiết lập →</Link>
           </Button>
         </Card>
+      )}
+
+      {duBao && nx && (
+        <div className="mt-lg grid gap-md xl:grid-cols-2">
+          <ForecastCard du={duBao} />
+          <InsightCard slug={slug} nhanXet={nx.nhanXet} batThuong={nx.batThuong} />
+        </div>
       )}
 
       <div className="mt-xl grid gap-md sm:grid-cols-2">

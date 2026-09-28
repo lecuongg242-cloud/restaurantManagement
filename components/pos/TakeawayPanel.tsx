@@ -17,6 +17,7 @@ import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierS
 import { Input } from "@/components/ui/input";
 import { PaymentDialog, PAY_OFFLINE_MSG } from "./PaymentDialog";
 import { ACTION_OFFLINE_MSG, ORDER_OFFLINE_MSG } from "./offline-msg";
+import { KHOA_KHI_MAT_MANG } from "./NetworkStatus";
 import { useActionKey } from "@/components/use-action-key";
 import { actionSignature } from "@/lib/idempotency";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
@@ -229,6 +230,10 @@ export function TakeawayPanel({
 
   const create = async () => {
     if (cart.length === 0) return;
+    if (!navigator.onLine) {
+      setError(KHOA_KHI_MAT_MANG); // P17: biết chắc mất mạng thì không gửi — dùng điện thoại
+      return;
+    }
     setCreating(true);
     setError(null);
     const guiDi = cart; // món thêm vào trong lúc chờ không thuộc lượt này — không được xóa theo

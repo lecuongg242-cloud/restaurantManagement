@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { activeTenantBySlug, isTenantActive } from "@/lib/tenant/active";
+import { activeTenantBySlug, isTenantActive, tenantGate } from "@/lib/tenant/active";
 
 config({ path: ".env.local" });
 config();
@@ -31,8 +31,15 @@ beforeAll(async () => {
   tenantId = data.id;
 });
 
+async function setPaidUntil(paidUntil: string | null) {
+  const { error } = await admin.from("tenants").update({ paid_until: paidUntil }).eq("slug", SLUG);
+  if (error) throw error;
+}
+
 afterAll(async () => {
+  // Bật lại TRƯỚC, và không để lỗi dọn hạn dùng chặn nó — treo `suspended` là mọi bộ test sau đỏ.
   await setStatus("active");
+  await setPaidUntil(null);
 });
 
 describe("activeTenantBySlug", () => {
@@ -47,6 +54,24 @@ describe("activeTenantBySlug", () => {
     await setStatus("suspended");
     expect(await activeTenantBySlug("id", SLUG)).toBeNull();
     expect(await isTenantActive(SLUG)).toBe(false);
+  });
+
+  it("quán quá hạn dùng + ân hạn → trả null như suspended; màn khóa là 'Hết hạn', không phải 'Tạm ngưng'", async () => {
+    await setStatus("active");
+    await setPaidUntil("2000-01-01");
+    expect(await activeTenantBySlug("id", SLUG)).toBeNull();
+    expect(await isTenantActive(SLUG)).toBe(false);
+    expect(await tenantGate(SLUG)).toBe("expired");
+    await setPaidUntil("2999-01-01");
+    expect((await activeTenantBySlug<{ id: string }>("id", SLUG))?.id).toEqual(tenantId);
+    expect(await tenantGate(SLUG)).toBe("ok");
+    await setPaidUntil(null);
+  });
+
+  it("quán suspended → tenantGate 'suspended'", async () => {
+    await setStatus("suspended");
+    expect(await tenantGate(SLUG)).toBe("suspended");
+    await setStatus("active");
   });
 
   it("slug không tồn tại → trả null, không ném lỗi", async () => {

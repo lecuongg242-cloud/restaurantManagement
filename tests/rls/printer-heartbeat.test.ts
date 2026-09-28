@@ -76,6 +76,22 @@ describe("Nhịp tim cầu in", () => {
     expect(data ?? []).toHaveLength(1);
   });
 
+  it("P17 17-02: nhịp tim sau khoảng hở > 90 giây ghi lần mất kết nối (từ lúc nào, bao lâu); nhịp liền kề thì không", async () => {
+    const admin = adminClient();
+    await printer.rpc("printer_heartbeat");
+    const tu = new Date(Date.now() - 5 * 60_000).toISOString();
+    await admin.from("printer_heartbeats").update({ seen_at: tu, last_gap_from: null, last_gap_seconds: null }).eq("tenant_id", tenantA);
+    await printer.rpc("printer_heartbeat");
+    const { data: sau } = await admin.from("printer_heartbeats").select("last_gap_from, last_gap_seconds").eq("tenant_id", tenantA).single();
+    expect(Date.parse(sau!.last_gap_from as string)).toBe(Date.parse(tu));
+    expect(sau!.last_gap_seconds).toBeGreaterThanOrEqual(270); // ~300 giây, nới cho lệch đồng hồ máy dev
+    expect(sau!.last_gap_seconds).toBeLessThan(400);
+    // Nhịp kế tiếp liền sau đó không xóa / ghi đè lần mất kết nối đã ghi.
+    await printer.rpc("printer_heartbeat");
+    const { data: lai } = await admin.from("printer_heartbeats").select("last_gap_from").eq("tenant_id", tenantA).single();
+    expect(Date.parse(lai!.last_gap_from as string)).toBe(Date.parse(tu));
+  });
+
   it("thành viên KHÔNG phải printer (chủ quán) không giả được nhịp tim", async () => {
     const { error } = await chuA.rpc("printer_heartbeat");
     expect(error, "chủ quán giả được 'cầu in còn sống'").not.toBeNull();

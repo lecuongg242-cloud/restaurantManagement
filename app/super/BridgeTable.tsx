@@ -12,7 +12,10 @@ import { cn } from "@/lib/utils";
 const CAU_IN: Record<HangCauIn["cauIn"], string> = { song: "Sống", chet: "MẤT KẾT NỐI", "chua-co": "Chưa có" };
 const MAY_IN: Record<HangCauIn["mayIn"], string> = { ok: "Phản hồi", loi: "KHÔNG phản hồi", "khong-biet": "—" };
 
-export async function BridgeTable({ tenants }: { tenants: { id: string; slug: string; name: string }[] }) {
+type QuanCauIn = { id: string; slug: string; name: string; khoa?: string | null };
+
+/** Hàng cầu in mọi quán, quán cần chú ý lên đầu — dùng cho bảng này, trang Tổng quan và huy hiệu menu. */
+export async function docCauIn<T extends QuanCauIn>(tenants: T[]) {
   const admin = createAdminClient();
   const ids = tenants.map((t) => t.id);
   const [{ data: rows }, { data: nhip }] = await Promise.all([
@@ -42,11 +45,24 @@ export async function BridgeTable({ tenants }: { tenants: { id: string; slug: st
       };
     })
     .sort((a, b) => Number(b.hang.canChuY) - Number(a.hang.canChuY));
+  return { danhSach, banMoiNhat };
+}
+
+export async function BridgeTable({
+  tenants,
+  thaoTac,
+}: {
+  /** `khoa` ≠ null: quán đang bị khóa (tạm ngưng / hết hạn) ⇒ cầu in ngừng lấy phiếu là đúng ý. */
+  tenants: QuanCauIn[];
+  /** Nút thao tác cầu in của từng quán (cột cuối). */
+  thaoTac?: (tenantId: string) => React.ReactNode;
+}) {
+  const { danhSach, banMoiNhat } = await docCauIn(tenants);
 
   const soCanChuY = danhSach.filter((d) => d.hang.canChuY).length;
 
   return (
-    <section className="mt-lg rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
+    <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-sm">
         <h2 className="font-display text-xl text-ink">Cầu in các quán</h2>
         <p className="text-sm text-steel">
@@ -62,7 +78,8 @@ export async function BridgeTable({ tenants }: { tenants: { id: string; slug: st
               <th className="py-xs pr-md font-medium">Cách in</th>
               <th className="py-xs pr-md font-medium">Cầu in</th>
               <th className="py-xs pr-md font-medium">Máy in bếp</th>
-              <th className="py-xs font-medium">Phiên bản</th>
+              <th className="py-xs pr-md font-medium">Phiên bản</th>
+              {thaoTac && <th className="py-xs font-medium">Thao tác</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-hairline-soft">
@@ -75,6 +92,7 @@ export async function BridgeTable({ tenants }: { tenants: { id: string; slug: st
                 <td className="py-sm pr-md text-slate">{hang.printMode === "bridge" ? "Cầu in" : "Trình duyệt"}</td>
                 <td className={cn("py-sm pr-md", hang.cauIn === "chet" && hang.printMode === "bridge" ? "font-medium text-status-late" : "text-slate")}>
                   {CAU_IN[hang.cauIn]}
+                  {t.khoa && <span className="block text-xs font-medium text-status-late">quán đang khóa ({t.khoa})</span>}
                   {seenAt && hang.cauIn !== "song" && (
                     <span className="block text-xs text-steel">lần cuối {gioNgayVn(seenAt)}</span>
                   )}
@@ -82,10 +100,15 @@ export async function BridgeTable({ tenants }: { tenants: { id: string; slug: st
                 <td className={cn("py-sm pr-md", hang.mayIn === "loi" ? "font-medium text-status-late" : "text-slate")}>
                   {MAY_IN[hang.mayIn]}
                 </td>
-                <td className={cn("py-sm font-mono", hang.banCu ? "font-medium text-status-late" : "text-slate")}>
+                <td className={cn("py-sm pr-md font-mono", hang.banCu ? "font-medium text-status-late" : "text-slate")}>
                   {hang.cauIn === "chua-co" ? "—" : hang.version === null ? "cũ (trước 11-06)" : hang.version}
                   {hang.banCu && hang.version !== null && " · cũ"}
                 </td>
+                {thaoTac && (
+                  <td className="py-sm align-top">
+                    <div className="flex flex-wrap items-start gap-xs">{thaoTac(t.id)}</div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

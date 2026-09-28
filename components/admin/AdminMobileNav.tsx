@@ -19,11 +19,13 @@ export function AdminMobileNav({
   role,
   base,
   signOut,
+  planCard,
 }: {
   tenant: TenantInfo;
   role: Role;
   base: string;
   signOut: () => Promise<void>;
+  planCard?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -78,6 +80,8 @@ export function AdminMobileNav({
           </div>
 
           <AdminNav base={base} role={role} onNavigate={() => setOpen(false)} />
+
+          {planCard}
 
           <form action={signOut} className="border-t border-hairline-soft p-sm">
             <Button type="submit" variant="secondary" size="md" className="w-full">

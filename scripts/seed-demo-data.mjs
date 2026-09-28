@@ -41,6 +41,11 @@ const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7ffffff
 const pick = (a) => a[Math.floor(rnd() * a.length)];
 const int = (min, max) => min + Math.floor(rnd() * (max - min + 1));
 const uuid = () => crypto.randomUUID();
+// PRNG RIÊNG cho phần nhân viên / hủy / giảm giá (P16) — không rút số từ `rnd` nên lịch bán, món, tiền của các
+// lần chạy trước giữ nguyên thứ tự.
+let seed2 = 20260928;
+const rnd2 = () => ((seed2 = (seed2 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+const pick2 = (a) => (a.length ? a[Math.floor(rnd2() * a.length)] : null);
 
 const client = new pg.Client({ connectionString, ssl: { rejectUnauthorized: false } });
 await client.connect();
@@ -54,6 +59,13 @@ const tenantId = tenant.id;
 
 const tables = (await client.query("select id, name from tables where tenant_id=$1 order by sort_order", [tenantId])).rows;
 const items = (await client.query("select id, name, base_price from menu_items where tenant_id=$1 and active", [tenantId])).rows;
+// Nhân viên để quy đơn / tiền / hủy / giảm giá (báo cáo Nhân viên P16). Không có ai → để trống như trước.
+const staff = (
+  await client.query("select id, role from memberships where tenant_id=$1 and active and role in ('owner','manager','cashier','waiter')", [tenantId])
+).rows;
+const nhanDon = staff.filter((m) => ["waiter", "cashier", "owner"].includes(m.role)).map((m) => m.id);
+const thuTien = staff.filter((m) => ["cashier", "owner", "manager"].includes(m.role)).map((m) => m.id);
+const LY_DO_HUY = ["Khách đổi món", "Hết món", "Gọi nhầm", "Khách chờ lâu"];
 if (tables.length === 0 || items.length === 0) {
   console.error("Tenant demo chưa có bàn hoặc món. Chạy `npm run seed` trước.");
   process.exit(1);
@@ -73,6 +85,13 @@ const oldSessions = (
 ).rows.map((r) => r.id);
 
 await client.query("delete from bills  where tenant_id=$1 and note=$2", [tenantId, MARK]); // cascade bill_items + payments
+// Hóa đơn thử tay trên POS gom món của đơn demo (không mang dấu MARK) — phải xóa trước, không thì đơn demo không xóa được.
+await client.query(
+  `delete from bills where tenant_id=$1 and id in (
+     select bi.bill_id from bill_items bi join order_items oi on oi.id = bi.order_item_id
+       join orders o on o.id = oi.order_id where o.tenant_id=$1 and o.note=$2)`,
+  [tenantId, MARK]
+);
 await client.query("delete from orders where tenant_id=$1 and note=$2", [tenantId, MARK]); // cascade order_items
 if (oldSessions.length) {
   await client.query("delete from table_sessions where tenant_id=$1 and id = any($2::uuid[])", [tenantId, oldSessions]);
@@ -106,7 +125,9 @@ function makePaidVisit(paidAtMs, billNo) {
   }
 
   const orderId = uuid();
-  rows.orders.push([orderId, tenantId, sessionId, channel, source, "completed", MARK, openedAt, at, null, null]);
+  const createdBy = source === "staff" ? pick2(nhanDon) : null;
+  const confirmedBy = source === "qr" && rnd2() < 0.6 ? pick2(nhanDon) : null;
+  rows.orders.push([orderId, tenantId, sessionId, channel, source, "completed", MARK, openedAt, at, null, null, createdBy, confirmedBy]);
 
   let subtotal = 0;
   const lines = [];
@@ -120,16 +141,27 @@ function makePaidVisit(paidAtMs, billNo) {
     const amount = mi.base_price * qty;
     subtotal += amount;
     const oiId = uuid();
-    rows.orderItems.push([oiId, tenantId, orderId, mi.id, mi.name, mi.base_price, qty, "served", openedAt, at]);
+    rows.orderItems.push([oiId, tenantId, orderId, mi.id, mi.name, mi.base_price, qty, "served", openedAt, at, null, null, null]);
     lines.push({ oiId, qty, price: mi.base_price, amount });
   }
+  // ~8% lượt có một món bị hủy (không vào hóa đơn), ghi người hủy + lý do.
+  if (rnd2() < 0.08) {
+    const mi = items[Math.floor(rnd2() * items.length)];
+    const huyLuc = new Date(Date.parse(openedAt) + 5 * 60_000).toISOString();
+    rows.orderItems.push([uuid(), tenantId, orderId, mi.id, mi.name, mi.base_price, 1, "cancelled", openedAt, null, pick2([...nhanDon, ...thuTien]), huyLuc, pick2(LY_DO_HUY)]);
+  }
+  // ~10% hóa đơn giảm 10% (làm tròn nghìn), ghi người duyệt.
+  const giam = rnd2() < 0.1 && thuTien.length ? Math.round((subtotal * 0.1) / 1000) * 1000 : 0;
+  const total = subtotal - giam;
+  const giamBy = giam ? pick2(thuTien) : null;
 
   const billId = uuid();
-  rows.bills.push([billId, tenantId, billNo, sessionId, "paid", subtotal, subtotal, MARK, at, openedAt]);
+  rows.bills.push([billId, tenantId, billNo, sessionId, "paid", subtotal, total, MARK, at, openedAt,
+    giam ? "percent" : "none", giam ? 10 : 0, giam, giamBy, giam ? at : null]);
   for (const l of lines) {
     rows.billItems.push([uuid(), tenantId, billId, l.oiId, l.qty, l.price, l.amount]);
   }
-  rows.payments.push([uuid(), tenantId, billId, rnd() < 0.7 ? "cash" : "transfer", subtotal, at, MARK]);
+  rows.payments.push([uuid(), tenantId, billId, rnd() < 0.7 ? "cash" : "transfer", total, at, MARK, pick2(thuTien)]);
 }
 
 // Lịch sử 45 ngày. Cuối tuần đông hơn; giờ dồn quanh trưa 11–13h và tối 18–21h.
@@ -204,11 +236,13 @@ function makeLiveOrder({ table, guest, itemStatuses, kitchenNo, minutesAgo, orde
     confirmedAt,
     kitchenNo,
     JSON.stringify({ name: guest }),
+    null,
+    null,
   ]);
 
   itemStatuses.forEach((st, idx) => {
     const mi = items[(idx * 3 + (kitchenNo ?? 0)) % items.length];
-    rows.orderItems.push([uuid(), tenantId, orderId, mi.id, mi.name, mi.base_price, int(1, 2), st, createdAt, null]);
+    rows.orderItems.push([uuid(), tenantId, orderId, mi.id, mi.name, mi.base_price, int(1, 2), st, createdAt, null, null, null, null]);
   });
 }
 
@@ -237,17 +271,18 @@ async function bulkInsert(table, cols, data, chunk = 300) {
 await bulkInsert("table_sessions", ["id", "tenant_id", "table_id", "status", "opened_at", "closed_at"], rows.sessions);
 await bulkInsert(
   "orders",
-  ["id", "tenant_id", "table_session_id", "channel", "source", "status", "note", "created_at", "confirmed_at", "kitchen_no", "customer_contact"],
+  ["id", "tenant_id", "table_session_id", "channel", "source", "status", "note", "created_at", "confirmed_at", "kitchen_no", "customer_contact", "created_by", "confirmed_by"],
   rows.orders
 );
 await bulkInsert(
   "order_items",
-  ["id", "tenant_id", "order_id", "menu_item_id", "name_snapshot", "unit_price_snapshot", "qty", "status", "created_at", "prepared_at"],
+  ["id", "tenant_id", "order_id", "menu_item_id", "name_snapshot", "unit_price_snapshot", "qty", "status", "created_at", "prepared_at", "cancelled_by", "cancelled_at", "cancel_reason"],
   rows.orderItems
 );
 await bulkInsert(
   "bills",
-  ["id", "tenant_id", "bill_no", "table_session_id", "status", "subtotal", "total", "note", "paid_at", "created_at"],
+  ["id", "tenant_id", "bill_no", "table_session_id", "status", "subtotal", "total", "note", "paid_at", "created_at",
+    "discount_type", "discount_value", "discount_amount", "discount_by", "discount_at"],
   rows.bills
 );
 await bulkInsert(
@@ -255,7 +290,7 @@ await bulkInsert(
   ["id", "tenant_id", "bill_id", "order_item_id", "qty_allocated", "unit_price_snapshot", "amount"],
   rows.billItems
 );
-await bulkInsert("payments", ["id", "tenant_id", "bill_id", "method", "amount", "received_at", "note"], rows.payments);
+await bulkInsert("payments", ["id", "tenant_id", "bill_id", "method", "amount", "received_at", "note", "received_by"], rows.payments);
 
 await client.query("commit");
 

@@ -48,6 +48,8 @@ import { PhoneAlertBar } from "@/components/pos/PhoneAlertBar";
 import { TablePickerDrawer } from "@/components/pos/TablePickerDrawer";
 import { conLaiSauKhiGui, formatVnd, unitPrice } from "@/lib/orders/cart";
 import { MobileTabBar, type MobileTab } from "@/components/pos/MobileTabBar";
+import { KHOA_KHI_MAT_MANG, NetworkBanner } from "@/components/pos/NetworkStatus";
+import { useOfflineShell } from "@/lib/offline/use-offline";
 
 const STATUS_VN: Record<string, string> = {
   available: "Trống",
@@ -90,6 +92,8 @@ export function PosBoard({
   const router = useRouter();
   // Máy ngủ dậy / có mạng lại → tải lại: realtime nối lại nhưng không phát lại thay đổi đã lỡ (ORDER-19).
   useResumeRefresh(() => router.refresh());
+  // Mất mạng mà tải lại vẫn xem được bàn / đơn / thực đơn (P17 17-01): lưu bản chụp mỗi lần có dữ liệu mới.
+  useOfflineShell(slug, initial, menu);
   // Chế độ quầy (quán không dùng bàn): ẩn sơ đồ bàn, POS mở thẳng màn bán quầy.
   const counter = serviceMode === "counter";
   // Một lần hỏi server cho cả chip thiết bị in trên thanh công cụ lẫn băng sự cố (PRINT-07/08/09).
@@ -516,6 +520,11 @@ export function PosBoard({
 
   const confirmAdd = async () => {
     if (!selectedTableId || cart.length === 0) return;
+    // Trình duyệt BIẾT chắc đang mất mạng → không gửi (khỏi rơi vào "chưa rõ đã gửi chưa"), nói rõ làm gì tiếp.
+    if (!navigator.onLine) {
+      setAddError(KHOA_KHI_MAT_MANG);
+      return;
+    }
     setAdding(true);
     setAddError(null);
     const guiDi = cart; // ảnh chụp giỏ lúc bấm gửi — món thêm vào trong lúc chờ không thuộc lượt này
@@ -710,6 +719,7 @@ export function PosBoard({
 
       {/* Sức khỏe cầu in bếp (PRINT-07/08) — đặt TRÊN CÙNG: cầu in chết là MỌI phiếu bếp đổi đường,
           nhân viên phải biết trước khi xử lý bất kỳ đơn nào bên dưới. */}
+      <NetworkBanner slug={slug} />
       <CauInBanner st={cauIn.st} onDaXuLy={cauIn.daXuLy} />
 
       <PhoneAlertBar

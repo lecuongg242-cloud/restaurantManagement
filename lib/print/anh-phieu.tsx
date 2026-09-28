@@ -5,6 +5,8 @@ import { ImageResponse } from "next/og";
 import { formatVnd } from "@/lib/orders/cart";
 import type { ReceiptView } from "@/lib/billing/receipt-view";
 import type { CustomerTicketView } from "@/lib/print/adapter";
+import type { TransferQr } from "@/lib/billing/transfer-qr";
+import { duongSvgQr, LE_QR, maTranQr } from "@/lib/payments/qr-matrix";
 
 /**
  * Dựng hóa đơn / phiếu khách thành ẢNH PNG đen trắng để cầu in gửi ra máy in nhiệt (PRINT-14, QD-020 D4).
@@ -22,6 +24,28 @@ export type Kho = "80" | "58";
 
 /** Số chấm ngang vùng in: 80 mm = 576, 58 mm = 384 (máy nhiệt 203 dpi). */
 export const RONG: Record<Kho, number> = { "80": 576, "58": 384 };
+
+/** Lề trái/phải của ảnh (chấm) — `padding` của khung ngoài. */
+const LE_NGANG = 12;
+
+/**
+ * Số chấm cho MỘT ô QR (PAY-03). Số nguyên để mỗi ô ra đúng một khối chấm đặc — ô lẻ chấm bị làm mờ
+ * rồi cầu in cắt ngưỡng thành ô to ô nhỏ, app ngân hàng đọc trượt. Máy nhiệt rẻ in nhòe ô nhỏ ⇒ nhắm
+ * 6 chấm (80 mm) / 5 chấm (58 mm), không dưới 4 / 3; mã quá to so với khổ thì hạ xuống cho vừa.
+ */
+const CHAM_MOI_O: Record<Kho, { muc: number; toiThieu: number }> = {
+  "80": { muc: 6, toiThieu: 4 },
+  "58": { muc: 5, toiThieu: 3 },
+};
+
+/** Kích thước ảnh QR (kể cả lề trắng 4 ô mỗi phía) và số chấm mỗi ô, cho khổ giấy `kho`. */
+export function kichThuocQr(payload: string, kho: Kho): { m: ReturnType<typeof maTranQr>; cham: number; px: number } {
+  const m = maTranQr(payload);
+  const soO = m.n + 2 * LE_QR;
+  const vua = Math.floor((RONG[kho] - 2 * LE_NGANG) / soO);
+  const cham = Math.max(CHAM_MOI_O[kho].toiThieu, Math.min(CHAM_MOI_O[kho].muc, vua));
+  return { m, cham, px: soO * cham };
+}
 
 const COT = { "80": { chu: 24, lon: 34, nho: 20 }, "58": { chu: 18, lon: 26, nho: 16 } } as const;
 const METHOD_LABEL: Record<string, string> = { cash: "Tiền mặt", transfer: "Chuyển khoản" };
@@ -53,6 +77,11 @@ export function uocLuongChieuCao(p: PhieuAnh, kho: Kho): number {
     n += soDongChu(h.contactLine) + (h.isChild ? soDongChu(h.childNote ?? "x") : 0);
     for (const l of h.lines) n += soDongChu(`${l.qty} ${l.name}`) + soDongChu(l.modifiers.join(", ")) + soDongChu(l.note);
     n += 6 + (h.payment ? 3 : 0) + soDongChu(h.footer) + 2;
+    if (h.transferQr) {
+      // 4 dòng chữ quanh mã + đường kẻ; ảnh QR tính riêng bằng chấm.
+      n += 5 + soDongChu(`${h.transferQr.bankShortName} · ${h.transferQr.accountNo}`) + soDongChu(h.transferQr.accountName);
+      return Math.ceil(n * dong + c.lon * 3 + kichThuocQr(h.transferQr.payload, kho).px);
+    }
   } else {
     const t = p.phieu;
     n += 2 + soDongChu(t.contactName);
@@ -138,6 +167,7 @@ function HoaDon({ h, gio, kho }: { h: ReceiptView; gio: string; kho: Kho }) {
         <span>TỔNG</span>
         <span>{formatVnd(h.total)}</span>
       </div>
+      {h.transferQr && <QrChuyenKhoan qr={h.transferQr} kho={kho} />}
       {h.payment && (
         <Cot>
           <div style={DUONG_KE} />
@@ -151,6 +181,29 @@ function HoaDon({ h, gio, kho }: { h: ReceiptView; gio: string; kho: Kho }) {
           <Giua>{h.footer}</Giua>
         </Cot>
       )}
+    </Cot>
+  );
+}
+
+/** QR chuyển khoản dưới dòng TỔNG — cùng ma trận với bản in trình duyệt (`ReceiptDoc`). */
+function QrChuyenKhoan({ qr, kho }: { qr: TransferQr; kho: Kho }) {
+  const { m, cham, px } = kichThuocQr(qr.payload, kho);
+  const soO = m.n + 2 * LE_QR;
+  // SVG với viewBox = số ô, vẽ ra `px` = số ô × `cham` chấm ⇒ biên mỗi ô rơi đúng biên chấm.
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 ${soO} ${soO}" shape-rendering="crispEdges">` +
+    `<rect width="${soO}" height="${soO}" fill="#fff"/><path d="${duongSvgQr(m)}" fill="#000"/></svg>`;
+  return (
+    <Cot>
+      <div style={DUONG_KE} />
+      <Giua>Quét để chuyển khoản</Giua>
+      <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
+        <img src={`data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`} width={px} height={px} />
+      </div>
+      <Giua>{`${qr.bankShortName} · ${qr.accountNo}`}</Giua>
+      <Giua>{qr.accountName}</Giua>
+      <Giua>{`Nội dung: ${qr.content}`}</Giua>
     </Cot>
   );
 }
@@ -199,7 +252,7 @@ export function dungAnhPhieu(p: PhieuAnh, kho: Kho): ImageResponse {
           fontFamily: "BVP",
           fontSize: COT[kho].chu,
           lineHeight: 1.35,
-          padding: "8px 12px",
+          padding: `8px ${LE_NGANG}px`,
         }}
       >
         {p.loai === "receipt" ? <HoaDon h={p.hoaDon} gio={p.gio} kho={kho} /> : <PhieuKhach t={p.phieu} gio={p.gio} kho={kho} />}

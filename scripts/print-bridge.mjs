@@ -343,7 +343,7 @@ export const MA_THOAT_DA_CHAY = 3;
  * deploy (`lib/print/bridge-release.ts`) để công bố bản mới; cầu in ở quán so với nó để biết có bản
  * mới. Bản 1 = mọi cầu in trước 11-06 (không báo phiên bản).
  */
-export const BRIDGE_VERSION = 3;
+export const BRIDGE_VERSION = 4;
 
 /** Mã thoát sau khi đã thay tệp bằng bản mới — print-bridge.bat chạy lại NGAY, không tính là chết. */
 export const MA_THOAT_DA_CAP_NHAT = 4;
@@ -816,6 +816,35 @@ async function markJob(id, patch) {
   });
 }
 
+/**
+ * Phiếu ĐÃ ra giấy nhưng chưa báo "đã in" lên máy chủ được (mạng rớt đúng lúc đó — P17). Không có sổ này thì phiếu vẫn
+ * `pending` và lượt poll sau in thêm một tờ. Phiếu trong sổ không bao giờ in lại; đầu mỗi lượt poll báo bù.
+ */
+const daInChuaBao = new Map();
+
+async function baoDaIn(job, nhan) {
+  const patch = { status: "printed", printed_at: new Date().toISOString() };
+  try {
+    await markJob(job.id, patch);
+    log(`Đã in ${nhan}.`);
+  } catch (err) {
+    daInChuaBao.set(job.id, patch);
+    log(`Đã in ${nhan} nhưng chưa báo được lên máy chủ (${err.message}) — sẽ báo lại, KHÔNG in lại.`);
+  }
+}
+
+async function baoBu() {
+  for (const [id, patch] of daInChuaBao) {
+    try {
+      await markJob(id, patch);
+      daInChuaBao.delete(id);
+      log(`Đã báo bù phiếu ${id} là đã in.`);
+    } catch {
+      return; // vẫn mất mạng — lượt sau
+    }
+  }
+}
+
 /** Gửi byte thô tới máy in Windows theo TÊN qua `print-raw.ps1` (máy quầy cắm USB). */
 function inQuaWindows(buffer, ten) {
   const tep = path.join(os.tmpdir(), `cau-in-${process.pid}-${Date.now()}.bin`);
@@ -866,6 +895,7 @@ async function pollOnce() {
     if (!tenantId) return "khong-xac-dinh";
   }
 
+  await baoBu();
   const since = new Date(Date.now() - MAX_JOB_AGE_MIN * 60_000).toISOString();
   let jobs;
   try {
@@ -882,38 +912,38 @@ async function pollOnce() {
   }
 
   for (const job of jobs ?? []) {
-    if (inFlight.has(job.id)) continue;
+    if (inFlight.has(job.id) || daInChuaBao.has(job.id)) continue;
     const dich = dichInCua(job.type ?? "kitchen_ticket", !!MAY_QUAY);
     if (!dich) continue;
     if (dich === "quay") {
       inFlight.add(job.id);
       try {
         await inRaQuay(job);
-        quayPhanHoi = true;
-        await markJob(job.id, { status: "printed", printed_at: new Date().toISOString() });
-        log(`Đã in ${job.type === "receipt" ? "hóa đơn" : "phiếu khách"} ra máy quầy (${COUNTER_PRINTER}).`);
       } catch (err) {
         quayPhanHoi = false;
         await markJob(job.id, { status: "failed" }).catch(() => {});
         log(`IN LỖI ${job.type} ${job.id} ra máy quầy: ${err.message}`);
-      } finally {
         inFlight.delete(job.id);
+        continue;
       }
+      quayPhanHoi = true;
+      await baoDaIn(job, `${job.type === "receipt" ? "hóa đơn" : "phiếu khách"} ra máy quầy (${COUNTER_PRINTER})`);
+      inFlight.delete(job.id);
       continue;
     }
     inFlight.add(job.id);
     try {
       await thuLaiGui(() => sendToPrinter(buildKitchenTicket(job.payload ?? {})), SO_LAN_THU_LAI);
-      mayInPhanHoi = true;
-      await markJob(job.id, { status: "printed", printed_at: new Date().toISOString() });
-      log(`Đã in phiếu ${job.payload?.ticketNo ?? job.id} (đơn #${job.payload?.kitchenNo ?? "?"})`);
     } catch (err) {
       mayInPhanHoi = false;
       await markJob(job.id, { status: "failed" }).catch(() => {});
       log(`IN LỖI phiếu ${job.id} (đã thử ${SO_LAN_THU_LAI + 1} lần): ${err.message} — bấm in lại ở POS sau khi sửa máy in.`);
-    } finally {
       inFlight.delete(job.id);
+      continue;
     }
+    mayInPhanHoi = true;
+    await baoDaIn(job, `phiếu ${job.payload?.ticketNo ?? job.id} (đơn #${job.payload?.kitchenNo ?? "?"})`);
+    inFlight.delete(job.id);
   }
 
   return (jobs ?? []).length > 0 ? "co-phieu" : "rong";

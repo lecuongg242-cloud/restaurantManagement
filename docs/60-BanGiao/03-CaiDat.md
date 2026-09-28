@@ -11,6 +11,16 @@
 Hệ thống **không gửi email**. Tự đưa cho chủ quán: địa chỉ `<app>/r/<slug>/admin/login`, email, mật khẩu
 tạm. Chủ quán quên mật khẩu → quản trị hệ thống đặt lại ở `/super` (chủ quán chưa tự đổi được).
 
+### 1b. Chi nhánh mới của một chuỗi (P15)
+
+Chủ quán **tự tạo** trong admin quán: **Chi nhánh → + Tạo chi nhánh** (tên + mã). Không cần quản trị hệ thống. Sau đó ở chi
+nhánh mới: bàn, nhân viên, máy in làm như quán mới (mục 3–6); thực đơn dùng **Chi nhánh → Đồng bộ thực đơn**.
+
+Quản trị hệ thống (`/super` → Thương hiệu) chỉ để hỗ trợ: gắn quán có sẵn vào chuỗi, thêm quản lý cho cả chuỗi, ghi nhận
+gia hạn chuỗi, **Gỡ khỏi thương hiệu** / **Xóa thương hiệu…** khi làm nhầm.
+
+Tạo quán lẻ bằng email của một chủ đang dùng ở quán khác: tài khoản được dùng lại và **giữ nguyên mật khẩu cũ**.
+
 ## 2. Thiết lập cơ bản (chủ quán đăng nhập)
 
 Đăng nhập `<app>/r/<slug>/admin/login` → trang Tổng quan có thẻ "Hoàn tất thiết lập nhà hàng" →

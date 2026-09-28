@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { KitchenWidth } from "@/lib/print/adapter";
 import type { ReceiptView } from "@/lib/billing/receipt-view";
 import { formatVnd } from "@/lib/orders/cart";
 import { logReceiptPrint } from "@/app/r/[slug]/print/receipt/actions";
+import type { TransferQr } from "@/lib/billing/transfer-qr";
+import { duongSvgQr, LE_QR, maTranQr } from "@/lib/payments/qr-matrix";
 
 /**
  * Hóa đơn khách in (client) — JetBrains Mono, đen trắng, khổ nhiệt 58/80mm (PRINT-03). Khi mở:
@@ -133,6 +135,8 @@ export function ReceiptDoc({
           <span>{formatVnd(receipt.total)}</span>
         </div>
 
+        {receipt.transferQr && <QrChuyenKhoan qr={receipt.transferQr} rong={kho === "58" ? 160 : 192} />}
+
         {receipt.payment && (
           <>
             <div className="rc-line" />
@@ -178,6 +182,10 @@ export function ReceiptDoc({
         .rc-child { text-align: center; font-weight: 700; margin: 6px 0; }
         .rc-total-row { display: flex; justify-content: space-between; font-weight: 800; font-size: ${s.total}px; margin-top: 4px; }
         .rc-foot { margin-top: 4px; }
+        /* QR phải ra ĐEN tuyệt đối: trình duyệt mặc định được phép làm nhạt màu khi in. */
+        .rc-qr { margin-top: ${Math.round(s.base / 2)}px; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .rc-qr svg { display: block; margin: 0 auto; shape-rendering: crispEdges; }
+        .rc-qr-note { font-size: ${s.base - 1}px; word-break: break-word; }
 
         @media print {
           .no-print { display: none !important; }
@@ -186,6 +194,29 @@ export function ReceiptDoc({
           .rc-receipt { width: auto; margin: 0 auto; padding: 0; }
         }
       `}</style>
+    </div>
+  );
+}
+
+/** QR chuyển khoản dưới dòng TỔNG (PAY-03) — cùng ma trận với ảnh PNG của cầu in (lib/print/anh-phieu). */
+function QrChuyenKhoan({ qr, rong }: { qr: TransferQr; rong: number }) {
+  const { n, d } = useMemo(() => {
+    const m = maTranQr(qr.payload);
+    return { n: m.n + 2 * LE_QR, d: duongSvgQr(m) };
+  }, [qr.payload]);
+  return (
+    <div className="rc-qr" data-transfer-qr>
+      <div className="rc-line" />
+      <div className="rc-qr-note">Quét để chuyển khoản</div>
+      <svg width={rong} height={rong} viewBox={`0 0 ${n} ${n}`} role="img" aria-label="Mã QR chuyển khoản">
+        <rect width={n} height={n} fill="#fff" />
+        <path d={d} fill="#000" />
+      </svg>
+      <div className="rc-qr-note">
+        {qr.bankShortName} · {qr.accountNo}
+      </div>
+      <div className="rc-qr-note">{qr.accountName}</div>
+      <div className="rc-qr-note">Nội dung: {qr.content}</div>
     </div>
   );
 }

@@ -219,6 +219,17 @@ powershell -ExecutionPolicy Bypass -File print-scan.ps1                      # d
 powershell -ExecutionPolicy Bypass -File print-scan.ps1 -TestPrint <IP>      # in phiếu thử
 ```
 
+> **Cầu in tự tắt sau đúng 3 ngày (phát hiện 29/09/2026).** `schtasks /create` mặc định "dừng tác vụ nếu chạy quá
+> 3 ngày" ⇒ Windows giết cả `print-bridge.bat` (vòng tự chạy lại chết theo) sau 72 giờ. Bộ cài từ 29/09/2026 tự bỏ giới
+> hạn này (và cho chạy khi rút sạc). Máy cài trước đó: chạy lại `CAI-DAT.bat`, hoặc chạy lệnh sau bằng quyền Administrator
+> rồi `schtasks /run /tn "CauInBep"`:
+>
+> ```
+> powershell -NoProfile -Command "Set-ScheduledTask -TaskName CauInBep -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero))"
+> ```
+>
+> Kiểm: `schtasks /query /tn "CauInBep" /xml` → `<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>`.
+
 Muốn xem log thì double-click `print-bridge.bat` (có cửa sổ) — nhớ đóng lại sau khi xem, để hai cầu
 in chạy cùng lúc sẽ **in trùng phiếu**.
 

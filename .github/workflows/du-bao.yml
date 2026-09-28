@@ -1,0 +1,56 @@
+name: Dự báo + nhận xét hằng đêm
+
+# P18 (AI-01..05, QD-025 D4). Mỗi quán: dự báo doanh thu / hóa đơn / món 7–14 ngày + backtest; bất thường của hôm qua;
+# nhận xét tuần (lịch rải). Màn admin chỉ đọc bảng. Job lỗi → workflow đỏ → GitHub gửi email (như sao lưu, QD-019);
+# màn vẫn hiện bản hôm trước kèm ngày.
+#
+# Bí mật: dùng lại BACKUP_DB_URL của sao lưu (không thêm quyền rộng hơn). Khóa AI miễn phí (QD-025 D7) là TÙY CHỌN —
+# thiếu hết thì nhận xét dựng bằng mẫu câu cố định, job vẫn xanh. Mã mô hình đổi bằng biến (Settings → Variables).
+
+on:
+  schedule:
+    # 19:30 UTC = 02:30 giờ VN — sau sao lưu (02:00), ngoài giờ bán.
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: du-bao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  du-bao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTGRES_URL_NON_POOLING: ${{ secrets.BACKUP_DB_URL }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+      CF_MODEL: ${{ vars.CF_MODEL }}
+      MAX_NHAN_XET_MOI_DEM: ${{ vars.MAX_NHAN_XET_MOI_DEM }}
+    steps:
+      - name: Kiểm đủ secrets
+        run: |
+          if [ -z "$POSTGRES_URL_NON_POOLING" ]; then
+            echo "::error::Thiếu BACKUP_DB_URL — không chạy dự báo được."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cài thư viện
+        run: npm ci
+
+      - name: Dự báo + nhận xét
+        run: node scripts/du-bao-dem.mjs

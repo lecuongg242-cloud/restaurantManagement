@@ -267,6 +267,7 @@ export async function updateItem(formData: FormData) {
   const image = formData.get("image");
   let image_url: string | undefined;
   let imageError: string | null = null;
+  let anhCu: string | null = null;
 
   if (image instanceof File && image.size > 0) {
     const v = validateImage(image);
@@ -281,12 +282,22 @@ export async function updateItem(formData: FormData) {
     try {
       const { path } = await uploadMenuImage(session.tenant.id, id, image);
       image_url = path;
-      await deleteMenuImage(duongDanAnh(current?.image_url ?? null));
+      // Xóa ảnh cũ SAU khi đã lưu đường dẫn mới (dưới đây) — ảnh có thể đang dùng chung với chi nhánh khác.
+      anhCu = duongDanAnh(current?.image_url ?? null);
     } catch (e) {
       // Vẫn lưu các field khác, nhưng phải báo — im lặng ở đây là "lưu thành công" giả.
       imageError = e instanceof Error ? e.message : "Upload ảnh lỗi.";
     }
   }
+
+  // Chuỗi (P15, QD-023 U2): món nối về thực đơn gốc mà chi nhánh tự đổi giá → khóa giá, đồng bộ sau không ghi đè.
+  const { data: truoc } = await supabase
+    .from("menu_items")
+    .select("source_id, base_price")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant.id)
+    .maybeSingle();
+  const khoaGia = !!truoc?.source_id && truoc.base_price !== base_price;
 
   const { error } = await supabase
     .from("menu_items")
@@ -295,12 +306,14 @@ export async function updateItem(formData: FormData) {
       description: description || null,
       category_id,
       base_price,
+      ...(khoaGia ? { price_locked: true } : {}),
       ...(image_url ? { image_url } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
   if (error) return setFlash("error", error.message);
+  await deleteMenuImage(anhCu);
 
   if (formData.get("group_picker") === "1") {
     await syncItemGroups(
@@ -385,4 +398,20 @@ export async function setItemAvailable(slug: string, id: string, available: bool
   revalidatePath(`/r/${slug}/kds`);
   revalidatePath(`/r/${slug}/menu`);
   revalidateMenu(session.tenant.id);
+}
+
+/**
+ * "Theo giá chuỗi" (P15 15-03): bỏ khóa giá của một món đã nối về thực đơn gốc và lấy lại giá gốc ngay
+ * (RPC `unlock_item_price`, 0063).
+ */
+export async function followChainPrice(formData: FormData) {
+  const slug = String(formData.get("slug") ?? "");
+  const session = await requireMenuManager(slug);
+  const id = String(formData.get("id") ?? "");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("unlock_item_price", { p_item: id });
+  if (error) return setFlash("error", error.message);
+  revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
+  await setFlash("ok", "Món đã theo giá chuỗi.");
 }

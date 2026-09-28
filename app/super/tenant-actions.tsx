@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   setTenantStatus,
   resetOwnerPassword,
@@ -8,12 +8,16 @@ import {
   createPrintBridgeAccount,
   createBridgeActivationCode,
   revokeBridge,
+  setPaidUntil,
+  recordRenewal,
   type SuperActionState,
 } from "./actions";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { cn } from "@/lib/utils";
+import { mocGiaHan, soThangToiNgay } from "@/lib/tenant/subscription";
+import { giaGoiYTheoThang, thoiHanChu, type Plan } from "@/lib/platform/plans";
 
 const EMPTY: SuperActionState = {};
 
@@ -205,4 +209,152 @@ export function BridgeActivationForm({ tenantId }: { tenantId: string }) {
       </div>
     </details>
   );
+}
+
+/** Sửa hạn dùng tay (13-03) — dự phòng, và cách sửa khi ghi nhận gia hạn nhầm. Trống = không giới hạn. */
+export function PaidUntilForm({ tenantId, paidUntil }: { tenantId: string; paidUntil: string | null }) {
+  const [state, action] = useActionState(setPaidUntil, EMPTY);
+  return (
+    <details className="group w-full sm:w-auto">
+      <summary
+        className={cn(
+          buttonVariants({ variant: "secondary", size: "sm" }),
+          "w-full cursor-pointer list-none sm:w-auto [&::-webkit-details-marker]:hidden"
+        )}
+      >
+        Sửa hạn tay
+      </summary>
+      <form
+        action={action}
+        className="mt-sm flex flex-wrap items-center gap-xs rounded-md border border-hairline-soft bg-surface p-sm"
+      >
+        <input type="hidden" name="tenant_id" value={tenantId} />
+        <Input name="paid_until" type="date" defaultValue={paidUntil ?? ""} className="h-9 w-full sm:w-44" />
+        <SubmitButton size="sm" pendingLabel="Đang lưu…">
+          Lưu
+        </SubmitButton>
+        <p className="w-full text-xs text-steel">Để trống = không giới hạn. Sửa nhầm thì ghi lý do vào ghi chú lần gia hạn kế.</p>
+        {state.ok && <p className="w-full text-xs text-status-ready">{state.ok}</p>}
+        {state.error && <p className="w-full text-xs text-status-late">{state.error}</p>}
+      </form>
+    </details>
+  );
+}
+
+/**
+ * Ghi nhận gia hạn (13-04; 0059; 0061). Chọn một GÓI (điền sẵn thời hạn + giá của gói), hoặc "Số tháng khác",
+ * hoặc "Chọn ngày hết hạn" trên lịch. Số tiền luôn sửa được. Quán đang KHÔNG giới hạn phải tích ô xác nhận khi
+ * chuyển sang có hạn — bấm nhầm cho qt-food sẽ biến quán thành có hạn.
+ */
+export function RecordRenewalForm({
+  tenantId,
+  paidUntil,
+  today,
+  plans,
+}: {
+  tenantId: string;
+  paidUntil: string | null;
+  today: string;
+  plans: Plan[];
+}) {
+  const [state, action] = useActionState(recordRenewal, EMPTY);
+  // "goi:<id>" | "thang" | "ngay"
+  const [chonVal, setChonVal] = useState(plans[0] ? `goi:${plans[0].id}` : "thang");
+  const [months, setMonths] = useState(1);
+  const [until, setUntil] = useState("");
+  const goi = chonVal.startsWith("goi:") ? plans.find((p) => `goi:${p.id}` === chonVal) ?? null : null;
+  const kieu: "thang" | "ngay" | "vv" = goi ? (goi.months == null ? "vv" : "thang") : chonVal === "ngay" ? "ngay" : "thang";
+  const soThang = goi ? goi.months : chonVal === "thang" ? months : null;
+  const goc = mocGiaHan(paidUntil, today);
+  const minNgay = congNgay(goc, 1);
+  const thangNgay = chonVal === "ngay" && until ? soThangToiNgay(goc, until) : null;
+  const goiY = goi ? goi.price : soThang ? giaGoiYTheoThang(plans, soThang) : thangNgay ? giaGoiYTheoThang(plans, thangNgay) : null;
+  const chon = "h-9 rounded-md border border-hairline-strong bg-canvas px-sm text-sm text-ink";
+  return (
+    <details className="group w-full sm:w-auto">
+      <summary
+        className={cn(
+          buttonVariants({ size: "sm" }),
+          "w-full cursor-pointer list-none sm:w-auto [&::-webkit-details-marker]:hidden"
+        )}
+      >
+        Ghi nhận gia hạn
+      </summary>
+      <form
+        action={action}
+        className="mt-sm flex flex-wrap items-center gap-xs rounded-md border border-hairline-soft bg-surface p-sm"
+      >
+        <input type="hidden" name="tenant_id" value={tenantId} />
+        <input type="hidden" name="kieu" value={kieu} />
+        {kieu === "thang" && <input type="hidden" name="months" value={soThang ?? ""} />}
+        <select value={chonVal} onChange={(e) => setChonVal(e.target.value)} className={chon} aria-label="Gói">
+          {plans.map((p) => (
+            <option key={p.id} value={`goi:${p.id}`}>
+              {p.name} — {thoiHanChu(p.months)}
+            </option>
+          ))}
+          <option value="thang">Số tháng khác…</option>
+          <option value="ngay">Chọn ngày hết hạn…</option>
+        </select>
+        {chonVal === "thang" && (
+          <select value={months} onChange={(e) => setMonths(Number(e.target.value))} className={chon} aria-label="Số tháng">
+            {Array.from({ length: 36 }, (_, k) => k + 1).map((m) => (
+              <option key={m} value={m}>
+                {m} tháng
+              </option>
+            ))}
+          </select>
+        )}
+        {chonVal === "ngay" && (
+          <Input
+            type="date"
+            name="until"
+            required
+            min={minNgay}
+            value={until}
+            onChange={(e) => setUntil(e.target.value)}
+            className="h-9 w-full sm:w-44"
+            aria-label="Ngày hết hạn mới"
+          />
+        )}
+        <Input
+          key={`${chonVal}-${months}-${until}`}
+          name="amount"
+          inputMode="numeric"
+          required
+          defaultValue={goiY ?? ""}
+          placeholder="Số tiền (đ)"
+          className="h-9 w-full sm:w-36"
+        />
+        <Input name="note" maxLength={500} placeholder="Ghi chú (mã GD ngân hàng…)" className="h-9 w-full sm:w-56" />
+        {chonVal === "ngay" && (
+          <p className="w-full text-xs text-steel">
+            Hạn mới = đúng ngày chọn (từ {minNgay.split("-").reverse().join("/")} trở đi).
+            {thangNgay && goiY ? ` Số tiền gợi ý tính ${thangNgay} tháng.` : ""}
+          </p>
+        )}
+        {!paidUntil && kieu !== "vv" && (
+          <label className="flex w-full items-center gap-xs text-xs text-status-late">
+            <input type="checkbox" name="start_limited" className="h-4 w-4" />
+            Quán đang KHÔNG GIỚI HẠN — chuyển sang có hạn
+          </label>
+        )}
+        {kieu === "vv" && (
+          <p className="w-full text-xs text-status-late">
+            Vĩnh viễn: quán thành KHÔNG GIỚI HẠN, không cần gia hạn nữa.
+          </p>
+        )}
+        <SubmitButton size="sm" pendingLabel="Đang ghi…">
+          Ghi nhận
+        </SubmitButton>
+        {state.ok && <p className="w-full text-xs text-status-ready">{state.ok}</p>}
+        {state.error && <p className="w-full text-xs text-status-late">{state.error}</p>}
+      </form>
+    </details>
+  );
+}
+
+/** "2026-09-27" + n ngày. */
+function congNgay(d: string, n: number): string {
+  return new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10) + n)).toISOString().slice(0, 10);
 }

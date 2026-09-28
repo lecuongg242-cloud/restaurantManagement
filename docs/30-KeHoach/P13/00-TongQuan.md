@@ -14,7 +14,7 @@ Chuẩn bị bán cho quán thứ hai trở đi. So với đối thủ (KiotViet
 
 Hóa đơn điện tử cũng chặn bán, nhưng cần liên hệ nhà cung cấp trước ⇒ tách sang **P14** (QD-022).
 
-**P13 kết thúc bằng: khách quét QR trên màn POS hoặc trên hóa đơn giấy, app ngân hàng điền sẵn đúng số tiền
+**P13 kết thúc bằng: khách quét mã QR in trên hóa đơn giấy, app ngân hàng điền sẵn đúng số tiền
 và nội dung; quán có hạn dùng, được nhắc trước, tự khóa khi quá ân hạn, và mở lại ngay khi super-admin ghi
 nhận tiền gia hạn.**
 
@@ -22,8 +22,8 @@ nhận tiền gia hạn.**
 
 | Plan | Yêu cầu | Phụ thuộc | Giá trị khi dừng ở đây |
 |---|---|---|---|
-| 13-01 VietQR: dựng mã + cấu hình tài khoản + hộp thanh toán POS | PAY-01, PAY-02, PAY-03 (phần POS) | không | Thu ngân xoay màn cho khách quét, đúng tiền |
-| 13-02 QR trên phiếu tạm tính và hóa đơn in | PAY-03 (phần in) | 13-01 | Khách quét trên giấy tại bàn, không cần xoay màn |
+| 13-01 VietQR: cấu hình tài khoản nhận + dựng mã | PAY-01, PAY-02 | không | Mã QR đúng chuẩn, đã quét thử bằng app ngân hàng |
+| 13-02 In mã QR chuyển khoản trên hóa đơn | PAY-03 | 13-01 | Khách quét trên giấy, đúng số tiền — **không** hiện QR trên màn (chủ dự án 27/09) |
 | 13-03 Hạn dùng, nhắc, khóa tự động | SUB-01, SUB-02, SUB-03 | không (chặn bởi QD-021 U1, U2) | Nền tảng có đòn bẩy thu tiền, không bấm tay |
 | 13-04 Gia hạn tay: trang Gia hạn + ghi nhận ở `/super` | SUB-04 | 13-01, 13-03 | Vòng thu tiền thuê bao khép kín |
 
@@ -43,7 +43,7 @@ nhận tiền gia hạn.**
 - `bills.bill_no` được cấp **lúc tạo bill** (`lib/billing/bill.ts:201, 318, 950`), không phải lúc trả ⇒ có sẵn
   để dựng nội dung chuyển khoản trước khi thu. `bill_no` reset mỗi ngày ⇒ nội dung phải kèm ngày.
 - Thư viện `qrcode` đã có (`lib/tables/qr.ts`, in QR bàn) ⇒ không thêm gói npm.
-- Hộp thanh toán: `components/pos/PaymentDialog.tsx:198-199` (hai nút Tiền mặt / Chuyển khoản).
+- Hộp thanh toán `components/pos/PaymentDialog.tsx` **không đổi** — QR chỉ in trên hóa đơn (chủ dự án 27/09/2026).
 - Hóa đơn có view model dùng chung `lib/billing/receipt-view.ts` → `components/print/ReceiptDoc.tsx` (trình
   duyệt) và `lib/print/anh-phieu.tsx` (ảnh PNG, P12). QR phải đi qua **cùng** view model.
 - Cài đặt quán: `lib/tenant/settings.ts` (`parseSettings` / `serializeSettings`, có clamp) ⇒ thêm khối `bank`.

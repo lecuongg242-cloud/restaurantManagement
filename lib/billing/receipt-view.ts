@@ -10,6 +10,7 @@ import type { OrderChannel, OrderSource } from "@/lib/orders/types";
 import { getBillView } from "./bill";
 import type { PaymentMethod } from "./types";
 import { urlAnh } from "@/lib/storage/public-url";
+import { dungTransferQr, type TransferQr } from "./transfer-qr";
 
 export type ReceiptView = {
   tenantName: string;
@@ -37,6 +38,8 @@ export type ReceiptView = {
   total: number;
   payment: { method: PaymentMethod; amount: number } | null;
   footer: string;
+  /** QR chuyển khoản (PAY-03) — chỉ có khi quán khai tài khoản, bật in QR, bill còn mở, tổng > 0. */
+  transferQr?: TransferQr;
 };
 
 /** Tên bàn từ table_session_id; gộp nhiều bàn (null) → "Gộp bàn". */
@@ -65,14 +68,15 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
     client.from("tenants").select("name, logo_url, settings").eq("id", tenantId).maybeSingle(),
     client.from("tenants").select("settings").eq("id", tenantId).maybeSingle(),
   ]);
-  const footer = parseSettings(tenantSettings?.settings).receipt_footer;
+  const settings = parseSettings(tenantSettings?.settings);
+  const footer = settings.receipt_footer;
 
   const isChild = bill.splitParentId != null;
 
   // Đơn online: nhãn = kênh + dòng liên hệ khách; else nhãn bàn (dine-in / gộp).
   const { data: billMeta } = await client
     .from("bills")
-    .select("online_order_id")
+    .select("online_order_id, created_at")
     .eq("id", billId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -88,7 +92,7 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
       .maybeSingle();
     const ch = order?.channel as string | undefined;
     tableLabel = orderPlaceLabel({
-      serviceMode: parseSettings(tenantSettings?.settings).service_mode,
+      serviceMode: settings.service_mode,
       channel: (ch as OrderChannel) ?? "takeaway",
       source: order?.source as OrderSource,
     });
@@ -103,7 +107,7 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
 
   const lastPayment = bill.payments.length > 0 ? bill.payments[bill.payments.length - 1] : null;
 
-  return {
+  const view: ReceiptView = {
     tenantName: tenant?.name ?? "Nhà hàng",
     logoUrl: urlAnh(tenant?.logo_url as string | null),
     billNo: bill.billNo,
@@ -130,4 +134,16 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
     payment: lastPayment ? { method: lastPayment.method, amount: lastPayment.amount } : null,
     footer,
   };
+
+  // Số tiền trên QR lấy từ `view.total` — đúng con số in trên giấy, không tính lại.
+  const transferQr = dungTransferQr({
+    settings,
+    status: bill.status,
+    isSplitContainer: bill.splitCount != null,
+    total: view.total,
+    billNo: bill.billNo,
+    createdAt: (billMeta?.created_at as string | null) ?? null,
+  });
+  // Không có QR thì không có khóa — view model của quán chưa khai tài khoản giữ nguyên như trước.
+  return transferQr ? { ...view, transferQr } : view;
 }

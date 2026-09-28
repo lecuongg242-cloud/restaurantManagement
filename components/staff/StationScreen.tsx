@@ -4,6 +4,9 @@ import { canAccess, defaultRouteForRole, type Section } from "@/lib/auth/rbac";
 import { stationSignOut } from "@/app/r/[slug]/station-actions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { SubscriptionBannerSlot } from "@/components/tenant/SubscriptionBanner";
+import { BranchSwitcher } from "@/components/brand/BranchSwitcher";
+import { boChonChiNhanh } from "@/lib/brand/branches";
 
 const ROLE_LABEL: Record<string, string> = {
   owner: "Chủ quán",
@@ -48,6 +51,7 @@ export async function StationScreen({
     redirect(defaultRouteForRole(slug, session.role));
   }
 
+  const chiNhanh = await boChonChiNhanh(session.tenant.id);
   const label = surface === "pos" ? "Trạm POS" : "Màn hình bếp (KDS)";
   const staffName = session.displayName ?? ROLE_LABEL[session.role] ?? session.role;
   const signOut = stationSignOut.bind(null, slug, surface);
@@ -63,8 +67,13 @@ export async function StationScreen({
         {/* shrink-0 + nowrap: 360px trở xuống, cụm này bị co rồi rớt dòng "Trạm / POS" — để tên nhân viên
             bên phải tự cắt (truncate) thay. */}
         <div className="flex shrink-0 items-baseline gap-sm whitespace-nowrap">
-          <span className="text-base font-medium text-ink">{label}</span>
-          <span className="text-sm text-steel max-sm:hidden">· {session.tenant.name}</span>
+          {/* Có bộ chọn chi nhánh thì màn hẹp nhường chỗ cho nó — tên chi nhánh quan trọng hơn chữ "Trạm POS". */}
+          <span className={cn("text-base font-medium text-ink", chiNhanh && "max-sm:hidden")}>{label}</span>
+          {chiNhanh ? (
+            <BranchSwitcher slug={slug} branches={chiNhanh.branches} brandSlug={chiNhanh.brandSlug} pos className="whitespace-normal" />
+          ) : (
+            <span className="text-sm text-steel max-sm:hidden">· {session.tenant.name}</span>
+          )}
         </div>
         <div className="flex min-w-0 items-center gap-sm">
           <span className="truncate rounded-full bg-cream px-md py-xxs text-sm font-medium text-ink">
@@ -78,6 +87,9 @@ export async function StationScreen({
           </form>
         </div>
       </header>
+      {surface === "pos" && (
+        <SubscriptionBannerSlot slug={slug} tenantId={session.tenant.id} role={session.role} />
+      )}
       {children ? (
         <main className={cn("min-h-0 flex-1", fill && "overflow-hidden")}>{children}</main>
       ) : (

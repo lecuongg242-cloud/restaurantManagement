@@ -4,6 +4,15 @@ import { canAccess, defaultRouteForRole } from "@/lib/auth/rbac";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { Toaster } from "@/components/ui/toaster";
 import { readFlash } from "@/lib/flash";
+import { SubscriptionBannerSlot } from "@/components/tenant/SubscriptionBanner";
+import { GoiDichVuThe } from "@/components/tenant/GoiDichVuThe";
+import { BranchSwitcher } from "@/components/brand/BranchSwitcher";
+import { boChonChiNhanh } from "@/lib/brand/branches";
+import { manifestMeta } from "@/lib/offline/manifest-meta";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  return manifestMeta((await params).slug, "admin");
+}
 
 /**
  * Guard khu admin (server): chặn chéo tenant + RBAC vai trò.
@@ -26,11 +35,17 @@ export default async function ProtectedAdminLayout({
     redirect(defaultRouteForRole(slug, session!.role));
   }
 
-  const flash = await readFlash();
+  const [flash, chiNhanh] = await Promise.all([readFlash(), boChonChiNhanh(session!.tenant.id)]);
 
   return (
     <>
-      <AdminShell tenant={session!.tenant} role={session!.role}>
+      <AdminShell
+        tenant={session!.tenant}
+        role={session!.role}
+        banner={<SubscriptionBannerSlot slug={slug} tenantId={session!.tenant.id} role={session!.role} />}
+        planCard={<GoiDichVuThe slug={slug} tenantId={session!.tenant.id} role={session!.role} />}
+        branchSwitcher={chiNhanh && <BranchSwitcher slug={slug} branches={chiNhanh.branches} brandSlug={chiNhanh.brandSlug} />}
+      >
         {children}
       </AdminShell>
       <Toaster flash={flash} />

@@ -15,10 +15,19 @@ import type { TenantInfo, Role } from "@/lib/auth/session";
 export function AdminShell({
   tenant,
   role,
+  banner,
+  planCard,
+  branchSwitcher,
   children,
 }: {
   tenant: TenantInfo;
   role: Role;
+  /** Banner nhắc hạn dùng (SUB-02) — dựng ở layout server, null khi không cần nhắc. */
+  banner?: React.ReactNode;
+  /** Ô "Gói dịch vụ" ở chân sidebar (chỉ owner) — dựng ở layout server. */
+  planCard?: React.ReactNode;
+  /** Bộ chọn chi nhánh (P15) — null với quán lẻ / người chỉ thuộc một chi nhánh. */
+  branchSwitcher?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const base = `/r/${tenant.slug}/admin`;
@@ -49,6 +58,7 @@ export function AdminShell({
 
         <AdminNav base={base} role={role} />
 
+        {planCard}
         <form action={signOut} className="border-t border-hairline-soft p-sm">
           <Button type="submit" variant="secondary" size="sm" className="w-full">
             Đăng xuất
@@ -59,7 +69,7 @@ export function AdminShell({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Thanh trên mobile/tablet: hamburger + tên tenant. Sticky để luôn đổi màn được. */}
         <header className="sticky top-0 z-30 flex items-center gap-sm border-b border-hairline-soft bg-canvas px-sm py-xs lg:hidden">
-          <AdminMobileNav tenant={tenant} role={role} base={base} signOut={signOut} />
+          <AdminMobileNav tenant={tenant} role={role} base={base} signOut={signOut} planCard={planCard} />
           {tenant.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -76,13 +86,17 @@ export function AdminShell({
             <span className="truncate text-sm font-medium text-ink">{tenant.name}</span>
             <span className="text-xs text-steel">khu quản trị</span>
           </div>
+          {branchSwitcher && <div className="ml-auto min-w-0">{branchSwitcher}</div>}
         </header>
 
         {/* Header desktop — mobile đã có thanh trên riêng nên ẩn đi để không lặp tên tenant. */}
         <header className="hidden items-center gap-sm border-b border-hairline-soft bg-canvas px-xl py-md lg:flex">
           <h2 className="text-sm font-medium text-ink">{tenant.name}</h2>
           <span className="text-xs text-steel">· khu quản trị</span>
+          {branchSwitcher && <div className="ml-auto">{branchSwitcher}</div>}
         </header>
+
+        {banner}
 
         {/* Bỏ overflow-x-auto: khung ngoài cuộn ngang che mất lỗi tràn của từng trang; nay mỗi
             bảng/biểu đồ tự bọc vùng cuộn riêng nên nội dung KHÔNG đẩy trang lệch trên mobile. */}

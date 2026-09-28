@@ -9,6 +9,7 @@ import type { KdsTicket as KdsTicketType } from "@/lib/orders/kds";
 import type { CustomerMenu } from "@/lib/orders/customer-menu";
 import { KdsTicket } from "./KdsTicket";
 import { SoldOutDrawer } from "./SoldOutDrawer";
+import { CauInBar } from "@/components/pos/CauInBanner";
 
 /**
  * KdsBoard (§4.3, ORDER-04) — BẢNG VÉ CHỈ ĐỂ XEM (bếp không chạm vé — QĐ 22/07). Vé confirmed hiện
@@ -88,6 +89,7 @@ export function KdsBoard({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
+      <CauInBar slug={slug} />
       <header className="flex items-center justify-between gap-md border-b border-hairline bg-canvas px-lg py-sm">
         <h2 className="text-lg font-semibold text-ink">
           Vé đang chờ làm <span className="text-steel">({initial.length})</span>

@@ -7,7 +7,10 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ImageUpload } from "@/components/menu/ImageUpload";
-import { updateIdentity, updateSettings } from "./actions";
+import { updateBank, updateBranchInfo, updateIdentity, updateSettings } from "./actions";
+import { BANKS } from "@/lib/payments/banks";
+import Link from "next/link";
+import { daysLeft, homNayHanDung, ngayVnHienThi, subscriptionState } from "@/lib/tenant/subscription";
 import { urlAnh } from "@/lib/storage/public-url";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +31,14 @@ export default async function SettingsPage({
   const supabase = await createClient();
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("name, logo_url, cover_url, settings")
+    .select("name, logo_url, cover_url, settings, paid_until")
     .eq("id", session.tenant.id)
     .maybeSingle();
 
   const settings = parseSettings(tenant?.settings);
+  const paidUntil = (tenant?.paid_until as string | null) ?? null;
+  const today = homNayHanDung();
+  const hanState = subscriptionState(paidUntil, today);
 
   return (
     <div className="w-full max-w-4xl">
@@ -42,6 +48,28 @@ export default async function SettingsPage({
       </p>
 
       <div className="mt-lg grid gap-lg">
+        {/* Gói dịch vụ (SUB-04) — lối vào trang Gia hạn, kiểu Settings → Billing của các SaaS lớn. */}
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-md">
+            <div>
+              <CardTitle>Gói dịch vụ</CardTitle>
+              <p className="mt-xxs text-sm text-slate" data-goi-cai-dat={hanState}>
+                {!paidUntil
+                  ? "Không giới hạn — không cần gia hạn."
+                  : hanState === "grace" || hanState === "locked"
+                    ? `Đã quá hạn ${-daysLeft(paidUntil, today)} ngày (hết hạn ${ngayVnHienThi(paidUntil)}).`
+                    : `Còn ${daysLeft(paidUntil, today)} ngày — hết hạn ${ngayVnHienThi(paidUntil)}.`}
+              </p>
+            </div>
+            <Link
+              href={`/r/${slug}/admin/gia-han`}
+              className="inline-flex h-9 items-center rounded-md border border-hairline-strong px-md text-sm text-ink hover:bg-surface"
+            >
+              {paidUntil ? "Gia hạn" : "Xem gói"}
+            </Link>
+          </div>
+        </Card>
+
         {/* Nhận diện */}
         <Card>
           <CardTitle>Nhận diện nhà hàng</CardTitle>
@@ -65,6 +93,104 @@ export default async function SettingsPage({
             <div>
               <SubmitButton size="sm" pendingLabel="Đang lưu…">
                 Lưu nhận diện
+              </SubmitButton>
+            </div>
+          </form>
+        </Card>
+
+        {/* Thông tin quán — hiện trên trang chuỗi cho khách chọn chi nhánh (P15 15-05). */}
+        <Card>
+          <CardTitle>Thông tin quán</CardTitle>
+          <p className="mt-xxs text-sm text-steel">Địa chỉ, số điện thoại, giờ mở cửa — khách thấy khi chọn chi nhánh để đặt món / đặt bàn.</p>
+          <form action={updateBranchInfo} className="mt-md flex flex-col gap-md">
+            <input type="hidden" name="slug" value={slug} />
+            <label className="flex max-w-xl flex-col gap-xxs text-sm text-slate">
+              Địa chỉ
+              <Input name="address" maxLength={200} defaultValue={settings.address} placeholder="12 Lê Lợi, Quận 1" />
+            </label>
+            <div className="grid max-w-xl gap-md sm:grid-cols-3">
+              <label className="flex flex-col gap-xxs text-sm text-slate">
+                Số điện thoại
+                <Input name="phone" type="tel" maxLength={30} defaultValue={settings.phone} />
+              </label>
+              <label className="flex flex-col gap-xxs text-sm text-slate">
+                Mở cửa
+                <Input name="open_time" type="time" defaultValue={settings.open_time} />
+              </label>
+              <label className="flex flex-col gap-xxs text-sm text-slate">
+                Đóng cửa
+                <Input name="close_time" type="time" defaultValue={settings.close_time} />
+              </label>
+            </div>
+            <div>
+              <SubmitButton size="sm" pendingLabel="Đang lưu…">
+                Lưu thông tin quán
+              </SubmitButton>
+            </div>
+          </form>
+        </Card>
+
+        {/* Tài khoản nhận chuyển khoản (PAY-02) — dựng VietQR in trên hóa đơn chưa thanh toán. */}
+        <Card>
+          <CardTitle>Tài khoản nhận chuyển khoản</CardTitle>
+          <p className="mt-xxs text-sm text-steel">
+            Khai một lần: hóa đơn chưa thanh toán in ra sẽ có mã QR — khách quét bằng app ngân hàng là điền sẵn đúng số
+            tiền và nội dung. Tiền về thì thu ngân chọn “Chuyển khoản” như hiện nay.
+          </p>
+          <form action={updateBank} className="mt-md flex flex-col gap-md">
+            <input type="hidden" name="slug" value={slug} />
+            <label className="flex min-w-0 max-w-sm flex-col gap-xxs text-sm text-slate">
+              Ngân hàng
+              <select
+                name="bank_bin"
+                defaultValue={settings.bank?.bin ?? ""}
+                className="w-full min-w-0 rounded-md border border-hairline-strong bg-canvas px-md py-sm text-base text-ink sm:text-sm focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              >
+                <option value="">— Chọn ngân hàng —</option>
+                {BANKS.map((b) => (
+                  <option key={b.bin} value={b.bin}>
+                    {b.shortName} — {b.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="grid gap-md sm:grid-cols-2">
+              <label className="flex flex-col gap-xxs text-sm text-slate">
+                Số tài khoản
+                <Input
+                  name="bank_account_no"
+                  inputMode="numeric"
+                  pattern="[0-9 .\-]{6,25}"
+                  autoComplete="off"
+                  defaultValue={settings.bank?.account_no ?? ""}
+                  placeholder="Chỉ chữ số, 6–19 số"
+                />
+              </label>
+              <label className="flex flex-col gap-xxs text-sm text-slate">
+                Tên chủ tài khoản
+                <Input
+                  name="bank_account_name"
+                  autoComplete="off"
+                  defaultValue={settings.bank?.account_name ?? ""}
+                  placeholder="NGUYEN VAN A"
+                  className="uppercase"
+                />
+                <span className="text-xs text-steel">Tự chuyển thành IN HOA không dấu, đúng như ngân hàng in.</span>
+              </label>
+            </div>
+            <label className="flex items-center gap-sm text-sm text-slate">
+              <input
+                type="checkbox"
+                name="print_qr_on_receipt"
+                defaultChecked={settings.print_qr_on_receipt}
+                className="h-4 w-4 rounded border-hairline-strong text-primary focus-visible:ring-primary"
+              />
+              In mã QR chuyển khoản trên hóa đơn
+            </label>
+            <p className="text-xs text-steel">Để trống số tài khoản rồi lưu = gỡ tài khoản, hóa đơn thôi in QR.</p>
+            <div>
+              <SubmitButton size="sm" pendingLabel="Đang lưu…">
+                Lưu tài khoản
               </SubmitButton>
             </div>
           </form>

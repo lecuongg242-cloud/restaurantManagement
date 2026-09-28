@@ -106,6 +106,8 @@ function printViaHiddenFrame(url: string): void {
 
 const KHONG_CO_MAY_IN =
   "Thiết bị này không nối máy in. Quán đang in từ máy quầy — in ở máy quầy, hoặc bật cầu in trong Cài đặt.";
+const CAU_IN_DANG_MAT_KET_NOI =
+  "Đã xếp phiếu bếp, nhưng máy in quầy đang mất kết nối — phiếu sẽ in khi có mạng lại (trong 30 phút). Gấp thì đọc món cho bếp.";
 const CAU_IN_KHONG_NHAN = "Cầu in ở quầy không chạy (laptop quầy tắt?) — in từ máy quầy.";
 
 /**
@@ -142,9 +144,12 @@ class BridgePrintAdapter implements PrintAdapter {
     // vô ích, nhưng mất phiếu bếp đắt hơn nhiều.
     const fallback = () =>
       printViaHiddenFrame(`/r/${args.slug}/print/kitchen/${args.orderId}?w=${args.width ?? "80"}`);
-    queueKitchenTicketPrint(args.slug, args.orderId)
+    // P17 17-02: thiết bị không có máy in (điện thoại 5G lúc wifi quán mất) → server vẫn xếp phiếu khi cầu in mất
+    // kết nối; cầu in lên mạng dự phòng thì in bù. Máy có máy in giữ đường lui in trình duyệt như cũ.
+    queueKitchenTicketPrint(args.slug, args.orderId, !thietBiCoMayIn())
       .then((res) => {
         if (!res?.ok) fallback();
+        else if (res.cho) baoIn("loi", CAU_IN_DANG_MAT_KET_NOI);
       })
       .catch(fallback);
   }

@@ -14,6 +14,26 @@ có danh sách khách. Đối thủ quảng cáo 48 mẫu báo cáo (CUKCUK Pro)
 nào hiệu quả, xuất mọi khối ra Excel; có danh sách khách theo số điện thoại với số lần đến, tổng chi, lần gần nhất
 — cho từng chi nhánh và cả chuỗi.**
 
+## Đối thủ làm thế nào (tra 27/09/2026)
+
+Nguồn: trang hướng dẫn chính thức (đọc qua công cụ tóm tắt; (?) = chưa xác minh).
+
+| Việc | Đối thủ | Mình làm theo |
+|---|---|---|
+| Báo cáo nhân viên | **Sapo FnB** tách hai tab trong Báo cáo doanh thu: **"Doanh thu theo phục vụ"** (Nhân viên, SL mặt hàng, Tiền hàng, Doanh thu) và **"Doanh thu theo thu ngân"** (Nhân viên, Tổng số hóa đơn, Số hóa đơn hủy, SL mặt hàng, Doanh thu) [1]. KiotViet "Báo cáo nhân viên" (SL đơn, tiền hàng, giảm giá, doanh thu) [2]; CUKCUK "Doanh thu theo nhân viên" lọc bộ phận thu ngân / phục vụ [3] | Hai bảng **Theo phục vụ** (người nhận đơn) / **Theo thu ngân** (người thu tiền, theo phương thức), thêm cột hủy món + giảm giá đã duyệt |
+| Bàn / khu vực | KiotViet "Báo cáo phân tích phòng bàn": tỷ lệ lấp đầy, **thời gian TB/bàn**, doanh thu mỗi bàn, hệ số quay vòng [4]; CUKCUK "Doanh thu theo khu vực khách ngồi" [3]; Sapo không có | Bảng bàn: lượt, phút ngồi TB, doanh thu, doanh thu/lượt, doanh thu/giờ ngồi |
+| Nhóm món theo thời gian | CUKCUK **"So sánh doanh thu mặt hàng theo thời gian"** [3]; Sapo chỉ tổng theo kỳ | Biểu đồ nhóm món theo tuần |
+| Xuất file | Sapo **"Xuất báo cáo"**, KiotViet **"Xuất file"**, POS365 **"Xuất Excel"** — đều **Excel**, xuất báo cáo đang xem với bộ lọc đang chọn; không thấy CSV | Nút **"Xuất Excel"** (`.xlsx`) xuất đúng trang báo cáo đang xem (kỳ + chi nhánh), mỗi khối một trang tính |
+| Danh sách khách | Sapo: **Khách hàng, Điện thoại, Hóa đơn, Hóa đơn gần nhất, Tổng chi tiêu**, Công nợ; lọc/sắp xếp [5]. KiotViet: Tên, Điện thoại, Tổng bán; chi tiết có tab **Lịch sử bán hàng** [6]; POS365 chi tiết + ghi chú [7]. **Không đối thủ nào che SĐT theo vai trò** (chỉ iPOS ẩn SĐT trên hóa đơn in) | Cột Khách hàng · Điện thoại · Số lần · Lần gần nhất · Tổng chi tiêu; bấm vào xem lịch sử + ghi chú; **SĐT hiện đầy đủ** cho chủ và quản lý (bỏ ý che SĐT với quản lý) |
+
+[1] https://help.sapo.vn/bao-cao-doanh-thu-tren-quan-tri-sapo-fnb ·
+[2] https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/huong-dan-bao-cao/bao-cao-nhan-vien/ ·
+[3] https://helpv2.cukcuk.vn/vi/kb/1050000_tinh_hinh_ban_hang ·
+[4] https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/bao-cao-kinh-doanh-thong-minh-tren-ung-dung-fnb-quan-ly-nha-hang/ ·
+[5] https://help.sapo.vn/xem-va-loc-danh-sach-khach-hang-tren-trang-quan-tri-sapo-fnb ·
+[6] https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/fnb-khach-hang/khach-hang/ ·
+[7] https://www.pos365.vn/docs/chi-tiet-khach-hang-1877.html
+
 ## Các plan
 
 | Plan | Yêu cầu | Phụ thuộc | Giá trị khi dừng ở đây |

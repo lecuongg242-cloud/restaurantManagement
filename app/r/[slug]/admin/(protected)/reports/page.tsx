@@ -18,6 +18,16 @@ import { DiscountPanel } from "@/components/admin/reports/DiscountPanel";
 import { MarginPanel } from "@/components/admin/reports/MarginPanel";
 import { WastePanel } from "@/components/admin/reports/WastePanel";
 import { getInventoryReportBlock, type InventoryReportBlock } from "@/lib/inventory/report-server";
+import Link from "next/link";
+import { chuoiCuaQuan } from "@/lib/brand/context";
+import { BaoCaoChuoiView } from "@/components/brand/BaoCaoChuoiView";
+import { getBaoCaoBan, getBaoCaoNhanVien, getNhomMonTheoTuan, type DiemNhomMon, type DongBan, type DongNhanVien } from "@/lib/reports/deep";
+import { StaffPanel } from "@/components/admin/reports/StaffPanel";
+import { TableUsagePanel } from "@/components/admin/reports/TableUsagePanel";
+import { CategoryTrendChart } from "@/components/admin/reports/CategoryTrendChart";
+import { cn } from "@/lib/utils";
+import { getDuBao } from "@/lib/forecast/read";
+import { ForecastCard } from "@/components/admin/forecast/ForecastCard";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +41,7 @@ export default async function ReportsPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ preset?: string; offset?: string; from?: string; to?: string; bucket?: string }>;
+  searchParams: Promise<{ preset?: string; offset?: string; from?: string; to?: string; bucket?: string; pham?: string; cn?: string }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
@@ -44,6 +54,47 @@ export default async function ReportsPage({
   const now = new Date();
   const range = resolveRange(sp, now);
   const prevRange = previousRange(range, now);
+
+  // Chuỗi (P15): báo cáo có thêm phạm vi "Tất cả chi nhánh" — như bộ lọc chi nhánh của KiotViet / Sapo, không có
+  // trang báo cáo chuỗi riêng. Chỉ thành viên chuỗi vào được ≥ 2 chi nhánh mới thấy.
+  const chuoi = await chuoiCuaQuan(session.tenant.id, session.userId);
+  const coChuoi = !!chuoi && chuoi.branches.length >= 2;
+  const kyQuery = new URLSearchParams(
+    Object.entries({ preset: sp.preset, offset: sp.offset, from: sp.from, to: sp.to }).filter(([, v]) => v) as [string, string][]
+  ).toString();
+  const phamVi = coChuoi ? <PhamVi slug={slug} chuoi={sp.pham === "chuoi"} kyQuery={kyQuery} /> : null;
+  // "Xuất Excel" (P16 16-04): cùng kỳ + phạm vi đang xem.
+  const xuatHref = `/r/${slug}/admin/reports/export?${[kyQuery, coChuoi && sp.pham === "chuoi" ? "pham=chuoi" : "", coChuoi && sp.pham === "chuoi" && sp.cn ? `cn=${sp.cn}` : ""]
+    .filter(Boolean)
+    .join("&")}`;
+  const nutXuat = (
+    <a href={xuatHref} className="inline-flex h-9 items-center rounded-md border border-hairline-strong px-md text-sm text-ink hover:bg-surface" data-xuat-excel>
+      Xuất Excel
+    </a>
+  );
+  if (coChuoi && sp.pham === "chuoi") {
+    return (
+      <div className="w-full">
+        <BaoCaoChuoiView
+          all={chuoi!.branches}
+          loc={sp.cn}
+          range={range}
+          prev={prevRange}
+          base={`/r/${slug}/admin/reports?pham=chuoi`}
+          kyQuery={kyQuery}
+          now={now}
+          dauTrang={
+            <div>
+              <h1 className="font-display text-2xl text-ink">Báo cáo dòng tiền</h1>
+              <p className="text-sm text-steel">{range.label} · giờ Việt Nam · cả chuỗi {chuoi!.brand.name}</p>
+              {phamVi}
+              <div className="mt-xs">{nutXuat}</div>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
 
   let data: ReportData;
   let prev: ComparisonData;
@@ -61,7 +112,7 @@ export default async function ReportsPage({
     ]);
   } catch (err) {
     return (
-      <ReportShell slug={slug} range={range} now={now}>
+      <ReportShell slug={slug} range={range} now={now} phamVi={phamVi} nutXuat={nutXuat}>
         <div className="mt-lg rounded-lg border border-status-late bg-canvas p-lg">
           <p className="text-sm font-medium text-status-late">Không tải được báo cáo.</p>
           <p className="mt-xs text-sm text-steel">
@@ -74,10 +125,25 @@ export default async function ReportsPage({
   }
 
   const { summary, series, topItems, categories, channels, areas, payments, hourDow, peakHour, serviceMode } = data;
+
+  // P16 (16-02, 16-03): tự nuốt lỗi như khối hủy — RPC 0068 hỏng không kéo các khối cũ theo.
+  let sau: { staff: DongNhanVien[]; ban: DongBan[]; nhom: DiemNhomMon[] } | null = null;
+  try {
+    const [staff, ban, nhom] = await Promise.all([
+      getBaoCaoNhanVien([session.tenant.id], range),
+      serviceMode === "table" ? getBaoCaoBan([session.tenant.id], range) : Promise.resolve([] as DongBan[]),
+      range.dayCount >= 14 ? getNhomMonTheoTuan([session.tenant.id], range) : Promise.resolve([] as DiemNhomMon[]),
+    ]);
+    sau = { staff, ban, nhom };
+  } catch {
+    sau = null;
+  }
+  // P18: dự báo 7 ngày tới — tự nuốt lỗi như các khối trên (bảng 0073 hỏng không kéo báo cáo theo).
+  const duBao = await getDuBao(session.tenant.id).catch(() => null);
   const hasData = summary.billCount > 0;
 
   return (
-    <ReportShell slug={slug} range={range} now={now}>
+    <ReportShell slug={slug} range={range} now={now} phamVi={phamVi} nutXuat={nutXuat}>
       <div className="grid grid-cols-1 gap-md sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="Doanh thu"
@@ -104,6 +170,12 @@ export default async function ReportsPage({
           hint={peakHour === null ? undefined : "Khung giờ doanh thu cao nhất kỳ này"}
         />
       </div>
+
+      {duBao && duBao.trangThai !== "chua-co" && (
+        <div className="mt-lg">
+          <ForecastCard du={duBao} />
+        </div>
+      )}
 
       {!hasData ? (
         <div className="mt-lg grid place-items-center rounded-lg border border-hairline bg-canvas py-xxl text-center">
@@ -162,6 +234,22 @@ export default async function ReportsPage({
         )}
       </Panel>
 
+      <Panel title="Nhân viên" className="mt-lg">
+        {sau ? <StaffPanel rows={sau.staff} chiTiet={`/r/${slug}/admin/reports/nhan-vien${kyQuery ? `?${kyQuery}` : ""}`} /> : <p className="text-sm text-status-late">Không tải được thống kê nhân viên.</p>}
+      </Panel>
+
+      {sau && serviceMode === "table" && sau.ban.some((r) => r.ban !== "Không gắn bàn") && (
+        <Panel title="Hiệu quả bàn" className="mt-lg">
+          <TableUsagePanel rows={sau.ban} />
+        </Panel>
+      )}
+
+      {sau && sau.nhom.length > 0 && (
+        <Panel title="Nhóm món theo tuần" className="mt-lg">
+          <CategoryTrendChart points={sau.nhom} />
+        </Panel>
+      )}
+
       {inventory !== null && (
         <>
           <Panel title="Lãi gộp theo món" className="mt-lg">
@@ -214,11 +302,16 @@ function ReportShell({
   slug,
   range,
   now,
+  phamVi,
+  nutXuat,
   children,
 }: {
   slug: string;
   range: ReturnType<typeof resolveRange>;
   now: Date;
+  /** Bộ chọn "Chi nhánh này / Tất cả chi nhánh" (chỉ quán thuộc chuỗi). */
+  phamVi?: React.ReactNode;
+  nutXuat?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -227,18 +320,22 @@ function ReportShell({
         <div>
           <h1 className="font-display text-2xl text-ink">Báo cáo dòng tiền</h1>
           <p className="text-sm text-steel">{range.label} · giờ Việt Nam</p>
+          {phamVi}
         </div>
-        <RangePicker
-          base={`/r/${slug}/admin/reports`}
-          preset={range.preset}
-          offset={range.offset}
-          fromDay={range.fromDay}
-          toDay={range.toDay}
-          baseFrom={range.input.from ?? range.fromDay}
-          baseTo={range.input.to ?? range.toDay}
-          canGoNext={range.canGoNext}
-          today={vnToday(now)}
-        />
+        <div className="flex flex-wrap items-center gap-sm">
+          {nutXuat}
+          <RangePicker
+            base={`/r/${slug}/admin/reports`}
+            preset={range.preset}
+            offset={range.offset}
+            fromDay={range.fromDay}
+            toDay={range.toDay}
+            baseFrom={range.input.from ?? range.fromDay}
+            baseTo={range.input.to ?? range.toDay}
+            canGoNext={range.canGoNext}
+            today={vnToday(now)}
+          />
+        </div>
       </div>
       {children}
     </div>
@@ -251,5 +348,28 @@ function Panel({ title, className, children }: { title: string; className?: stri
       <h2 className="mb-md font-display text-lg text-ink">{title}</h2>
       {children}
     </section>
+  );
+}
+
+/** Phạm vi báo cáo của quán thuộc chuỗi: chi nhánh đang mở / tất cả chi nhánh. Giữ nguyên kỳ đang xem. */
+function PhamVi({ slug, chuoi, kyQuery }: { slug: string; chuoi: boolean; kyQuery: string }) {
+  const base = `/r/${slug}/admin/reports`;
+  const muc = [
+    { chu: "Chi nhánh này", href: kyQuery ? `${base}?${kyQuery}` : base, bat: !chuoi },
+    { chu: "Tất cả chi nhánh", href: `${base}?pham=chuoi${kyQuery ? `&${kyQuery}` : ""}`, bat: chuoi },
+  ];
+  return (
+    <nav aria-label="Phạm vi báo cáo" className="mt-xs flex gap-xs text-sm" data-pham-vi>
+      {muc.map((m) => (
+        <Link
+          key={m.chu}
+          href={m.href}
+          aria-current={m.bat ? "page" : undefined}
+          className={cn("rounded-full border px-sm py-[2px]", m.bat ? "border-ink bg-ink text-canvas" : "border-hairline-strong text-slate")}
+        >
+          {m.chu}
+        </Link>
+      ))}
+    </nav>
   );
 }

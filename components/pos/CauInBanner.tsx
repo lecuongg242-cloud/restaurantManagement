@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Printer } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, Printer } from "lucide-react";
+import { thietBiCoMayIn } from "@/lib/print/device";
+import type { PhieuCho } from "@/lib/print/phieu-cho";
 import { getCauInStatus, type CauInStatus } from "@/app/r/[slug]/print/actions";
 import { gioVn } from "@/lib/time/vn";
 import { nhanThietBiIn, type ToneThietBi } from "@/lib/print/nhan-thiet-bi";
@@ -111,23 +113,11 @@ export function CauInBanner({ st, onDaXuLy }: { st: CauInStatus | null; onDaXuLy
 
   return (
     <>
-      {/* Mất kết nối: server đã tự chuyển phiếu bếp sang in trình duyệt. Nói rõ phiếu RA Ở ĐÂU —
-          in trình duyệt đi ra máy in cài trên chính máy này, thường là máy in hóa đơn ở quầy. */}
+      {/* Mất kết nối (P17 17-02, OFFLINE-03): thường là wifi quán mất. Cả quán cùng thấy — điện thoại 5G vẫn gửi
+          phiếu vào hàng chờ, cầu in lên mạng dự phòng (hotspot điện thoại quản lý) thì in bù phiếu < 30 phút. Máy
+          có máy in (máy quầy) thì phiếu bếp gửi từ chính nó vẫn in ra máy in của nó như trước. */}
       {!st.conSong && (
-        <div
-          role="status"
-          className="flex flex-wrap items-center gap-sm border-b-2 border-status-late bg-cream-soft px-lg py-sm"
-        >
-          <Printer className="h-4 w-4 shrink-0 text-status-late" aria-hidden />
-          <span className="text-sm font-bold text-ink">
-            {st.seenAt
-              ? `Cầu in bếp mất kết nối từ ${gioVn(st.seenAt)}.`
-              : "Chưa có cầu in bếp nào kết nối."}
-          </span>
-          <span className="text-sm text-slate">
-            Phiếu bếp đang in ra máy in của máy này — mang phiếu vào bếp.
-          </span>
-        </div>
+        <MatKetNoi seenAt={st.seenAt} phieu={st.phieuCho} />
       )}
 
       {/* Cầu in sống nhưng máy in không nhận (PRINT-09): phiếu vẫn vào hàng đợi rồi sẽ lỗi. Báo
@@ -169,5 +159,79 @@ export function CauInBanner({ st, onDaXuLy }: { st: CauInStatus | null; onDaXuLy
         </div>
       )}
     </>
+  );
+}
+
+/** Băng sức khỏe cầu in đứng riêng — cho KDS (P17 17-02: cả quán thấy khi in bị kẹt). */
+export function CauInBar({ slug }: { slug: string }) {
+  const c = useCauIn(slug);
+  return <CauInBanner st={c.st} onDaXuLy={c.daXuLy} />;
+}
+
+const TEN_LOAI: Record<PhieuCho["loai"], string> = { bep: "Phiếu bếp", "hoa-don": "Hóa đơn", "phieu-khach": "Phiếu khách" };
+
+function MatKetNoi({ seenAt, phieu }: { seenAt: string | null; phieu: PhieuCho[] }) {
+  const [mo, setMo] = useState(false);
+  // Đọc sau khi gắn: `thietBiCoMayIn` dựa vào localStorage / bề rộng màn — server không biết.
+  const [coMayIn, setCoMayIn] = useState(false);
+  useEffect(() => setCoMayIn(thietBiCoMayIn()), []);
+  const conIn = phieu.filter((p) => !p.khongInBu).length;
+
+  if (!seenAt) {
+    return (
+      <div role="status" className="flex flex-wrap items-center gap-sm border-b-2 border-status-late bg-cream-soft px-lg py-sm">
+        <Printer className="h-4 w-4 shrink-0 text-status-late" aria-hidden />
+        <span className="text-sm font-bold text-ink">Chưa có cầu in bếp nào kết nối.</span>
+        <span className="text-sm text-slate">Phiếu bếp đang in ra máy in của máy này — mang phiếu vào bếp.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div role="alert" data-cau-in-mat-ket-noi className="border-b-2 border-status-late bg-status-late/10 px-lg py-sm">
+      <div className="flex flex-wrap items-center gap-sm">
+        <Printer className="h-4 w-4 shrink-0 text-status-late" aria-hidden />
+        <span className="text-sm font-bold text-ink">
+          Máy in quầy mất kết nối từ {gioVn(seenAt)}
+          {phieu.length > 0 ? ` — ${phieu.length} phiếu đang chờ in` : ""}.
+        </span>
+        <span className="text-sm text-slate">
+          Bật phát wifi trên điện thoại quản lý.
+          {coMayIn ? " Phiếu bếp gửi từ máy này in ra máy in của máy này." : ""}
+        </span>
+        {phieu.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMo((v) => !v)}
+            aria-expanded={mo}
+            className="ml-auto inline-flex min-h-[44px] items-center gap-xs rounded-md border border-hairline-strong bg-canvas px-lg text-sm font-semibold text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            Xem phiếu chờ ({phieu.length})
+            {mo ? <ChevronUp className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
+          </button>
+        )}
+      </div>
+      {mo && (
+        <ul className="mt-sm max-h-72 divide-y divide-hairline-soft overflow-y-auto rounded-md border border-hairline-soft bg-canvas text-sm" data-phieu-cho>
+          {phieu.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-baseline gap-x-sm gap-y-xxs px-md py-xs">
+              <span className="tabular-nums text-steel">{gioVn(p.luc)}</span>
+              <span className="font-semibold text-ink">
+                {TEN_LOAI[p.loai]}
+                {p.soDon != null ? ` · Đơn #${p.soDon}` : ""}
+                {p.noi ? ` · ${p.noi}` : ""}
+              </span>
+              {p.mon.length > 0 && <span className="text-slate">{p.mon.join(", ")}</span>}
+              {p.khongInBu && (
+                <span className="rounded-sm bg-status-late px-xs text-xs font-semibold text-canvas">Không in bù — đã quá 30 phút</span>
+              )}
+            </li>
+          ))}
+          <li className="px-md py-xs text-xs text-steel">
+            {conIn > 0 ? `${conIn} phiếu sẽ tự in khi máy in quầy có mạng lại. ` : ""}Gấp thì đọc món cho bếp.
+          </li>
+        </ul>
+      )}
+    </div>
   );
 }

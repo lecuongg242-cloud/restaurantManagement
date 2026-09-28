@@ -9,8 +9,13 @@ import { parseSettings } from "@/lib/tenant/settings";
 import { PrintModeProvider } from "@/lib/print/print-mode";
 import { StationScreen } from "@/components/staff/StationScreen";
 import { PosBoard } from "@/components/pos/PosBoard";
+import { manifestMeta } from "@/lib/offline/manifest-meta";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  return manifestMeta((await params).slug, "pos");
+}
 
 /**
  * Trạm POS (03-02). StationScreen lo login trạm + chọn nhân viên (PIN, P1); khi đã chọn

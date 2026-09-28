@@ -13,6 +13,7 @@ import { gioNgayNamVn, gioNgayVn } from "@/lib/time/vn";
 import type { PhieuAnh } from "@/lib/print/anh-phieu";
 import { toState, CHUA_IN, type JobRow } from "@/lib/print/trang-thai";
 import { cauInConSong, loiDonDap, trangThaiMayIn, CUA_SO_LOI_MS, type NhipTim } from "@/lib/print/cau-in";
+import { phieuCho, type DongPhieuCho, type PhieuCho } from "@/lib/print/phieu-cho";
 
 type TicketType = "kitchen_ticket" | "customer_ticket";
 
@@ -21,8 +22,9 @@ async function insertPrintJob(
   slug: string,
   orderId: string,
   type: TicketType,
-  status: "printed" | "pending"
-): Promise<{ ok: boolean }> {
+  status: "printed" | "pending",
+  choKhiMatKetNoi = false
+): Promise<{ ok: boolean; cho?: boolean }> {
   const session = await getSessionMembership(slug);
   if (!session) return { ok: false };
   if (!canAccess(session.role, "pos") && !canAccess(session.role, "kds")) return { ok: false };
@@ -44,8 +46,13 @@ async function insertPrintJob(
   // PRINT-08: cầu in chết thì KHÔNG xếp vào hàng đợi — trả ok:false để đường lui sẵn có của POS
   // (BridgePrintAdapter) in bằng trình duyệt. Trước 09-03, xếp hàng vẫn "thành công" khi cầu in đã
   // chết, phiếu nằm `pending` mãi và bếp không nhận được gì (24/09/2026).
+  //
+  // P17 17-02: thiết bị KHÔNG có máy in (điện thoại 5G lúc wifi quán mất) thì in trình duyệt là vô ích — vẫn xếp
+  // hàng: cầu in lên mạng dự phòng trong 30 phút sẽ in bù, và băng "phiếu đang chờ" cho cả quán thấy phiếu này.
+  let cho = false;
   if (status === "pending" && !(await cauInConSongCua(supabase, session.tenant.id))) {
-    return { ok: false };
+    if (!choKhiMatKetNoi) return { ok: false };
+    cho = true;
   }
 
   // PRINT-06: đây là lượt in MỚI của phiếu bếp (không phải cú bấm đúp — đã lọc ở trên) → lượt cũ
@@ -63,7 +70,7 @@ async function insertPrintJob(
     status,
     printed_at: status === "printed" ? new Date().toISOString() : null,
   });
-  return { ok: !error };
+  return error ? { ok: false } : { ok: true, cho };
 }
 
 /**
@@ -91,9 +98,10 @@ export async function logCustomerTicketPrint(
  */
 export async function queueKitchenTicketPrint(
   slug: string,
-  orderId: string
-): Promise<{ ok: boolean }> {
-  return insertPrintJob(slug, orderId, "kitchen_ticket", "pending");
+  orderId: string,
+  choKhiMatKetNoi = false
+): Promise<{ ok: boolean; cho?: boolean }> {
+  return insertPrintJob(slug, orderId, "kitchen_ticket", "pending", choKhiMatKetNoi);
 }
 
 /**
@@ -200,7 +208,12 @@ export type CauInStatus = {
   thietBi: ReturnType<typeof trangThaiMayIn>;
   printerHost: string | null;
   printerCheckedAt: string | null;
+  /** Phiếu đang chờ cầu in (3 giờ qua) — chỉ đọc khi cầu in mất kết nối (P17 17-02). */
+  phieuCho: PhieuCho[];
 };
+
+/** Cửa sổ liệt kê phiếu chờ: đủ để thấy cả phiếu "Không in bù" của ca đang bán, không kéo lịch sử cũ. */
+const CUA_SO_PHIEU_CHO_MS = 3 * 3600_000;
 
 /**
  * Sức khỏe cầu in cho băng cảnh báo trên POS (PRINT-07/08).
@@ -239,8 +252,22 @@ export async function getCauInStatus(
   const moc = (loi ?? []).map((r) => r.created_at as string);
   const { canhBao, soLoi } = loiDonDap(moc, now, daXuLyLuc);
   const n = (nhip as (NhipTim & { printer_host: string | null }) | null) ?? null;
+  const conSong = cauInConSong(seenAt, now);
+  let cho: PhieuCho[] = [];
+  if (!conSong && seenAt) {
+    const { data } = await supabase
+      .from("print_jobs")
+      .select("id, type, created_at, payload")
+      .eq("tenant_id", session.tenant.id)
+      .eq("status", "pending")
+      .gte("created_at", new Date(now - CUA_SO_PHIEU_CHO_MS).toISOString())
+      .order("created_at", { ascending: true })
+      .limit(50);
+    cho = phieuCho((data ?? []) as DongPhieuCho[], now);
+  }
   return {
-    conSong: cauInConSong(seenAt, now),
+    conSong,
+    phieuCho: cho,
     seenAt,
     soLoi,
     canhBao,
