@@ -1,6 +1,6 @@
 # P21 — SUMMARY: app Windows "TechMenu Thu ngân" (21-01 → 21-03 code; 21-04 chờ quán)
 
-> **Trạng thái 29/09/2026: CODE XONG 21-01 → 21-03, CHƯA DEPLOY, CHƯA ÁP MIGRATION, CHƯA PHÁT HÀNH.** App chạy được trên máy dev,
+> **Trạng thái 29/09/2026: CODE XONG 21-01 → 21-03, ĐÃ DEPLOY production (main `4c366e4`), migration 0075 ĐÃ ÁP production; CHƯA PHÁT HÀNH bộ cài.** App chạy được trên máy dev,
 > bộ cài build + cài/gỡ thử được, 6/6 kịch bản E2E chạy trên chính bản đã cài. Phần cần người / hạ tầng thật còn lại ở §Chưa làm.
 > Quyết định: QD-026 (D1–D8 + §Nơi đặt bản phát hành). Yêu cầu: DESK-01..12. Tra đối thủ: `00-TongQuan.md` §Đối thủ làm thế nào.
 
@@ -41,7 +41,7 @@
    `tests/rls/desktop-activate.test.ts`, `cau-in-mat-mang` với Electron, E2E web `huong-dan-cai-dat`. Cần `.env.local` mới.
 2. **Áp migration 0075 lên production** (chỉ thêm cột + thay hàm; cầu in cũ vẫn gọi được) rồi `npm run schema:snapshot`. Trước khi áp,
    app vẫn chạy (cầu in tự bỏ `p_agent`), màn Máy in chỉ không hiện dòng Nguồn.
-3. **Deploy web** (route kích hoạt, adapter, trang Máy in, hướng dẫn). App chỉ kích hoạt được sau khi route lên production.
+3. ~~Deploy web~~ — **đã deploy** (main `4c366e4`): `/api/desktop/activate` trả đúng câu lỗi chung với tài khoản sai; `/huong-dan-cai-dat` hiện TechMenu.
 4. **Chọn nơi đặt bản phát hành** (QD-026 §Nơi đặt): tạo repo công khai chỉ chứa tệp cài → đặt `DESKTOP_RELEASE_BASE` trên Vercel →
    `DESKTOP_RELEASE_REPO=<repo> npm run release` trong `desktop/`. Sau đó thử 1.0.0 → 1.0.1 (DESK-10).
 5. **Máy thật**: bấm giờ cài trên Win10 + Win11 sạch kèm ảnh SmartScreen (DESK-09); in LAN + USB ra giấy thật (DESK-06/07); máy có
