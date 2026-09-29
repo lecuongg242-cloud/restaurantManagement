@@ -266,6 +266,7 @@ function dungMenu() {
         ...(cauHinh?.nhieuChiNhanh ? [{ label: "Đổi chi nhánh", click: () => dangXuatMayQuay("doi-chi-nhanh") }] : []),
         { label: "Đăng xuất máy quầy", enabled: coCauHinh, click: () => dangXuatMayQuay("dang-xuat") },
         { type: "separator" },
+        ...mucCapNhat(),
         { label: "Giới thiệu", click: gioiThieu },
         { label: "Thoát", click: thoatCoHoi },
       ],
@@ -311,17 +312,100 @@ async function dangXuatMayQuay(kieu) {
 
 async function gioiThieu() {
   const capNhat = banMoi.daTaiXong
-    ? `Đã tải bản ${banMoi.phienBan} — tự cài khi máy rảnh hoặc lần mở app sau.`
+    ? `Đã tải bản ${banMoi.phienBan} — bấm Cập nhật ngay, hoặc app tự cập nhật khi máy rảnh 5 phút / khi tắt app.`
     : banMoi.dangTai
       ? `Đang tải bản ${banMoi.phienBan}…`
       : app.isPackaged
         ? "Đã là bản mới nhất."
         : "Bản chạy thử (không tự cập nhật).";
-  await dialog.showMessageBox(cuaSo, {
+  const { response } = await dialog.showMessageBox(cuaSo, {
     type: "info",
+    buttons: banMoi.daTaiXong ? ["Cập nhật ngay", "Đóng"] : ["Đóng"],
+    defaultId: 0,
+    cancelId: banMoi.daTaiXong ? 1 : 0,
     title: TEN_APP,
     message: `${TEN_APP} ${app.getVersion()}`,
     detail: `${cauHinh ? `Quán: ${cauHinh.tenantName}\n` : ""}${capNhat}`,
+  });
+  if (banMoi.daTaiXong && response === 0) capNhatNgay();
+}
+
+// ── Cập nhật bằng tay (1.0.2): như mọi app máy tính — có bản mới thì hỏi, menu ☰ + khay có nút cập nhật ──
+/** Mục menu ☰ về cập nhật: bản mới đã tải → "Cập nhật lên bản x"; đang tải → dòng mờ; luôn có "Kiểm tra cập nhật". */
+function mucCapNhat() {
+  if (banMoi.daTaiXong) return [{ label: `Cập nhật lên bản ${banMoi.phienBan}`, click: () => hoiCapNhat(true) }];
+  return [
+    ...(banMoi.dangTai ? [{ label: `Đang tải bản ${banMoi.phienBan}…`, enabled: false }] : []),
+    { label: "Kiểm tra cập nhật", click: kiemTraCapNhat },
+  ];
+}
+
+/** Đã hỏi bản nào rồi — mỗi bản chỉ tự bật hộp thoại một lần mỗi phiên (thu ngân bấm "Để sau" thì thôi làm phiền). */
+let daHoiCapNhat = null;
+
+async function hoiCapNhat(nguoiBam) {
+  if (!banMoi.daTaiXong) return;
+  if (!nguoiBam) {
+    if (daHoiCapNhat === banMoi.phienBan) return;
+    daHoiCapNhat = banMoi.phienBan;
+    // Cửa sổ đang ẩn ở khay: không bật lên giữa ca — báo ở khay, người dùng tự bấm.
+    if (!cuaSo?.isVisible()) {
+      khay?.displayBalloon?.({ title: TEN_APP, content: `Có bản mới ${banMoi.phienBan} — chuột phải biểu tượng để cập nhật.` });
+      return;
+    }
+  } else hienCuaSo();
+  const { response } = await dialog.showMessageBox(cuaSo, {
+    type: "info",
+    buttons: ["Cập nhật ngay", "Để sau"],
+    defaultId: 0,
+    cancelId: 1,
+    title: TEN_APP,
+    message: `Có bản mới TechMenu Thu ngân ${banMoi.phienBan}`,
+    detail:
+      "App sẽ tự đóng, cài bản mới và mở lại sau khoảng 10–20 giây. Đơn và hóa đơn đang mở không mất (nằm trên máy chủ).\n" +
+      "Để sau: app tự cập nhật khi máy để yên 5 phút hoặc khi tắt app.",
+  });
+  if (response === 0) capNhatNgay();
+}
+
+/** Cài ngay: cầu in dừng ở điểm an toàn trước (không bỏ dở phiếu đang in), rồi cài im lặng và mở lại app. */
+async function capNhatNgay() {
+  if (!banMoi.daTaiXong) return;
+  dangThoat = true;
+  await cauIn.dungLai();
+  autoUpdater.quitAndInstall(true, true);
+}
+
+/** "1.0.10" mới hơn "1.0.9" — so từng số, không so chuỗi. */
+function moiHon(a, b) {
+  const x = a.split(".").map(Number);
+  const y = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+}
+
+async function kiemTraCapNhat() {
+  if (!app.isPackaged) {
+    await dialog.showMessageBox(cuaSo, { type: "info", title: TEN_APP, message: "Bản chạy thử không tự cập nhật." });
+    return;
+  }
+  if (banMoi.daTaiXong) return hoiCapNhat(true);
+  let moi = null;
+  let coBanMoi = false;
+  try {
+    const kq = await autoUpdater.checkForUpdates();
+    moi = kq?.updateInfo?.version ?? null;
+    // Chỉ khi máy chủ có bản MỚI HƠN (máy chủ có thể đang để bản cũ hơn bản đã cài — không phải "bản mới").
+    coBanMoi = kq?.isUpdateAvailable ?? (moi !== null && moiHon(moi, app.getVersion()));
+  } catch {
+    await dialog.showMessageBox(cuaSo, { type: "warning", title: TEN_APP, message: "Chưa kiểm được bản mới — kiểm tra mạng rồi thử lại." });
+    return;
+  }
+  await dialog.showMessageBox(cuaSo, {
+    type: "info",
+    title: TEN_APP,
+    message: coBanMoi ? `Đang tải bản ${moi}…` : `Đã là bản mới nhất (${app.getVersion()}).`,
+    detail: coBanMoi ? "Tải xong app sẽ hỏi cập nhật (vài phút tùy mạng)." : undefined,
   });
 }
 
@@ -390,6 +474,7 @@ function capNhatKhay() {
       { type: "separator" },
       ...dong.map((label) => ({ label, enabled: false })),
       ...(biChanBoiCauInKhac ? [{ label: "Gỡ cầu in cũ…", click: () => (hienCuaSo(), hoiGoCauInCu(true)) }] : []),
+      ...(banMoi.daTaiXong ? [{ label: `Cập nhật lên bản ${banMoi.phienBan}`, click: () => hoiCapNhat(true) }] : []),
       { type: "separator" },
       { label: "Thoát", click: () => (hienCuaSo(), thoatCoHoi()) },
     ])
@@ -595,9 +680,20 @@ function batTuCapNhat() {
   autoUpdater.setFeedURL({ provider: "generic", url: `${API_BASE}/api/desktop/update/` });
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on("update-available", (i) => (banMoi = { ...banMoi, dangTai: true, phienBan: i.version }));
-  autoUpdater.on("update-downloaded", (i) => (banMoi = { daTaiXong: true, dangTai: false, phienBan: i.version }));
-  autoUpdater.on("error", () => (banMoi = { ...banMoi, dangTai: false }));
+  autoUpdater.on("update-available", (i) => {
+    banMoi = { ...banMoi, dangTai: true, phienBan: i.version };
+    dungMenu();
+  });
+  autoUpdater.on("update-downloaded", (i) => {
+    banMoi = { daTaiXong: true, dangTai: false, phienBan: i.version };
+    dungMenu();
+    capNhatKhay();
+    hoiCapNhat(false);
+  });
+  autoUpdater.on("error", () => {
+    banMoi = { ...banMoi, dangTai: false };
+    dungMenu();
+  });
   const kiem = () => autoUpdater.checkForUpdates().catch(() => {});
   kiem();
   setInterval(kiem, KIEM_MOI_MS);

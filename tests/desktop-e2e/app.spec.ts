@@ -99,7 +99,7 @@ test("máy chỉ xem → mở Màn bếp; trang web không chạm được Node;
   await expect(trang.locator("#man")).toHaveText("kds:quan-thu");
 
   const kq = await trang.evaluate(() => (window as unknown as { __kq: Record<string, unknown> }).__kq);
-  expect(kq).toEqual({ req: "undefined", proc: "undefined", td: { phienBan: "1.0.1", coCauIn: false }, tm: "undefined" });
+  expect(kq).toEqual({ req: "undefined", proc: "undefined", td: { phienBan: "1.0.2", coCauIn: false }, tm: "undefined" });
 
   // Bấm bằng DOM: app chặn điều hướng (đúng ý) nên Playwright sẽ chờ mãi một điều hướng không bao giờ tới.
   await trang.evaluate(() => document.getElementById("ngoai")!.click());
@@ -150,9 +150,9 @@ test("máy quầy có máy in → Cài đặt máy in, In thử ra giấy, Lưu 
     await trang.click("#luu");
     await expect(trang.locator("#man")).toHaveText("pos:quan-thu");
     const td = await trang.evaluate(() => (window as unknown as { __kq: { td: unknown } }).__kq.td);
-    expect(td).toEqual({ phienBan: "1.0.1", coCauIn: true });
+    expect(td).toEqual({ phienBan: "1.0.2", coCauIn: true });
 
-    await doiDen(() => may.nhipTim.some((n) => n.p_agent === "app/1.0.1" && n.p_printer_ok === true), 30_000, "nhịp tim cầu in trong app");
+    await doiDen(() => may.nhipTim.some((n) => n.p_agent === "app/1.0.2" && n.p_printer_ok === true), 30_000, "nhịp tim cầu in trong app");
     const ch = fs.readFileSync(path.join(thuMuc, "cau-hinh.json"), "utf8");
     expect(ch).not.toContain("mk-printer"); // mật khẩu printer chỉ lưu dạng mã hóa
     expect(ch).not.toContain("dung-mat-khau");
@@ -223,4 +223,37 @@ test("cầu in cũ giữ khóa mà lúc mở app dò không thấy → app VẪN
   } finally {
     await new Promise<void>((r) => khoa.close(() => r()));
   }
+});
+
+/** Bản đã cài: bấm ☰ → Kiểm tra cập nhật, ghi lại câu hộp thoại (hộp thoại thật được thay bằng bản ghi). */
+async function kiemTraCapNhatTren(apiBase: string): Promise<string[]> {
+  const { app: a } = await moApp(apiBase);
+  await a.evaluate(({ dialog }) => {
+    const g = globalThis as unknown as { __hoi: string[] };
+    g.__hoi = [];
+    dialog.showMessageBox = (async (...args: unknown[]) => {
+      const o = args.find((x) => x && typeof x === "object" && "message" in (x as object)) as { message: string };
+      g.__hoi.push(o.message);
+      return { response: 1, checkboxChecked: false };
+    }) as typeof dialog.showMessageBox;
+  });
+  await bamMenu(a, "Kiểm tra cập nhật");
+  await expect.poll(() => a.evaluate(() => (globalThis as unknown as { __hoi: string[] }).__hoi.length), { timeout: 30_000 }).toBe(1);
+  return a.evaluate(() => (globalThis as unknown as { __hoi: string[] }).__hoi);
+}
+
+test("bản đã cài: Kiểm tra cập nhật khi nguồn cập nhật lỗi → báo rõ, không treo, không báo bản mới", async () => {
+  test.skip(!EXE, "chỉ bản đóng gói mới có tự cập nhật (TECHMENU_EXE)");
+  // Máy chủ giả không có /api/desktop/update/latest.yml (404).
+  expect(await kiemTraCapNhatTren(may.url)).toEqual(["Chưa kiểm được bản mới — kiểm tra mạng rồi thử lại."]);
+});
+
+test("bản đã cài: Kiểm tra cập nhật hỏi máy chủ production thật → không báo nhầm bản cũ hơn là bản mới", async () => {
+  test.skip(!EXE, "chỉ bản đóng gói mới có tự cập nhật (TECHMENU_EXE)");
+  const cai = JSON.parse(fs.readFileSync("desktop/package.json", "utf8")).version as string;
+  const hoi = await kiemTraCapNhatTren("https://restaurant-management-zeta.vercel.app");
+  // Máy chủ đang có bản <= bản đã cài → "Đã là bản mới nhất"; có bản mới hơn thật → "Đang tải bản …".
+  const dung = hoi[0] === `Đã là bản mới nhất (${cai}).` || hoi[0].startsWith("Đang tải bản ");
+  expect(dung, hoi[0]).toBe(true);
+  console.log("Máy chủ production trả lời:", hoi[0]);
 });
