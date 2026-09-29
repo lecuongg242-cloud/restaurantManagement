@@ -6,7 +6,7 @@ import { RecipeEditor } from "@/components/admin/inventory/RecipeEditor";
 import { loadInventory, costContext } from "@/lib/inventory/data";
 import { unitCost } from "@/lib/inventory/cost";
 import { purchasePrice } from "@/lib/inventory/units";
-import { BASE_UNIT_LABEL, type Ingredient } from "@/lib/inventory/types";
+import { BASE_UNIT_LABEL, pricePerThousand, type Ingredient } from "@/lib/inventory/types";
 import { setIngredientActive } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +18,8 @@ function priceLabel(ing: Ingredient, perBase: number | null): string {
   if (perBase === null) return "chưa có giá";
   if (ing.purchase_unit) return `${vnd(purchasePrice(perBase, ing.purchase_factor)!)} / ${ing.purchase_unit}`;
   const unit = BASE_UNIT_LABEL[ing.base_unit];
-  // Giá / g thường lẻ (0,15đ) → hiện theo 1.000 đơn vị cho dễ đọc.
-  return ing.base_unit === "cai" ? `${vnd(perBase)} / ${unit}` : `${vnd(perBase * 1000)} / 1.000 ${unit}`;
+  // Giá / g thường lẻ (0,15đ) → hiện theo 1.000 đơn vị cho dễ đọc; kg, lít, cái hiện theo 1 đơn vị.
+  return pricePerThousand(ing.base_unit) ? `${vnd(perBase * 1000)} / 1.000 ${unit}` : `${vnd(perBase)} / ${unit}`;
 }
 
 export default async function InventoryPage({ params }: { params: Promise<{ slug: string }> }) {

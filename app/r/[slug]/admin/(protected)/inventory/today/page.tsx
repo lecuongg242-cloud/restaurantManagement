@@ -8,6 +8,7 @@ import { getMonDuBao } from "@/lib/forecast/read";
 import { canNguyenLieu, goiYNhap, type GoiYNhap } from "@/lib/forecast/ingredients";
 import { businessDate } from "@/lib/inventory/day";
 import { BASE_UNIT_LABEL, type Ingredient } from "@/lib/inventory/types";
+import { activeSupplierOptions } from "@/lib/purchasing/data";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
   const supabase = await createClient();
   const today = businessDate();
 
-  const [data, lastDay, onHand] = await Promise.all([
+  const [data, lastDay, onHand, suppliers] = await Promise.all([
     loadInventory(supabase, tenantId),
     supabase
       .from("stock_entries")
@@ -41,6 +42,7 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
       .order("business_date", { ascending: false })
       .limit(1),
     supabase.rpc("inventory_on_hand", { p_tenant: tenantId }),
+    activeSupplierOptions(supabase, tenantId),
   ]);
 
   const purchased = data.ingredients.filter((i) => i.active && i.kind === "purchased");
@@ -93,7 +95,7 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
         <h2 className="font-display text-lg text-ink">Nhập nguyên liệu hôm nay</h2>
         <p className="mt-xxs text-sm text-steel">
           {prevDay ? "Đã điền sẵn danh sách của lần nhập gần nhất" : "Danh sách mua vào"} — chỉ cần sửa số.
-          Giá không bắt buộc. Nhập nhiều lần trong ngày sẽ cộng dồn.
+          Nhà cung cấp, giá không bắt buộc. Mỗi lần Hoàn thành là một phiếu nhập; nhập nhiều lần trong ngày sẽ cộng dồn.
         </p>
         <div className="mt-md">
           <ReceiptForm
@@ -103,6 +105,7 @@ export default async function TodayPage({ params }: { params: Promise<{ slug: st
             }))}
             prefill={prefill}
             goiY={Object.fromEntries(goiY.filter((g) => g.goiY > 0).map((g) => [g.ingredientId, g.goiY]))}
+            suppliers={suppliers}
           />
         </div>
       </Card>

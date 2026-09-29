@@ -62,7 +62,14 @@ async function addIngredient(
   if (o.unit) await form.locator('select[name="base_unit"]').selectOption(o.unit);
   if (o.purchaseUnit) {
     await form.locator('input[name="purchase_unit"]').fill(o.purchaseUnit);
-    await form.locator('input[name="purchase_factor"]').fill(o.factor!);
+    // Đơn vị quen (kg, lít…) → hệ số tự tính, không có ô gõ; đơn vị riêng (vỉ, bao…) → gõ tay.
+    const tuTinh = form.locator("[data-he-so-tu-tinh]");
+    if (await tuTinh.count()) {
+      await expect(tuTinh).toContainText(`= ${Number(o.factor).toLocaleString("vi-VN")} `);
+      await expect(tuTinh).toContainText("tự tính");
+    } else {
+      await form.locator('input[name="purchase_factor"]').fill(o.factor!);
+    }
   }
   if (o.price) await form.getByPlaceholder("280.000").fill(o.price);
   if (o.batch) await form.locator('input[name="batch_output_qty"]').fill(o.batch);
@@ -158,6 +165,7 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     .single();
   await db.from("recipe_lines").insert({ tenant_id: tenant, ingredient_id: ing!.id, menu_item_id: item.id, qty: 200 });
   const orderIds: string[] = [];
+  const receiptIds: string[] = [];
 
   try {
     // Nhập 1 kg qua màn thật → sổ lưu 1000 g (INV-04)
@@ -165,10 +173,12 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     await page.getByRole("button", { name: "+ Thêm nguyên liệu khác" }).click();
     await page.getByRole("combobox", { name: "Nguyên liệu" }).last().selectOption({ label: ingName });
     await page.getByRole("textbox", { name: /Số lượng/ }).last().fill("1");
-    await page.getByRole("button", { name: "Ghi phiếu nhập" }).click();
-    await expect(page.getByText(/Đã nhập 1 nguyên liệu/)).toBeVisible();
-    const { data: se } = await db.from("stock_entries").select("qty").eq("ingredient_id", ing!.id);
+    // P20: mỗi lần "Hoàn thành" là một phiếu nhập; không NCC, không giá → dòng sổ như nhập buổi sáng cũ.
+    await page.getByRole("button", { name: "Hoàn thành" }).click();
+    await expect(page.getByText(/Đã nhập hàng — phiếu PN\d{6}/)).toBeVisible();
+    const { data: se } = await db.from("stock_entries").select("qty, purchase_receipt_id").eq("ingredient_id", ing!.id);
     expect(se!.map((r) => Number(r.qty))).toEqual([1000]);
+    receiptIds.push(se![0].purchase_receipt_id as string);
 
     const card = () => page.locator("li").filter({ has: page.getByRole("button", { name: `Thêm ${item.name}` }) });
     await page.goto(`/r/${SLUG}/pos`);
@@ -205,6 +215,7 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
   } finally {
     await db.from("orders").delete().in("id", orderIds);
     await db.from("stock_entries").delete().eq("ingredient_id", ing!.id);
+    await db.from("purchase_receipts").delete().in("id", receiptIds);
     await db.from("recipe_lines").delete().eq("ingredient_id", ing!.id);
     await db.from("ingredients").delete().eq("id", ing!.id);
   }

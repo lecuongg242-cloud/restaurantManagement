@@ -174,6 +174,47 @@ export const CASES: Case[] = [
     insertRow: (t, id) => ({ id, tenant_id: t, business_date: "2000-01-02", payload: { marker: MARK } }),
     updatePatch: { payload: { marker: MARK } },
   },
+  // P20 (0076): NCC ghi thẳng được (RLS chủ/quản lý); phiếu nhập, dòng phiếu, phiếu chi chỉ ghi qua hàm — ghi thẳng
+  // bị từ chối vì không có quyền bảng, kể cả vào quán mình (p20-purchasing.test.ts).
+  {
+    table: "suppliers",
+    insertRow: (t, id) => ({ id, tenant_id: t, code: `${MARK}-${id.slice(0, 8)}`, name: MARK }),
+    updatePatch: { note: MARK },
+  },
+  {
+    table: "purchase_receipts",
+    insertRow: (t, id) => ({ id, tenant_id: t, code: `${MARK}-${id.slice(0, 8)}`, doc_date: "2030-01-02" }),
+    updatePatch: { note: MARK },
+  },
+  {
+    table: "purchase_receipt_lines",
+    insertRow: (t, id) => ({ id, tenant_id: t, receipt_id: B(25), ingredient_id: B(19), qty: 1, purchase_factor: 1 }),
+    updatePatch: { qty: 99 },
+  },
+  {
+    table: "cash_vouchers",
+    insertRow: (t, id) => ({
+      id, tenant_id: t, code: `${MARK}-${id.slice(0, 8)}`, direction: "out", fund: "cash", amount: 1, source: "manual",
+    }),
+    updatePatch: { note: MARK },
+  },
+  {
+    // P20 20-02 (0077): loại thu/chi — chủ/quản lý ghi thẳng được, không xóa (ngừng dùng thay cho xóa).
+    table: "cash_categories",
+    insertRow: (t, id) => ({ id, tenant_id: t, direction: "out", name: `${MARK}-${id.slice(0, 8)}` }),
+    updatePatch: { cost_group: "none" },
+  },
+  // P20 20-03 (0078): phân bổ + điều chỉnh nợ — chỉ đọc; ghi qua hàm / trigger.
+  {
+    table: "cash_voucher_allocations",
+    insertRow: (t, id) => ({ id, tenant_id: t, voucher_id: B(27), receipt_id: B(25), amount: 2 }),
+    updatePatch: { amount: 99 },
+  },
+  {
+    table: "supplier_debt_adjustments",
+    insertRow: (t, id) => ({ id, tenant_id: t, supplier_id: B(24), amount: 1, note: MARK }),
+    updatePatch: { note: MARK },
+  },
 ];
 
 /** Dòng fixture của tenant B ứng với một bảng. */

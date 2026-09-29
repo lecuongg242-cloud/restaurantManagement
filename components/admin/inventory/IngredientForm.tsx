@@ -4,8 +4,8 @@ import { useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { MoneyField } from "@/components/ui/money-input";
-import type { Ingredient } from "@/lib/inventory/types";
-import { purchasePrice } from "@/lib/inventory/units";
+import { BASE_UNIT_LABEL, BASE_UNIT_OPTIONS, type Ingredient } from "@/lib/inventory/types";
+import { knownFactor, purchasePrice } from "@/lib/inventory/units";
 import { createIngredient, updateIngredient } from "@/app/r/[slug]/admin/(protected)/inventory/actions";
 
 const SELECT =
@@ -20,7 +20,8 @@ export function IngredientForm({ slug, ingredient }: { slug: string; ingredient?
   const [baseUnit, setBaseUnit] = useState(ingredient?.base_unit ?? "g");
   const [purchaseUnit, setPurchaseUnit] = useState(ingredient?.purchase_unit ?? "");
   const factor = ingredient?.purchase_factor ?? 1;
-  const unitWord = baseUnit === "cai" ? "cái" : baseUnit;
+  const known = purchaseUnit.trim() ? knownFactor(purchaseUnit, baseUnit) : null;
+  const unitWord = BASE_UNIT_LABEL[baseUnit];
   const price = ingredient ? purchasePrice(ingredient.last_unit_cost, factor) : null;
 
   return (
@@ -57,10 +58,15 @@ export function IngredientForm({ slug, ingredient }: { slug: string; ingredient?
           onChange={(e) => setBaseUnit(e.target.value as typeof baseUnit)}
           className={SELECT}
         >
-          <option value="g">gam (g)</option>
-          <option value="ml">mililít (ml)</option>
-          <option value="cai">cái / quả / lon</option>
+          {BASE_UNIT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
         </select>
+        <span className="text-xs text-steel">
+          Đơn vị ghi định lượng và tồn kho. Theo kg / lít thì nhỏ nhất là 0,001 (1 g / 1 ml) — gia vị dùng dưới 1 g nên chọn gam.
+        </span>
       </label>
 
       {kind === "purchased" ? (
@@ -74,7 +80,16 @@ export function IngredientForm({ slug, ingredient }: { slug: string; ingredient?
               placeholder="kg, vỉ, thùng…"
             />
           </label>
-          {purchaseUnit.trim() && (
+          {purchaseUnit.trim() && known !== null && (
+            <div className="flex flex-col gap-xxs text-sm text-slate" data-he-so-tu-tinh>
+              Quy đổi
+              <input type="hidden" name="purchase_factor" value={String(known)} />
+              <p className="flex min-h-11 items-center rounded-md border border-hairline-soft bg-surface px-md text-ink">
+                1 {purchaseUnit.trim()} = {known.toLocaleString("vi-VN", { maximumFractionDigits: 3 })} {unitWord} · tự tính
+              </p>
+            </div>
+          )}
+          {purchaseUnit.trim() && known === null && (
             <label className="flex flex-col gap-xxs text-sm text-slate">
               1 {purchaseUnit.trim()} = bao nhiêu {unitWord}?
               <Input
@@ -90,15 +105,19 @@ export function IngredientForm({ slug, ingredient }: { slug: string; ingredient?
             Giá gần nhất / {purchaseUnit.trim() || unitWord} (không bắt buộc)
             <MoneyField name="price" defaultValue={price ?? ""} placeholder="280.000" />
           </label>
-          <label className="flex flex-col gap-xxs text-sm text-slate">
-            % dùng được sau sơ chế
-            <Input
-              name="yield_pct"
-              inputMode="numeric"
-              defaultValue={ingredient?.yield_pct ?? 100}
-              placeholder="100"
-            />
-          </label>
+          {/* Không gõ tay (chủ dự án 29/09/2026): tự tính từ kiểm kê — lib/inventory/yield.ts. */}
+          <div className="flex flex-col gap-xxs text-sm text-slate" data-dung-duoc>
+            % dùng được (tự tính)
+            <p className="flex min-h-11 items-center rounded-md border border-hairline-soft bg-surface px-md text-ink">
+              {ingredient && ingredient.yield_days > 0
+                ? `${ingredient.yield_pct}% · từ ${ingredient.yield_days} lần kiểm kê gần nhất`
+                : "100% · chưa đủ dữ liệu"}
+            </p>
+            <span className="text-xs text-steel">
+              = định lượng × số bán ÷ lượng thực dùng (tồn đầu + nhập − tồn cuối đếm được), 14 lần kiểm kê gần nhất. Bật
+              &quot;Cần kiểm kê cuối ngày&quot; để hệ thống tự tính.
+            </span>
+          </div>
         </>
       ) : (
         <label className="flex flex-col gap-xxs text-sm text-slate sm:col-span-2">

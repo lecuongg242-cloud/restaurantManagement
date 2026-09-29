@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
-import { BASE_UNIT_LABEL, type Ingredient, type RecipeLine } from "@/lib/inventory/types";
+import { BASE_UNIT_LABEL, pricePerThousand, type Ingredient, type RecipeLine } from "@/lib/inventory/types";
 import { planBatch } from "@/lib/inventory/batch";
 import { parseQty } from "@/lib/inventory/units";
 import { recordBatch } from "@/app/r/[slug]/admin/(protected)/inventory/actions";
@@ -102,7 +102,9 @@ export function BatchForm({
             {" · "}
             {plan.unitCost === null
               ? "chưa đủ giá"
-              : `giá ${fmt(plan.unitCost * (target!.base_unit === "cai" ? 1 : 1000))}₫ / ${target!.base_unit === "cai" ? "cái" : `1.000 ${unit}`}`}
+              : pricePerThousand(target!.base_unit)
+                ? `giá ${fmt(plan.unitCost * 1000)}₫ / 1.000 ${unit}`
+                : `giá ${fmt(plan.unitCost)}₫ / ${unit}`}
           </p>
         </div>
       )}

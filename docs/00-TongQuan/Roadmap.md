@@ -271,11 +271,12 @@ Chi tiết: `30-KeHoach/P18/00-TongQuan.md` · quyết định `QD-025`. Yêu c�
 
 - P19 Voucher và ưu đãi — khung phạm vi `30-KeHoach/P19/00-TongQuan.md`.
 
-## P20 — Mua hàng, nhà cung cấp, công nợ, sổ quỹ (SẴN SÀNG LÀM, chốt 29/09/2026)
+## P20 — Mua hàng, nhà cung cấp, công nợ, sổ quỹ (CODE XONG 29/09/2026, chưa merge main)
 
 Chi tiết: `30-KeHoach/P20/00-TongQuan.md` · quyết định `QD-027`. Yêu cầu PURCH-01..06, CASH-01..04, REPORT-20.
 
-- [ ] 20-01 Nhà cung cấp + phiếu nhập · 20-02 Sổ quỹ · 20-03 Công nợ NCC · 20-04 Kết quả kinh doanh (kèm khai thuế).
+- [x] 20-01 Nhà cung cấp + phiếu nhập · 20-02 Sổ quỹ · 20-03 Công nợ NCC · 20-04 Kết quả kinh doanh (kèm khai thuế) —
+  migration 0076–0079 đã áp production; còn merge `main` + kiểm qt-food sau deploy (PURCH-06).
 - Để sau: sổ S2c/S2e-HKD; phần mở rộng chuyển sang **P22**.
 
 ## P21 — Ứng dụng Windows "TechMenu Thu ngân" (CODE XONG 21-01→21-03, chưa deploy/phát hành)

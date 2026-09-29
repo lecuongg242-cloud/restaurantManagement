@@ -5,7 +5,7 @@ import type { Ingredient, RecipeLine } from "@/lib/inventory/types";
 
 /** P18 18-02 (AI-03): nhu cầu nguyên liệu = món dự báo × định lượng, bung bán thành phẩm như P10. */
 const ing = (id: string, o: Partial<Ingredient> = {}): Ingredient => ({
-  id, name: id, kind: "purchased", base_unit: "g", purchase_unit: null, purchase_factor: 1, yield_pct: 100,
+  id, name: id, kind: "purchased", base_unit: "g", purchase_unit: null, purchase_factor: 1, yield_pct: 100, yield_days: 0, yield_updated_at: null,
   must_count: false, batch_output_qty: null, last_unit_cost: null, last_cost_at: null, active: true, ...o,
 });
 

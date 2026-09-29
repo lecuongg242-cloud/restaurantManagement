@@ -28,6 +28,8 @@ import { CategoryTrendChart } from "@/components/admin/reports/CategoryTrendChar
 import { cn } from "@/lib/utils";
 import { getDuBao } from "@/lib/forecast/read";
 import { ForecastCard } from "@/components/admin/forecast/ForecastCard";
+import { PnlPanel } from "@/components/admin/reports/PnlPanel";
+import { getPnlBlock } from "@/lib/reports/pnl-server";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +74,15 @@ export default async function ReportsPage({
       Xuất Excel
     </a>
   );
+  // P20 20-04 (REPORT-20): Kết quả kinh doanh — CHỈ chủ quán (QD-027 C5); RPC cũng tự lọc chủ ở DB.
+  const xemLaiLo = canManage(session.role, "finance");
+  const hrefLaiLo = (pham: boolean) =>
+    `/r/${slug}/admin/reports/ket-qua-kinh-doanh?${[kyQuery, pham ? "pham=chuoi" : "", pham && sp.cn ? `cn=${sp.cn}` : ""].filter(Boolean).join("&")}`;
+
   if (coChuoi && sp.pham === "chuoi") {
+    const chon = sp.cn ? new Set(sp.cn.split(",")) : null;
+    const dangXem = chon ? chuoi!.branches.filter((b) => chon.has(b.slug)) : chuoi!.branches;
+    const pnlChuoi = xemLaiLo ? await getPnlBlock(dangXem.map((b) => b.tenantId), range) : null;
     return (
       <div className="w-full">
         <BaoCaoChuoiView
@@ -83,6 +93,18 @@ export default async function ReportsPage({
           base={`/r/${slug}/admin/reports?pham=chuoi`}
           kyQuery={kyQuery}
           now={now}
+          ketQua={
+            pnlChuoi && (
+              <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
+                <h2 className="mb-md text-base font-medium text-ink">Kết quả kinh doanh ({pnlChuoi.ok ? pnlChuoi.branches : 0} chi nhánh bạn là chủ)</h2>
+                {pnlChuoi.ok ? (
+                  <PnlPanel v={pnlChuoi.view} exportHref={hrefLaiLo(true)} />
+                ) : (
+                  <p className="text-sm text-status-late">Không tải được kết quả kinh doanh: {pnlChuoi.message}</p>
+                )}
+              </section>
+            )
+          }
           dauTrang={
             <div>
               <h1 className="font-display text-2xl text-ink">Báo cáo dòng tiền</h1>
@@ -141,6 +163,7 @@ export default async function ReportsPage({
   // P18: dự báo 7 ngày tới — tự nuốt lỗi như các khối trên (bảng 0073 hỏng không kéo báo cáo theo).
   const duBao = await getDuBao(session.tenant.id).catch(() => null);
   const hasData = summary.billCount > 0;
+  const pnl = xemLaiLo ? await getPnlBlock([session.tenant.id], range, inventory) : null;
 
   return (
     <ReportShell slug={slug} range={range} now={now} phamVi={phamVi} nutXuat={nutXuat}>
@@ -175,6 +198,16 @@ export default async function ReportsPage({
         <div className="mt-lg">
           <ForecastCard du={duBao} />
         </div>
+      )}
+
+      {pnl && (
+        <Panel title="Kết quả kinh doanh" className="mt-lg">
+          {pnl.ok ? (
+            <PnlPanel v={pnl.view} settingsHref={`/r/${slug}/admin/settings#thue`} exportHref={hrefLaiLo(false)} />
+          ) : (
+            <p className="text-sm text-status-late">Không tải được kết quả kinh doanh: {pnl.message}</p>
+          )}
+        </Panel>
       )}
 
       {!hasData ? (

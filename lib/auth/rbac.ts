@@ -74,7 +74,10 @@ export type ManageSection =
   | "printers"
   | "inventory"
   | "branches"
-  | "customers";
+  | "customers"
+  | "purchasing"
+  | "cashbook"
+  | "finance";
 
 /**
  * Vai trò `role` có quyền quản lý `section` cấu hình không — ma trận QD-010 §2.
@@ -94,6 +97,8 @@ export type ManageSection =
 export function canManage(role: Role, section: ManageSection): boolean {
   switch (section) {
     case "settings":
+    // Kết quả kinh doanh (P20 20-04, QD-027 C5): lộ tiền thuê nhà, lương, lợi nhuận — CHỈ chủ quán.
+    case "finance":
       return role === "owner";
     case "menu":
     case "tables":
@@ -106,6 +111,10 @@ export function canManage(role: Role, section: ManageSection): boolean {
     case "branches":
     // Khách hàng (P16): SĐT khách là dữ liệu cá nhân — chỉ chủ / quản lý, không nhân viên trạm.
     case "customers":
+    // Nhà cung cấp, phiếu nhập (P20, QD-027 C5): quản lý nhập hàng, trả nợ mối như chủ.
+    case "purchasing":
+    // Sổ quỹ (P20, QD-027 C5): quản lý ghi phiếu thu/chi, xem tồn quỹ. Lãi lỗ thì chỉ chủ (20-04).
+    case "cashbook":
       return role === "owner" || role === "manager";
   }
 }

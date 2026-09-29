@@ -29,6 +29,7 @@ export async function BaoCaoChuoiView({
   kyQuery,
   now,
   dauTrang,
+  ketQua,
 }: {
   /** Mọi chi nhánh người xem vào được. */
   all: ChiNhanh[];
@@ -42,6 +43,8 @@ export async function BaoCaoChuoiView({
   now: Date;
   /** Khối đầu trang (tiêu đề + bộ chọn phạm vi) do trang gọi dựng. */
   dauTrang: React.ReactNode;
+  /** P20 20-04: khối Kết quả kinh doanh cả chuỗi — trang chỉ truyền khi người xem là chủ (QD-027 C5). */
+  ketQua?: React.ReactNode;
 }) {
   const chon = dangLoc ? new Set(dangLoc.split(",")) : null;
   const dang = chon ? all.filter((b) => chon.has(b.slug)) : all;
@@ -195,6 +198,7 @@ export async function BaoCaoChuoiView({
           />
         ) : <p className="text-sm text-status-late">Không tải được thống kê nhân viên.</p>}
       </Panel>
+      {ketQua}
       <p className="text-xs text-steel">Chi nhánh đang bị khóa (hết hạn / tạm ngưng) không có trong số liệu.</p>
     </div>
   );

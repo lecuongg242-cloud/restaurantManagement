@@ -2,12 +2,12 @@ import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
 import { createClient } from "@/lib/supabase/server";
-import { parseSettings } from "@/lib/tenant/settings";
+import { MAX_TAX_LINES, parseSettings } from "@/lib/tenant/settings";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ImageUpload } from "@/components/menu/ImageUpload";
-import { updateBank, updateBranchInfo, updateIdentity, updateSettings } from "./actions";
+import { updateBank, updateBranchInfo, updateIdentity, updateSettings, updateTaxes } from "./actions";
 import { BANKS } from "@/lib/payments/banks";
 import Link from "next/link";
 import { daysLeft, homNayHanDung, ngayVnHienThi, subscriptionState } from "@/lib/tenant/subscription";
@@ -192,6 +192,38 @@ export default async function SettingsPage({
               <SubmitButton size="sm" pendingLabel="Đang lưu…">
                 Lưu tài khoản
               </SubmitButton>
+            </div>
+          </form>
+        </Card>
+
+        {/* P20 20-04 — Thuế nộp nhà nước (QD-027 C9): quán tự khai, chỉ để ước tính trên Kết quả kinh doanh. */}
+        <Card id="thue">
+          <CardTitle>Thuế nộp nhà nước</CardTitle>
+          <p className="mt-xxs text-sm text-steel">
+            Khai theo cách quán đang nộp thuế — ví dụ &quot;Thuế khoán 10% doanh thu&quot;, hoặc hai dòng &quot;GTGT 3%&quot; +
+            &quot;TNCN 1,5%&quot; doanh thu, hoặc &quot;TNCN 17% lợi nhuận&quot;. Báo cáo Kết quả kinh doanh dùng để ước tính
+            lợi nhuận sau thuế. <span className="font-medium text-ink">Không</span> cộng vào hóa đơn — khác ô &quot;VAT (%)&quot;
+            bên dưới (VAT là tiền khách trả thêm).
+          </p>
+          <form action={updateTaxes} className="mt-md flex flex-col gap-sm">
+            <input type="hidden" name="slug" value={slug} />
+            {Array.from({ length: MAX_TAX_LINES }, (_, i) => settings.taxes[i]).map((t, i) => (
+              <div key={i} className="grid grid-cols-[1fr_6rem] gap-sm sm:grid-cols-[16rem_7rem_12rem]">
+                <Input name="tax_name" maxLength={60} defaultValue={t?.name ?? ""} placeholder={i === 0 ? "Tên thuế, vd Thuế khoán" : ""} aria-label={`Tên thuế ${i + 1}`} />
+                <Input name="tax_pct" inputMode="decimal" defaultValue={t ? String(t.pct).replace(".", ",") : ""} placeholder="%" aria-label={`Tỷ lệ % ${i + 1}`} />
+                <select
+                  name="tax_base"
+                  defaultValue={t?.base ?? "revenue"}
+                  aria-label={`Tính trên ${i + 1}`}
+                  className="col-span-2 h-11 min-w-0 rounded-md border border-hairline-strong bg-canvas px-sm text-sm text-ink sm:col-span-1"
+                >
+                  <option value="revenue">trên doanh thu</option>
+                  <option value="profit">trên lợi nhuận</option>
+                </select>
+              </div>
+            ))}
+            <div>
+              <SubmitButton size="sm" pendingLabel="Đang lưu…">Lưu thuế</SubmitButton>
             </div>
           </form>
         </Card>

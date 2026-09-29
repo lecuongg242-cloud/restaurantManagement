@@ -225,6 +225,32 @@ export async function updateBank(formData: FormData) {
   await setFlash("ok", bank ? "Đã lưu tài khoản nhận chuyển khoản." : "Đã gỡ tài khoản nhận chuyển khoản.");
 }
 
+/**
+ * "Thuế nộp nhà nước" (P20 20-04, QD-027 C9) — CHỈ owner. Dòng để trống tên hoặc % thì bỏ qua; `parseTaxes` lọc dòng hỏng.
+ * Chỉ dùng để ước tính trên báo cáo Kết quả kinh doanh, KHÔNG đổi tiền trên hóa đơn (khác `vat_pct`).
+ */
+export async function updateTaxes(formData: FormData) {
+  const slug = String(formData.get("slug") ?? "");
+  const session = await requireSettingsManager(slug);
+  const names = formData.getAll("tax_name").map(String);
+  const pcts = formData.getAll("tax_pct").map((v) => String(v).replace(",", "."));
+  const bases = formData.getAll("tax_base").map(String);
+  const taxes = names.map((name, i) => ({ name: name.trim(), pct: Number(pcts[i]), base: bases[i] }));
+  const bad = taxes.find((t) => t.name && (!Number.isFinite(t.pct) || t.pct <= 0 || t.pct > 100));
+  if (bad) return setFlash("error", `Thuế "${bad.name}": % phải lớn hơn 0 và không quá 100.`);
+  const supabase = await createClient();
+  const { data: tenant } = await supabase.from("tenants").select("settings").eq("id", session.tenant.id).maybeSingle();
+  const next: TenantSettings = serializeSettings({
+    ...parseSettings(tenant?.settings),
+    taxes: taxes.filter((t) => t.name) as TenantSettings["taxes"],
+  });
+  const failed = await updateTenant(supabase, session.tenant.id, { settings: next, updated_at: new Date().toISOString() });
+  if (failed) return setFlash("error", failed);
+  revalidatePath(settingsPath(slug));
+  revalidatePath(`/r/${slug}/admin/reports`);
+  await setFlash("ok", next.taxes.length ? `Đã lưu ${next.taxes.length} dòng thuế.` : "Đã xóa khai báo thuế.");
+}
+
 /** Thông tin công khai của quán — địa chỉ, SĐT, giờ mở cửa (hiện trên trang chuỗi /b/{brand}, P15 15-05). */
 export async function updateBranchInfo(formData: FormData) {
   const slug = String(formData.get("slug") ?? "");

@@ -9,6 +9,8 @@ function ing(p: Partial<Ingredient> & Pick<Ingredient, "id" | "name">): Ingredie
     purchase_unit: null,
     purchase_factor: 1,
     yield_pct: 100,
+    yield_days: 0,
+    yield_updated_at: null,
     must_count: false,
     batch_output_qty: null,
     last_unit_cost: null,

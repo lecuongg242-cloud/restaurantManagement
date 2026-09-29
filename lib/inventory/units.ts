@@ -42,3 +42,30 @@ export function parseQty(raw: string): number | null {
   const n = Number(s);
   return n > 0 ? n : null;
 }
+
+/**
+ * Hệ số quy đổi của các đơn vị quen (chủ dự án 29/09/2026: gõ tay dẫn tới "1 kg = 100.000 kg"). Trả số đơn vị gốc trong
+ * MỘT đơn vị mua; null = đơn vị riêng của quán (vỉ, thùng, bao, bó…) → người dùng tự khai. Không phân biệt hoa thường / dấu.
+ */
+const GRAM: Record<string, number> = { g: 1, gam: 1, gram: 1, kg: 1000, ki: 1000, kilo: 1000, kilogam: 1000, lang: 100, ta: 100_000, yen: 10_000 };
+const ML: Record<string, number> = { ml: 1, "mi li lit": 1, mililit: 1, l: 1000, lit: 1000 };
+
+function khongDau(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").toLowerCase().trim().replace(/\.$/, "");
+}
+
+export function knownFactor(purchaseUnit: string, base: "g" | "ml" | "cai" | "kg" | "l"): number | null {
+  const u = khongDau(purchaseUnit);
+  if (!u) return null;
+  if (base === "g" || base === "kg") {
+    const g = GRAM[u];
+    if (g === undefined) return null;
+    return base === "g" ? g : g / 1000;
+  }
+  if (base === "ml" || base === "l") {
+    const m = ML[u];
+    if (m === undefined) return null;
+    return base === "ml" ? m : m / 1000;
+  }
+  return ["cai", "qua", "chiec", "con", "lon", "chai"].includes(u) ? 1 : null;
+}

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import animate from "tailwindcss-animate";
 
 /**
  * Tailwind đọc token từ lib/design/tokens.css (CSS variables ở :root).
@@ -110,7 +111,8 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  // import thay cho require(): Node ≥ 22.18 tự nạp file .ts này như ESM — ở đó không có `require` ("require is not defined").
+  plugins: [animate],
 };
 
 export default config;

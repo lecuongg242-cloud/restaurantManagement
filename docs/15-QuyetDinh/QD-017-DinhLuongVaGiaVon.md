@@ -134,6 +134,18 @@ chiều nhiều ngày liền** trên một nguyên liệu gợi ý định lư�
 Quán không khai nguyên liệu nào thì POS, trang khách, báo cáo **y hệt hôm nay** — có test hồi quy
 khẳng định. qt-food chỉ bật khi chủ quán đồng ý; mọi phép thử chạy trên `pho-viet`, `bun-bo`.
 
+### Sửa 29/09/2026 (chủ dự án): "% dùng được" tự tính, không gõ tay; thêm đơn vị kg, lít
+- **% dùng được** (yield) không còn là ô nhập. Tự tính sau mỗi lần chốt sổ (`lib/inventory/yield.ts`, 0081):
+  **Σ(định lượng × số bán) ÷ Σ(lượng thực dùng)** trên **14 lần kiểm kê gần nhất**, trong đó lượng thực dùng = tồn đầu +
+  nhập + ra mẻ − vào mẻ − xuất hủy − tồn đếm cuối. Một mẫu trải từ sau lần kiểm kê trước tới lần kiểm kê này ⇒ nhập một ngày
+  dùng nhiều ngày, hay kiểm kê cách ngày, vẫn đúng. Chưa có lần kiểm kê nào → 100% ("chưa đủ dữ liệu").
+- Con số **gộp mọi hao hụt khi dùng** (gọt bỏ, rơi vãi, múc dư) — giá vốn sát thực tế. Lấy trung bình 14 lần (không riêng hôm
+  nay) để ngày hụt bất thường vẫn hiện ở báo cáo hao hụt (D9). Bản chốt lưu % lúc chốt; bản chốt cũ không đổi (D7).
+- Đối thủ (tra 29/09/2026): không hãng nào có ô % gõ tay; chỉ iPOS đo bằng phiếu sơ chế (SL gốc / SL sau sơ chế). Chủ dự án chọn
+  tính từ kiểm kê + số bán — không thêm thao tác cân.
+- **Đơn vị trừ kho thêm kg, lít** (0080), như KiotViet / CUKCUK. Theo kg / lít nhỏ nhất là 0,001 (1 g / 1 ml) — gia vị dưới 1 g
+  nên khai theo gam.
+
 ## Ngoài phạm vi
 Nhà cung cấp & công nợ · đơn đặt hàng · nhiều kho / chuyển kho (chờ V2-A) · lô & hạn dùng ·
 dự báo lượng mua (cần vài tuần dữ liệu thật) · ma trận menu engineering · đồng bộ kế toán.

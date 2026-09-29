@@ -38,6 +38,8 @@ export type ClosedIngredient = Omit<DayRow, "ingredient_id"> & {
   kind: Ingredient["kind"];
   unit_cost: number | null;
   cost_source: CostSource;
+  /** % dùng được lúc chốt — để tính lại % từ bản chốt (lib/inventory/yield.ts). Bản chốt trước 0081 không có. */
+  yield_pct?: number;
 };
 
 export type DailyClosePayload = {
@@ -136,6 +138,7 @@ export function buildDailyClose(input: CloseInput): DailyClosePayload {
         ...r,
         unit_cost: u.cost,
         cost_source: u.cost === null ? "none" : (source.get(ingredient_id) ?? "none"),
+        yield_pct: ing.yield_pct,
       };
     });
 

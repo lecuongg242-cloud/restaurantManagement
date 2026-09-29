@@ -17,6 +17,10 @@ Hệ thống quản lý nhà hàng dạng **SaaS multi-tenant**: Gọi món + PO
   tính năng đó thế nào: luồng thao tác, màn hình, giấy in, cài đặt, chữ trên nút. Nguồn: trang hướng dẫn sử dụng chính thức,
   video hướng dẫn, bài đánh giá. Ghi kết quả vào mục **"Đối thủ làm thế nào"** trong `00-TongQuan.md` của P đó (kèm link nguồn
   + ngày tra) và **làm theo cách của họ** — chủ quán đã quen. Khác đối thủ thì phải ghi lý do và được chủ dự án đồng ý.
+- **Chốt giao diện với chủ dự án TRƯỚC khi code (chủ dự án yêu cầu 30/09/2026).** Mỗi plan có tính năng người dùng nhìn
+  thấy phải có mục **"Giao diện"** mô tả từng màn: vị trí trong menu, **các tab**, bố cục, **cột** của bảng, ô của form, **chữ
+  trên nút**, trạng thái trống / lỗi, trên điện thoại hiện thế nào — kèm đối thủ làm tương tự ra sao. Đưa bản mô tả này cho
+  chủ dự án **chốt** (danh sách tab + màn) rồi mới code; không tự quyết màn hình. Thay đổi màn sau khi đã chốt cũng hỏi lại.
 
 ## Nguyên tắc code (Karpathy guidelines)
 1. **Think before coding** — nêu giả định, hỏi khi mơ hồ, không đoán.

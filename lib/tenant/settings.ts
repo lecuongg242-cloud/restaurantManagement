@@ -20,6 +20,14 @@ export type PrintMode = "browser" | "bridge";
  */
 export type BankAccount = { bin: string; account_no: string; account_name: string };
 
+/**
+ * Một dòng "Thuế nộp nhà nước" (P20 QD-027 C9) — quán tự khai, hệ thống không cài luật thuế cứng: "10% doanh thu",
+ * "GTGT 3% + TNCN 1,5% doanh thu", "TNCN 17% lợi nhuận"… Chỉ dùng để ƯỚC TÍNH trong báo cáo Kết quả kinh doanh; KHÁC
+ * `vat_pct` (VAT cộng vào hóa đơn, khách trả).
+ */
+export type TaxLine = { name: string; pct: number; base: "revenue" | "profit" };
+export const MAX_TAX_LINES = 5;
+
 export type TenantSettings = {
   currency: "VND";
   service_charge_pct: number; // [0,100]
@@ -40,6 +48,8 @@ export type TenantSettings = {
   /** Giờ mở / đóng cửa "HH:MM" (giờ VN). Đóng < mở = qua nửa đêm. Rỗng = không hiện trạng thái mở/đóng. */
   open_time: string;
   close_time: string;
+  /** Thuế nộp nhà nước (ước tính trên báo cáo Kết quả kinh doanh). Rỗng = không hiện khối thuế. */
+  taxes: TaxLine[];
 };
 
 export const DEFAULT_SETTINGS: TenantSettings = {
@@ -57,6 +67,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   phone: "",
   open_time: "",
   close_time: "",
+  taxes: [],
 };
 
 /** Ép số + clamp về [0,100]; giá trị không hợp lệ → 0. */
@@ -87,6 +98,23 @@ export function parseBank(v: unknown): BankAccount | undefined {
   return { bin, account_no, account_name };
 }
 
+/** Danh sách thuế hợp lệ: tên 1–60 ký tự, % trong (0, 100] làm tròn 2 số lẻ, cơ sở doanh thu / lợi nhuận; tối đa 5 dòng. */
+export function parseTaxes(v: unknown): TaxLine[] {
+  if (!Array.isArray(v)) return [];
+  const out: TaxLine[] = [];
+  for (const x of v) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    const name = typeof o.name === "string" ? o.name.trim().slice(0, 60) : "";
+    const pct = typeof o.pct === "number" ? o.pct : Number(o.pct);
+    if (!name || !Number.isFinite(pct) || pct <= 0 || pct > 100) continue;
+    if (o.base !== "revenue" && o.base !== "profit") continue;
+    out.push({ name, pct: Math.round(pct * 100) / 100, base: o.base });
+    if (out.length === MAX_TAX_LINES) break;
+  }
+  return out;
+}
+
 /** Merge jsonb (có thể thiếu field/sai kiểu) với default → TenantSettings đủ. */
 export function parseSettings(raw: unknown): TenantSettings {
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -110,6 +138,7 @@ export function parseSettings(raw: unknown): TenantSettings {
     phone: typeof o.phone === "string" ? o.phone.trim().slice(0, 30) : "",
     open_time: gioHopLe(o.open_time),
     close_time: gioHopLe(o.close_time),
+    taxes: parseTaxes(o.taxes),
   };
 }
 

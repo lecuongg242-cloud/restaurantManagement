@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Building2, Contact, LayoutDashboard, Package, QrCode, Settings, UtensilsCrossed, Users, type LucideIcon, Printer } from "lucide-react";
+import { BarChart3, Building2, ClipboardList, Contact, LayoutDashboard, Package, QrCode, Settings, Truck, UtensilsCrossed, Users, Wallet, type LucideIcon, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canManage, type ManageSection } from "@/lib/auth/rbac";
 import type { Role } from "@/lib/auth/session";
@@ -38,6 +38,9 @@ export function AdminNav({
     { key: "staff", label: "Nhân viên", icon: Users, href: `${base}/staff`, section: "staff" },
     { key: "menu", label: "Thực đơn", icon: UtensilsCrossed, href: `${base}/menu`, section: "menu" },
     { key: "inventory", label: "Nguyên liệu", icon: Package, href: `${base}/inventory`, section: "inventory" },
+    { key: "purchases", label: "Nhập hàng", icon: ClipboardList, href: `${base}/nhap-hang`, section: "purchasing" },
+    { key: "suppliers", label: "Nhà cung cấp", icon: Truck, href: `${base}/nha-cung-cap`, section: "purchasing" },
+    { key: "cashbook", label: "Sổ quỹ", icon: Wallet, href: `${base}/so-quy`, section: "cashbook" },
     { key: "tables", label: "Bàn & QR", icon: QrCode, href: `${base}/tables`, section: "tables" },
     { key: "reports", label: "Báo cáo", icon: BarChart3, href: `${base}/reports`, section: "reports" },
     { key: "customers", label: "Khách hàng", icon: Contact, href: `${base}/khach-hang`, section: "customers" },

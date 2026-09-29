@@ -1,7 +1,8 @@
 # P20 — Mua hàng, nhà cung cấp, công nợ, sổ quỹ
 
 > Lập 27/09/2026 (khung phạm vi). **Nghiên cứu + chốt phạm vi 29/09/2026.** Plan là hợp đồng + nghiệm thu, không phải bản
-> nháp code. **Trạng thái: SẴN SÀNG LÀM** 20-01 → 20-04.
+> nháp code. **Trạng thái: CODE XONG 20-01 → 20-04 (29/09/2026)**, migration 0076–0079 đã áp production, đã push `dev`; còn
+> merge `main` + kiểm qt-food sau deploy (PURCH-06). Kết quả: `20-0x-SUMMARY.md`.
 > Quyết định: `15-QuyetDinh/QD-027` · Yêu cầu: PURCH-01..06, CASH-01..04, REPORT-20 · Nghiên cứu chi tiết (đối thủ, pháp lý
 > TT 152/2025, hiện trạng code): `00-NghienCuu-NghiepVu.md`.
 > Phụ thuộc: P10 (kho, nhập buổi sáng, chốt sổ ngày), P13 (tài khoản ngân hàng của quán), P15 (báo cáo chuỗi),

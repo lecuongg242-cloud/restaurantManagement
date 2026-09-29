@@ -4,7 +4,7 @@ import type { Ingredient } from "@/lib/inventory/types";
 
 function ing(p: Partial<Ingredient> & Pick<Ingredient, "id" | "name">): Ingredient {
   return {
-    kind: "purchased", base_unit: "g", purchase_unit: null, purchase_factor: 1, yield_pct: 100,
+    kind: "purchased", base_unit: "g", purchase_unit: null, purchase_factor: 1, yield_pct: 100, yield_days: 0, yield_updated_at: null,
     must_count: false, batch_output_qty: null, last_unit_cost: null, last_cost_at: null, active: true, ...p,
   };
 }

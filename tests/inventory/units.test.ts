@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toBaseQty, unitCostFromPurchase, purchasePrice, parseQty } from "@/lib/inventory/units";
+import { toBaseQty, unitCostFromPurchase, purchasePrice, parseQty, knownFactor } from "@/lib/inventory/units";
 
 describe("quy đổi đơn vị nhập → đơn vị gốc (INV-01, INV-04)", () => {
   it("2 kg → 2000 g", () => {
@@ -49,5 +49,28 @@ describe("đọc số lượng người gõ (form nhập)", () => {
 
   it("bỏ khoảng trắng hai đầu", () => {
     expect(parseQty(" 80 ")).toBe(80);
+  });
+});
+
+describe("knownFactor — hệ số tự tính cho đơn vị quen", () => {
+  it("kg / lạng / tạ về gam; trùng đơn vị = 1; kg khi gốc là kg = 1", () => {
+    expect(knownFactor("kg", "g")).toBe(1000);
+    expect(knownFactor("Kg", "g")).toBe(1000);
+    expect(knownFactor("lạng", "g")).toBe(100);
+    expect(knownFactor("tạ", "kg")).toBe(100);
+    expect(knownFactor("kg", "kg")).toBe(1);
+    expect(knownFactor("g", "kg")).toBe(0.001);
+  });
+  it("lít ↔ ml; cái / quả / lon với gốc cái", () => {
+    expect(knownFactor("lít", "ml")).toBe(1000);
+    expect(knownFactor("lit", "l")).toBe(1);
+    expect(knownFactor("ml", "l")).toBe(0.001);
+    expect(knownFactor("quả", "cai")).toBe(1);
+  });
+  it("đơn vị riêng hoặc khác loại → null (người dùng tự khai)", () => {
+    expect(knownFactor("vỉ", "cai")).toBeNull();
+    expect(knownFactor("thùng", "l")).toBeNull();
+    expect(knownFactor("kg", "ml")).toBeNull();
+    expect(knownFactor("", "g")).toBeNull();
   });
 });

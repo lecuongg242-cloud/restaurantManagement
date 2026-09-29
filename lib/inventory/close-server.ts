@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadInventory } from "./data";
 import { addDays } from "./day";
 import { buildDailyClose, daysToClose, type DayRow, type PricePoint } from "./close";
+import { measureYield, yieldSamples } from "./yield";
 
 /**
  * Tự chốt sổ (INV-09): chốt LẦN LƯỢT mọi ngày chưa chốt từ mốc gốc tới HÔM QUA. Gọi khi mở khu
@@ -56,8 +57,58 @@ export async function ensureClosedThrough(
   }
   if (closed.length > 0) {
     console.log(JSON.stringify({ op: "ensureClosedThrough", tenant: tenantId, closed: closed.length }));
+    // % dùng được tự tính lại sau mỗi lần chốt (0081). Lỗi không chặn chốt sổ — lượt chốt sau thử lại.
+    try {
+      await refreshMeasuredYields(supabase, tenantId, today);
+    } catch (e) {
+      console.error(JSON.stringify({ op: "refreshMeasuredYields", tenant: tenantId, error: String(e) }));
+    }
   }
   return { closed };
+}
+
+/** Đọc bản chốt 180 ngày gần nhất đủ cho 14 lần kiểm kê của quán kiểm thưa. */
+const YIELD_LOOKBACK_DAYS = 180;
+
+/**
+ * Tính lại "% dùng được" của mọi nguyên liệu mua vào từ bản chốt (lib/inventory/yield.ts): Σ định lượng × bán ÷ Σ thực dùng
+ * của 14 lần kiểm kê gần nhất. Chưa có lần kiểm kê nào → 100%. Chỉ ghi dòng có thay đổi.
+ */
+export async function refreshMeasuredYields(supabase: SupabaseClient, tenantId: string, today: string): Promise<number> {
+  const since = addDays(today, -YIELD_LOOKBACK_DAYS);
+  const [{ data: ings, error: e1 }, { data: closes, error: e2 }, { count: older }] = await Promise.all([
+    supabase.from("ingredients").select("id, yield_pct, yield_days").eq("tenant_id", tenantId).eq("kind", "purchased"),
+    supabase
+      .from("daily_closes")
+      .select("business_date, payload")
+      .eq("tenant_id", tenantId)
+      .gte("business_date", since)
+      .order("business_date"),
+    supabase
+      .from("daily_closes")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .lt("business_date", since),
+  ]);
+  if (e1) throw new Error(e1.message);
+  if (e2) throw new Error(e2.message);
+  const current = new Map((ings ?? []).map((i) => [i.id as string, Number(i.yield_pct)]));
+  const samples = yieldSamples((closes ?? []) as { business_date: string; payload: unknown }[], current, (older ?? 0) > 0);
+  const now = new Date().toISOString();
+  let changed = 0;
+  for (const ing of ings ?? []) {
+    const m = measureYield(samples.get(ing.id as string) ?? []);
+    const pct = m.pct ?? 100;
+    if (pct === Number(ing.yield_pct) && m.days === Number(ing.yield_days)) continue;
+    const { error } = await supabase
+      .from("ingredients")
+      .update({ yield_pct: pct, yield_days: m.days, yield_updated_at: now })
+      .eq("id", ing.id)
+      .eq("tenant_id", tenantId);
+    if (error) throw new Error(error.message);
+    changed++;
+  }
+  return changed;
 }
 
 /** Bản xem trước chốt của một ngày chưa chốt (hôm nay — "tạm tính"), KHÔNG ghi. */

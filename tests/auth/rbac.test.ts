@@ -26,17 +26,21 @@ const SECTIONS: ManageSection[] = [
   "settings",
   "printers",
   "inventory",
+  "purchasing",
+  "cashbook",
+  "finance",
 ];
 
 /** true = được quản lý mục đó. Vai trò không có trong bảng ⇒ false ở MỌI mục. */
 const MANAGE: Partial<Record<Role, ManageSection[]>> = {
-  owner: ["menu", "tables", "staff", "onboarding", "reports", "settings", "printers", "inventory"],
+  owner: ["menu", "tables", "staff", "onboarding", "reports", "settings", "printers", "inventory", "purchasing", "cashbook", "finance"],
   // KHÔNG có settings. CÓ printers (PRINT-09): quản lý ca phải biết máy in bếp chết giữa ca.
   // CÓ inventory (QD-017 C4): manager nhập nguyên liệu buổi sáng.
-  manager: ["menu", "tables", "staff", "onboarding", "reports", "printers", "inventory"],
+  // CÓ purchasing (QD-027 C5): quản lý nhập hàng, trả nợ nhà cung cấp.
+  manager: ["menu", "tables", "staff", "onboarding", "reports", "printers", "inventory", "purchasing", "cashbook"],
 };
 
-describe("canManage — ma trận 6 vai trò × 8 mục (QD-010 §2)", () => {
+describe("canManage — ma trận 6 vai trò × 11 mục (QD-010 §2)", () => {
   for (const role of ROLES) {
     for (const section of SECTIONS) {
       const expected = (MANAGE[role] ?? []).includes(section);
@@ -46,9 +50,9 @@ describe("canManage — ma trận 6 vai trò × 8 mục (QD-010 §2)", () => {
     }
   }
 
-  it("settings là mục DUY NHẤT chỉ owner", () => {
+  it("settings + finance (kết quả kinh doanh, QD-027 C5) là các mục DUY NHẤT chỉ owner", () => {
     const ownerOnly = SECTIONS.filter((s) => canManage("owner", s) && !canManage("manager", s));
-    expect(ownerOnly).toEqual(["settings"]);
+    expect(ownerOnly).toEqual(["settings", "finance"]);
   });
 
   it("không vai trò trạm nào quản lý được bất kỳ mục nào", () => {

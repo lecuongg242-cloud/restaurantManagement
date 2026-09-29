@@ -107,6 +107,15 @@ describe("tự chốt sổ (INV-09)", () => {
     expect(p.items[0].portion_cost).toBe(30_000);
   });
 
+  // D1 không kiểm kê ⇒ lệch −50 g đếm ở D2 là của cả khoảng D1–D2: bán cần 300 + 400 = 700 g, thực dùng 750 g → 93%.
+  it("% dùng được tự tính sau khi chốt: khoảng D1–D2 bán cần 700 g, thực dùng 750 g → 93%, từ 1 lần kiểm kê (0081)", async () => {
+    const p = (await closeOf(D2))!;
+    expect(p.ingredients[0].yield_pct).toBe(100); // bản chốt lưu % lúc chốt
+    const { data } = await db.from("ingredients").select("yield_pct, yield_days, yield_updated_at").eq("id", ids.bo).single();
+    expect(data).toMatchObject({ yield_pct: 93, yield_days: 1 });
+    expect(data!.yield_updated_at).not.toBeNull();
+  });
+
   it("D3: không phát sinh → tồn giữ nguyên, giá cũ kèm ngày", async () => {
     const p = (await closeOf(D3))!;
     expect(p.ingredients[0]).toMatchObject({ opening: 1250, closing: 1250, counted: false, cost_source: `stale:${D2}` });
