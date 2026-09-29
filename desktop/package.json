@@ -1,7 +1,7 @@
 {
   "name": "techmenu-thu-ngan",
   "productName": "TechMenu Thu ngân",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TechMenu Thu ngân — ứng dụng máy quầy: POS, màn bếp và cầu in trong một app (P21, QD-026).",
   "private": true,
   "type": "module",

@@ -42,6 +42,10 @@ let cauHinh = null;
 let dangThoat = false;
 let daBaoXuongKhay = false;
 let daHoiCauInCu = false;
+let dangHoiCauInCu = false;
+let choHoiViBiChan = false;
+/** Cầu in của app bị cầu in khác trên máy giữ khóa (mã thoát 3) — khay hiện mục "Gỡ cầu in cũ". */
+let biChanBoiCauInKhac = false;
 let trangThaiIn = { chay: false };
 let banMoi = { daTaiXong: false, phienBan: null, dangTai: false };
 
@@ -86,7 +90,11 @@ const cauIn = new QuanLyCauIn({
     trangThaiIn = s;
     capNhatKhay();
   },
-  khiCoCauInKhac: () => hoiGoCauInCu(true),
+  khiCoCauInKhac: () => {
+    biChanBoiCauInKhac = true;
+    capNhatKhay();
+    hoiGoCauInCu(true);
+  },
 });
 
 // ── Khởi động ──
@@ -381,6 +389,7 @@ function capNhatKhay() {
       { label: "Mở TechMenu", click: hienCuaSo },
       { type: "separator" },
       ...dong.map((label) => ({ label, enabled: false })),
+      ...(biChanBoiCauInKhac ? [{ label: "Gỡ cầu in cũ…", click: () => (hienCuaSo(), hoiGoCauInCu(true)) }] : []),
       { type: "separator" },
       { label: "Thoát", click: () => (hienCuaSo(), thoatCoHoi()) },
     ])
@@ -397,12 +406,35 @@ function batDauIn() {
 /**
  * Cầu in cũ (DESK-08): kích hoạt app đã xoay mật khẩu `printer` nên cầu in cũ mất quyền; vẫn gỡ tác vụ + tiến trình
  * để máy không chạy thừa và (khi còn giữ khóa cổng) không chặn cầu in của app.
+ *
+ * `boiCauInKhac` = cầu in của app vừa bị khóa chặn (mã thoát 3) → LUÔN hỏi, kể cả khi lúc mở app đã dò không thấy gì:
+ * cầu in cũ chạy dưới tài khoản SYSTEM thì người dùng thường không đọc được dòng lệnh / tác vụ của nó (gặp ở qt-food
+ * 29/09/2026 — app kẹt "đang có cầu in khác chạy" mà không có cách gỡ). Dò lúc mở app chỉ hỏi một lần mỗi phiên.
  */
 async function hoiGoCauInCu(boiCauInKhac) {
-  if (daHoiCauInCu) return;
-  daHoiCauInCu = true;
-  const kq = await phatHienCauInCu(THU_MUC_APP);
-  if (!kq.coCauInCu && !boiCauInKhac) return;
+  if (dangHoiCauInCu) {
+    // Bước dò lúc mở app đang chạy (vài giây) đúng lúc cầu in bị chặn — xếp chờ, hỏi ngay khi bước dò xong.
+    if (boiCauInKhac) choHoiViBiChan = true;
+    return;
+  }
+  if (!boiCauInKhac && daHoiCauInCu) return;
+  dangHoiCauInCu = true;
+  try {
+    await hoiVaGo(boiCauInKhac);
+  } finally {
+    dangHoiCauInCu = false;
+  }
+  if (choHoiViBiChan && biChanBoiCauInKhac) {
+    choHoiViBiChan = false;
+    await hoiGoCauInCu(true);
+  }
+}
+
+async function hoiVaGo(boiCauInKhac) {
+  if (!boiCauInKhac) {
+    daHoiCauInCu = true;
+    if (!(await phatHienCauInCu(THU_MUC_APP)).coCauInCu) return;
+  }
   const { response } = await dialog.showMessageBox(cuaSo, {
     type: "warning",
     buttons: ["Gỡ cầu in cũ", "Để sau"],
@@ -415,13 +447,16 @@ async function hoiGoCauInCu(boiCauInKhac) {
   });
   if (response !== 0) return;
   const ok = await goCauInCu(path.join(THU_MUC_CAU_IN, "go-cai-dat.ps1"));
-  if (ok) cauIn.khoiDongLai();
-  else {
+  if (ok) {
+    biChanBoiCauInKhac = false;
+    capNhatKhay();
+    cauIn.khoiDongLai();
+  } else {
     dialog.showMessageBox(cuaSo, {
       type: "error",
       title: TEN_APP,
       message: "Chưa gỡ được cầu in cũ.",
-      detail: "Có thể đã bấm No ở hộp thoại xin quyền. Mở lại app để thử lại, hoặc chạy GO-CAI-DAT.bat trong thư mục cầu in cũ.",
+      detail: "Có thể đã bấm No ở hộp thoại xin quyền. Thử lại: chuột phải biểu tượng TechMenu ở khay → Gỡ cầu in cũ.",
     });
   }
 }

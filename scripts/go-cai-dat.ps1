@@ -48,11 +48,27 @@ cmd /c "schtasks /end /tn CauInBep >nul 2>&1"
 cmd /c "schtasks /delete /tn CauInBep /f >nul 2>&1"
 Ok "Da xoa tac vu 'CauInBep'"
 
+# Cua so print-bridge.bat (chay tay, khong qua tac vu) tu chay lai node khi node chet -> tat vong lap bat TRUOC.
+$bat = @(Get-CimInstance Win32_Process -Filter "Name='cmd.exe'" |
+  Where-Object { $_.CommandLine -like '*print-bridge.bat*' })
+foreach ($p in $bat) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+
 $cu = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
   Where-Object { $_.CommandLine -like '*print-bridge.mjs*' })
 foreach ($p in $cu) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
 Ok ("Da tat " + $cu.Count + " tien trinh cau in")
 Start-Sleep -Seconds 1
+
+# Luoi an toan (P21, qt-food 29/09/2026): tien trinh nao con giu CONG KHOA cua cau in (47291, print-bridge.mjs
+# CONG_KHOA) ma khong phai app TechMenu Thu ngan -> tat. Cau in cu dat o thu muc/ten khac van bi bat o day.
+$khoa = @(Get-NetTCPConnection -LocalPort 47291 -State Listen -ErrorAction SilentlyContinue)
+foreach ($k in $khoa) {
+  $p = Get-Process -Id $k.OwningProcess -ErrorAction SilentlyContinue
+  if ($p -and $p.ProcessName -ne 'TechMenuThuNgan') {
+    Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+    Ok ("Da tat tien trinh giu khoa cau in: " + $p.ProcessName + " (PID " + $p.Id + ")")
+  }
+}
 
 $lnk = Join-Path ([Environment]::GetFolderPath("CommonDesktopDirectory")) "POS.lnk"
 if (Test-Path $lnk) { Remove-Item $lnk -Force; Ok "Da xoa loi tat POS" }

@@ -1,5 +1,6 @@
 import { test, expect, _electron, type ElectronApplication, type Page } from "@playwright/test";
 import { spawn } from "node:child_process";
+import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -24,16 +25,16 @@ let app: ElectronApplication | null = null;
 
 type MucMenu = { label: string; visible: boolean; click: () => void };
 
-function moiTruong(apiBase: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env };
+function moiTruong(apiBase: string, them: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...them };
   delete env.ELECTRON_RUN_AS_NODE; // VS Code đặt biến này — còn thì electron.exe chạy như Node, không mở cửa sổ
   env.TECHMENU_API_BASE = apiBase;
   env.TECHMENU_USER_DATA = thuMuc;
   return env;
 }
 
-async function moApp(apiBase = may.url): Promise<{ app: ElectronApplication; trang: Page }> {
-  app = await _electron.launch({ executablePath: ELECTRON, args: THAM_SO, env: moiTruong(apiBase) as Record<string, string> });
+async function moApp(apiBase = may.url, them: Record<string, string> = {}): Promise<{ app: ElectronApplication; trang: Page }> {
+  app = await _electron.launch({ executablePath: ELECTRON, args: THAM_SO, env: moiTruong(apiBase, them) as Record<string, string> });
   // Chặn mở trình duyệt thật khi bấm liên kết ngoài — ghi lại để kiểm.
   await app.evaluate(({ shell }) => {
     (globalThis as unknown as { __moNgoai: string[] }).__moNgoai = [];
@@ -98,7 +99,7 @@ test("máy chỉ xem → mở Màn bếp; trang web không chạm được Node;
   await expect(trang.locator("#man")).toHaveText("kds:quan-thu");
 
   const kq = await trang.evaluate(() => (window as unknown as { __kq: Record<string, unknown> }).__kq);
-  expect(kq).toEqual({ req: "undefined", proc: "undefined", td: { phienBan: "1.0.0", coCauIn: false }, tm: "undefined" });
+  expect(kq).toEqual({ req: "undefined", proc: "undefined", td: { phienBan: "1.0.1", coCauIn: false }, tm: "undefined" });
 
   // Bấm bằng DOM: app chặn điều hướng (đúng ý) nên Playwright sẽ chờ mãi một điều hướng không bao giờ tới.
   await trang.evaluate(() => document.getElementById("ngoai")!.click());
@@ -149,9 +150,9 @@ test("máy quầy có máy in → Cài đặt máy in, In thử ra giấy, Lưu 
     await trang.click("#luu");
     await expect(trang.locator("#man")).toHaveText("pos:quan-thu");
     const td = await trang.evaluate(() => (window as unknown as { __kq: { td: unknown } }).__kq.td);
-    expect(td).toEqual({ phienBan: "1.0.0", coCauIn: true });
+    expect(td).toEqual({ phienBan: "1.0.1", coCauIn: true });
 
-    await doiDen(() => may.nhipTim.some((n) => n.p_agent === "app/1.0.0" && n.p_printer_ok === true), 30_000, "nhịp tim cầu in trong app");
+    await doiDen(() => may.nhipTim.some((n) => n.p_agent === "app/1.0.1" && n.p_printer_ok === true), 30_000, "nhịp tim cầu in trong app");
     const ch = fs.readFileSync(path.join(thuMuc, "cau-hinh.json"), "utf8");
     expect(ch).not.toContain("mk-printer"); // mật khẩu printer chỉ lưu dạng mã hóa
     expect(ch).not.toContain("dung-mat-khau");
@@ -196,4 +197,30 @@ test("mất mạng lúc mở app → màn 'đang thử lại' của app, có m�
   const cong = Number(new URL(diaChi).port);
   may = await mayChuGia({ cong });
   await expect(trang.locator("#man")).toHaveText("kds:quan-thu", { timeout: 20_000 });
+});
+
+test("cầu in cũ giữ khóa mà lúc mở app dò không thấy → app VẪN hỏi gỡ (lỗi gặp ở qt-food 29/09/2026)", async () => {
+  // Giả cầu in cũ: một tiến trình giữ cổng khóa 47291 của print-bridge.mjs. TECHMENU_KIEM_CAU_IN_CU=1 chạy bước dò lúc mở
+  // app như bản cài thật — máy test không có tác vụ CauInBep nên bước dò KHÔNG thấy gì, đúng tình huống ở quán.
+  const khoa = net.createServer();
+  await new Promise<void>((r) => khoa.listen(47291, "127.0.0.1", () => r()));
+  try {
+    const { app: a, trang } = await moApp(may.url, { TECHMENU_KIEM_CAU_IN_CU: "1" });
+    await a.evaluate(({ dialog }) => {
+      const g = globalThis as unknown as { __hoi: string[] };
+      g.__hoi = [];
+      dialog.showMessageBox = (async (...args: unknown[]) => {
+        const o = args.find((x) => x && typeof x === "object" && "message" in (x as object)) as { message: string };
+        g.__hoi.push(o.message);
+        return { response: 1, checkboxChecked: false }; // "Để sau"
+      }) as typeof dialog.showMessageBox;
+    });
+    await dangNhap(trang, "chu@quan.vn", true);
+    await expect(trang.getByRole("heading", { name: "Cài đặt máy in" })).toBeVisible();
+    await expect
+      .poll(() => a.evaluate(() => (globalThis as unknown as { __hoi: string[] }).__hoi), { timeout: 30_000 })
+      .toContain("Máy này đang chạy cầu in cũ.");
+  } finally {
+    await new Promise<void>((r) => khoa.close(() => r()));
+  }
 });
