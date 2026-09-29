@@ -4,8 +4,10 @@
 //   npm version patch --no-git-tag-version     (tăng phiên bản: 1.0.0 → 1.0.1)
 //   npm run release                            (build → quét bí mật → đưa lên GitHub Releases)
 //
-// Nơi đặt: GitHub Releases của repo công khai CHỈ chứa tệp cài (`DESKTOP_RELEASE_REPO`, vd `techmenu/thu-ngan-releases`).
-// App web chuyển tiếp tới đó qua `DESKTOP_RELEASE_BASE=https://github.com/<repo>/releases/latest/download` (Vercel env).
+// Nơi đặt: mục Releases của CHÍNH repo dự án (công khai; chủ dự án chốt 29/09/2026), tag `thu-ngan-v<phiên bản>`. App web
+// chuyển tiếp tới đó qua `DESKTOP_RELEASE_BASE=https://github.com/<repo>/releases/latest/download` (Vercel env) — vì vậy
+// release "latest" của repo phải LUÔN là bản app: release khác (nếu có) bỏ chọn "Set as the latest release".
+// Đổi repo: đặt DESKTOP_RELEASE_REPO=<chủ>/<repo>.
 // Cần `gh` đã đăng nhập (gh auth login). Không ký số (QD-026 D3) — Windows sẽ cảnh báo SmartScreen ở lần cài đầu.
 //
 // Chạy trên máy dev có .env.local của repo: dùng để QUÉT xem tệp cài có lọt khóa bí mật nào không (đọc giá trị, không in ra).
@@ -17,9 +19,9 @@ import { fileURLToPath } from "node:url";
 const DESKTOP = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_GOC = path.join(DESKTOP, "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(DESKTOP, "package.json"), "utf8"));
-const repo = process.env.DESKTOP_RELEASE_REPO;
-if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
-  console.error("Đặt DESKTOP_RELEASE_REPO=<chủ>/<repo> (repo công khai chỉ chứa tệp cài) rồi chạy lại.");
+const repo = process.env.DESKTOP_RELEASE_REPO || "lecuongg242-cloud/restaurantManagement";
+if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
+  console.error(`DESKTOP_RELEASE_REPO không hợp lệ: ${repo}`);
   process.exit(1);
 }
 
@@ -74,7 +76,7 @@ console.log(`Quét bí mật: 0 phát hiện (${biMat.length} giá trị + ${mau
 chay("gh", [
   "release",
   "create",
-  `v${pkg.version}`,
+  `thu-ngan-v${pkg.version}`,
   ...tep,
   "--repo",
   repo,

@@ -50,10 +50,10 @@ ký vào quy trình build). Các cách xử lý ở bảng trên áp dụng cho 
 
 Bộ cài build ra nặng **111,6 MB** — vượt trần **50 MB/tệp** của Supabase Storage gói miễn phí (0055), nên **không** đặt ở
 Supabase như bộ cài cầu in cũ. Code không gắn cứng nơi đặt: app và nút tải chỉ gọi `/api/desktop/update/<tệp>` và
-`/api/desktop/latest` của app web, hai route này chuyển tiếp tới `DESKTOP_RELEASE_BASE` (Vercel env). **Đề xuất**: GitHub Releases
-của một repo công khai chỉ chứa tệp cài (`https://github.com/<chủ>/<repo>/releases/latest/download`) — miễn phí băng thông,
-`desktop/scripts/phat-hanh.mjs` đưa lên bằng `gh release create`. **Chờ chủ dự án tạo repo / chọn nơi đặt.** Chưa cấu hình ⇒ nút
-tải và mục cài app ở `/huong-dan-cai-dat` tự ẩn, app không tự cập nhật (không hỏng gì).
+`/api/desktop/latest` của app web, hai route này chuyển tiếp tới `DESKTOP_RELEASE_BASE` (Vercel env). **Đã chốt (chủ dự án, 29/09/2026)**: mục **Releases của chính repo dự án** `lecuongg242-cloud/restaurantManagement` (công khai), tag
+`thu-ngan-v<phiên bản>`, `DESKTOP_RELEASE_BASE=https://github.com/lecuongg242-cloud/restaurantManagement/releases/latest/download`.
+Bản 1.0.0 đã đăng 29/09/2026 (sha512 khớp bản build). Release "latest" của repo phải luôn là bản app. Chưa cấu hình biến ⇒
+nút tải và mục cài app ở `/huong-dan-cai-dat` tự ẩn, app không tự cập nhật (không hỏng gì).
 
 ## Hệ quả khác
 
