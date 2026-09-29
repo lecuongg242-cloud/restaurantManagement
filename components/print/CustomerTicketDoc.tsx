@@ -4,20 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import type { CustomerTicketView, KitchenWidth } from "@/lib/print/adapter";
 import { formatVnd } from "@/lib/orders/cart";
 import { logCustomerTicketPrint } from "@/app/r/[slug]/print/actions";
+import { CO_PHIEU_KHACH } from "@/lib/print/co-giay";
 
 /**
  * Phiếu KHÁCH in (client) — JetBrains Mono, đen trắng. Số đơn (ĐƠN #N) IN TO, KHỚP với phiếu
  * bếp để bếp mang món ra gọi đúng khách. Kèm giá + tổng. 3 khổ: 58/80mm + A5. Nút ẩn khi in.
  * Khi mở: ghi print_jobs 1 lần (POS đếm số lần in) rồi window.print().
  */
-const SIZE: Record<
-  KitchenWidth,
-  { w: number; base: number; name: number; no: number; tenant: number; lh: number; page: string; margin: string; label: string }
-> = {
-  "58": { w: 240, base: 14, name: 15, no: 26, tenant: 16, lh: 1.4, page: "58mm auto", margin: "3mm", label: "58mm" },
-  "80": { w: 320, base: 15, name: 17, no: 29, tenant: 19, lh: 1.4, page: "80mm auto", margin: "3mm", label: "80mm" },
-  "a5": { w: 560, base: 20, name: 24, no: 40, tenant: 26, lh: 1.5, page: "A5", margin: "8mm", label: "A5 (to)" },
-};
+// Cùng bảng với ảnh phiếu cầu in (lib/print/anh-phieu) — hai đường in ra y hệt nhau.
+const SIZE: Record<KitchenWidth, (typeof CO_PHIEU_KHACH)[KitchenWidth]> = CO_PHIEU_KHACH;
 
 export function CustomerTicketDoc({
   slug,
@@ -72,10 +67,6 @@ export function CustomerTicketDoc({
 
       <div className="ct-ticket">
         <div className="ct-center">
-          {ticket.logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={ticket.logoUrl} alt="" className="ct-logo" />
-          )}
           <div className="ct-tenant">{ticket.tenantName}</div>
           <div className="ct-title">PHIẾU KHÁCH</div>
           {ticket.kitchenNo != null && <div className="ct-no">ĐƠN #{ticket.kitchenNo}</div>}
@@ -148,7 +139,6 @@ export function CustomerTicketDoc({
           font-size: ${s.base}px; line-height: ${s.lh}; color: #000;
         }
         .ct-center { text-align: center; }
-        .ct-logo { display: block; width: ${Math.round(s.base * 3)}px; height: ${Math.round(s.base * 3)}px; margin: 0 auto 4px; object-fit: contain; filter: grayscale(1); }
         .ct-tenant { font-weight: 700; font-size: ${s.tenant}px; }
         .ct-title { font-weight: 700; letter-spacing: 1px; margin-top: 2px; }
         .ct-no { font-weight: 800; font-size: ${s.no}px; margin-top: 4px; }

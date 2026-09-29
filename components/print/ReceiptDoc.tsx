@@ -7,15 +7,14 @@ import { formatVnd } from "@/lib/orders/cart";
 import { logReceiptPrint } from "@/app/r/[slug]/print/receipt/actions";
 import type { TransferQr } from "@/lib/billing/transfer-qr";
 import { duongSvgQr, LE_QR, maTranQr } from "@/lib/payments/qr-matrix";
+import { CO_HOA_DON } from "@/lib/print/co-giay";
 
 /**
  * Hóa đơn khách in (client) — JetBrains Mono, đen trắng, khổ nhiệt 58/80mm (PRINT-03). Khi mở:
  * ghi print_jobs 1 lần rồi window.print(). Nút ẩn khi in (.no-print).
  */
-const SIZE: Record<"58" | "80", { w: number; base: number; name: number; total: number; tenant: number; page: string; margin: string; label: string }> = {
-  "58": { w: 240, base: 12, name: 13, total: 18, tenant: 15, page: "58mm auto", margin: "3mm", label: "58mm" },
-  "80": { w: 320, base: 13, name: 14, total: 20, tenant: 17, page: "80mm auto", margin: "3mm", label: "80mm" },
-};
+// Cùng bảng với ảnh hóa đơn cầu in (lib/print/anh-phieu) — hai đường in ra y hệt nhau.
+const SIZE = CO_HOA_DON;
 
 const METHOD_LABEL: Record<string, string> = { cash: "Tiền mặt", transfer: "Chuyển khoản" };
 
@@ -76,10 +75,6 @@ export function ReceiptDoc({
 
       <div className="rc-receipt">
         <div className="rc-center">
-          {receipt.logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={receipt.logoUrl} alt="" className="rc-logo" />
-          )}
           <div className="rc-tenant">{receipt.tenantName}</div>
           <div className="rc-title">{receipt.payment ? "HÓA ĐƠN" : "PHIẾU TẠM TÍNH"}</div>
         </div>
@@ -162,9 +157,8 @@ export function ReceiptDoc({
         .rc-size { height: 34px; padding: 0 12px; }
         .rc-active { background: #000; color: #fff; }
         .rc-btn-primary { background: #fa520f; border-color: #fa520f; color: #fff; }
-        .rc-receipt { width: ${s.w}px; margin: 0 auto; padding: 6px 8px 12px; font-family: var(--font-mono), ui-monospace, monospace; font-size: ${s.base}px; line-height: 1.45; color: #000; }
+        .rc-receipt { width: ${s.w}px; margin: 0 auto; padding: 6px 8px 12px; font-family: var(--font-mono), ui-monospace, monospace; font-size: ${s.base}px; line-height: ${s.lh}; color: #000; }
         .rc-center { text-align: center; }
-        .rc-logo { display: block; width: ${Math.round(s.base * 3)}px; height: ${Math.round(s.base * 3)}px; margin: 0 auto 4px; object-fit: contain; filter: grayscale(1); }
         .rc-tenant { font-weight: 700; font-size: ${s.tenant}px; }
         .rc-title { font-weight: 700; letter-spacing: 1px; margin-top: 2px; }
         .rc-line { border-top: 1px dashed #000; margin: ${Math.round(s.base / 2)}px 0; }
