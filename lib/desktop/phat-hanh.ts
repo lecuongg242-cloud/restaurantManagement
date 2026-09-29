@@ -34,12 +34,19 @@ export function docLatestYml(yml: string): ThongTinApp | null {
   return { phienBan, tenTep, kichThuoc };
 }
 
-/** Bản mới nhất (null = chưa cấu hình nơi phát hành / chưa phát hành / không đọc được). Lưu đệm 5 phút. */
-export async function thongTinApp(): Promise<ThongTinApp | null> {
+/**
+ * Bản mới nhất (null = chưa cấu hình nơi phát hành / chưa phát hành / không đọc được). Màn hiển thị (Admin → Máy in,
+ * hướng dẫn) lưu đệm 5 phút; nút tải truyền `moi: true` — ngay sau khi phát hành bản mới, tệp bản cũ không còn ở release
+ * "latest", đọc bản lưu đệm là trỏ vào tệp đã biến mất (gặp khi phát hành 1.0.1, 29/09/2026).
+ */
+export async function thongTinApp(opts: { moi?: boolean } = {}): Promise<ThongTinApp | null> {
   const goc = goiPhatHanh();
   if (!goc) return null;
   try {
-    const r = await fetch(`${goc}/latest.yml`, { next: { revalidate: 300 }, signal: AbortSignal.timeout(5_000) });
+    const r = await fetch(`${goc}/latest.yml`, {
+      ...(opts.moi ? { cache: "no-store" as const } : { next: { revalidate: 300 } }),
+      signal: AbortSignal.timeout(5_000),
+    });
     if (!r.ok) return null;
     return docLatestYml(await r.text());
   } catch {

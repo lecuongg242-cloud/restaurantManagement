@@ -2,10 +2,14 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { docLatestYml, goiPhatHanh, TEP_HOP_LE } from "@/lib/desktop/phat-hanh";
 import { docNguonCauIn, nguonCauIn } from "@/lib/print/nguon-cau-in";
 import { GET as capNhat } from "@/app/api/desktop/update/[file]/route";
+import { GET as taiMoiNhat } from "@/app/api/desktop/latest/route";
 
 /** DESK-05/10/11 — nguồn cầu in, đọc latest.yml, và chuyển tiếp nguồn cập nhật chỉ tới đúng tệp phát hành. */
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 const LATEST = `version: 1.0.1
 files:
@@ -72,5 +76,20 @@ describe("nguồn cầu in", () => {
     expect(await docNguonCauIn(Promise.resolve({ data: null, error: { message: "column agent does not exist" } }))).toBeNull();
     const m = await docNguonCauIn(Promise.resolve({ data: [{ tenant_id: "t", agent: "app/1.0.0" }], error: null }));
     expect(m?.get("t")).toBe("app/1.0.0");
+  });
+});
+
+describe("GET /api/desktop/latest", () => {
+  it("đọc latest.yml KHÔNG lưu đệm → trỏ đúng tệp bản mới ngay sau khi phát hành", async () => {
+    vi.stubEnv("DESKTOP_RELEASE_BASE", "https://github.com/x/y/releases/latest/download");
+    const goi: RequestInit[] = [];
+    vi.stubGlobal("fetch", async (_u: string, init: RequestInit) => {
+      goi.push(init);
+      return new Response(LATEST, { status: 200 });
+    });
+    const r = await taiMoiNhat();
+    expect(r.status).toBe(302);
+    expect(r.headers.get("location")).toBe("https://github.com/x/y/releases/latest/download/TechMenu-ThuNgan-Setup-1.0.1.exe");
+    expect(goi[0].cache).toBe("no-store");
   });
 });

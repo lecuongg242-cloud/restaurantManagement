@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const goc = goiPhatHanh();
-  const ban = await thongTinApp();
+  const ban = await thongTinApp({ moi: true });
   if (!goc || !ban) {
     return new NextResponse("Chưa có bản phát hành TechMenu Thu ngân — liên hệ TechMenu.", {
       status: 404,
