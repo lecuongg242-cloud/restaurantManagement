@@ -54,9 +54,11 @@ export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: s
     refresh();
   }, [refresh]);
 
-  // Chờ cầu in xử lý: hỏi lại cho tới khi ra printed/failed.
+  // Chờ cầu in xử lý: hỏi lại cho tới khi ra printed/failed. Cả phiếu khách — từ khi phiếu khách cũng đi qua
+  // cầu in (máy quầy), chỉ hỏi theo phiếu bếp thì chip phiếu khách kẹt "Đang in…" dù giấy đã ra (qt-food 30/09/2026).
+  const choCauIn = print.kitchen.status === "pending" || print.customer.status === "pending";
   useEffect(() => {
-    if (print.kitchen.status !== "pending") return;
+    if (!choCauIn) return;
     const id = setInterval(() => {
       if (polls.current >= MAX_POLLS) {
         clearInterval(id);
@@ -66,7 +68,7 @@ export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: s
       refresh();
     }, POLL_MS);
     return () => clearInterval(id);
-  }, [print.kitchen.status, refresh]);
+  }, [choCauIn, refresh]);
 
   /**
    * Khóa nút trong lúc đang gửi. Trước đây nút không bị vô hiệu hóa, nên bấm đúp là hai lượt in —
@@ -94,6 +96,7 @@ export function TicketPrintButtons({ slug, orderId }: { slug: string; orderId: s
   const printCustomer = () => {
     if (dangGui) return;
     khoaNut("customer");
+    polls.current = 0;
     printer.printCustomerTicket({ slug, orderId });
     setTimeout(refresh, 1200); // route in ghi log khi mở → đọc lại để cập nhật số lần
   };

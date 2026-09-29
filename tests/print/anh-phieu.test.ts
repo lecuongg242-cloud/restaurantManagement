@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { dungAnhPhieu, uocLuongChieuCao, RONG, type PhieuAnh } from "@/lib/print/anh-phieu";
+import { dungAnhPhieu, uocLuongChieuCao, RONG, CO_PHIEU_KHACH, type PhieuAnh } from "@/lib/print/anh-phieu";
+import { giaiMaPng, thanhAnhDen } from "../../scripts/print-bridge.mjs";
 
 /**
  * PRINT-14 — hóa đơn có dấu dựng thành ảnh. Test không đọc được chữ trong ảnh, nên: kiểm kích thước +
@@ -78,5 +79,23 @@ describe("dungAnhPhieu", () => {
     const { buf, rong } = await png(phieuKhach, "80");
     expect(rong).toBe(576);
     fs.writeFileSync(path.join("test-results", "mau-phieu-khach-80.png"), buf);
+  }, 30_000);
+
+  it("phiếu khách: cỡ chữ như bản in trình duyệt trước đây (CustomerTicketDoc, px CSS × 203/96 chấm)", () => {
+    // qt-food 30/09/2026: in qua cầu in ra chữ nhỏ hơn in trình duyệt. Bản trình duyệt: 80mm base 15 / tên món 17 /
+    // tên quán 19 / số đơn 29 px; 58mm 14 / 15 / 16 / 26 px. 1 px CSS khi in = 1/96 inch; máy nhiệt 203 dpi.
+    const cham = (px: number) => Math.round((px * 203) / 96);
+    expect(CO_PHIEU_KHACH["80"]).toEqual({ chu: cham(15), ten: cham(17), quan: cham(19), so: cham(29) });
+    expect(CO_PHIEU_KHACH["58"]).toEqual({ chu: cham(14), ten: cham(15), quan: cham(16), so: cham(26) });
+  });
+
+  it.each(["80", "58"] as const)("phiếu khách dài %s mm: không bị cắt đáy (ước lượng chiều cao đủ với chữ to)", async (kho) => {
+    const mon = { name: "Phở bò tái nạm gầu gân sách đặc biệt thêm bánh", qty: 2, modifiers: ["Lớn", "Thêm trứng"], note: "ít hành, không mì chính", unitPrice: 65000 };
+    const dai: PhieuAnh = { ...phieuKhach, phieu: { ...(phieuKhach as { phieu: object }).phieu, items: Array(12).fill(mon) } } as PhieuAnh;
+    const { buf, cao } = await png(dai, kho);
+    // Chữ cuối ("Vui lòng giữ phiếu…") phải nằm trọn trong ảnh: cầu in cắt trắng đáy, còn lại phải thấp hơn ảnh gốc.
+    const den = thanhAnhDen(giaiMaPng(buf));
+    expect(den.cao).toBeLessThan(cao - 8);
+    fs.writeFileSync(path.join("test-results", `mau-phieu-khach-dai-${kho}.png`), buf);
   }, 30_000);
 });

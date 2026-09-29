@@ -48,6 +48,16 @@ export function kichThuocQr(payload: string, kho: Kho): { m: ReturnType<typeof m
 }
 
 const COT = { "80": { chu: 24, lon: 34, nho: 20 }, "58": { chu: 18, lon: 26, nho: 16 } } as const;
+
+/**
+ * Cỡ chữ PHIẾU KHÁCH (chấm) = cỡ của bản in trình duyệt `CustomerTicketDoc` × 203/96 (1 px CSS khi in = 1/96 inch,
+ * máy nhiệt 203 dpi). Phiếu khách chữ to hơn hóa đơn để khách đọc số đơn; in qua cầu in mà dùng cỡ hóa đơn thì ra
+ * nhỏ hơn hẳn bản trình duyệt quán đã quen (qt-food 30/09/2026).
+ */
+export const CO_PHIEU_KHACH = {
+  "80": { chu: 32, ten: 36, quan: 40, so: 61 },
+  "58": { chu: 30, ten: 32, quan: 34, so: 55 },
+} as const;
 const METHOD_LABEL: Record<string, string> = { cash: "Tiền mặt", transfer: "Chuyển khoản" };
 
 let font: { name: string; data: Buffer; weight: 400 | 700 }[] | null = null;
@@ -83,10 +93,17 @@ export function uocLuongChieuCao(p: PhieuAnh, kho: Kho): number {
       return Math.ceil(n * dong + c.lon * 3 + kichThuocQr(h.transferQr.payload, kho).px);
     }
   } else {
+    // Phiếu khách chữ to hơn: ước theo cỡ TÊN MÓN (lớn nhất trong thân) — dư thì cầu in cắt.
+    const k = CO_PHIEU_KHACH[kho];
+    const dongK = k.ten * 1.5;
+    const kyTu = Math.floor(RONG[kho] / (k.ten * 0.55));
+    const soDong = (s: string | null | undefined, rong = kyTu) => (s ? Math.max(1, Math.ceil(s.length / rong)) : 0);
+    // Tên món chỉ còn phần giữa cột SL (44 chấm) và cột tiền (~9 ký tự đậm) — xuống hàng nhiều hơn dòng thường.
+    const kyTuTen = Math.max(4, Math.floor((RONG[kho] - 2 * LE_NGANG - 44 - k.ten * 0.62 * 9) / (k.ten * 0.62)));
     const t = p.phieu;
-    n += 2 + soDongChu(t.contactName);
-    for (const l of t.items) n += soDongChu(`${l.qty} ${l.name}`) + soDongChu(l.modifiers.join(", ")) + soDongChu(l.note);
-    n += 5;
+    let m = 8 + 2 + soDong(t.contactName) + 5;
+    for (const l of t.items) m += soDong(l.name, kyTuTen) + soDong(l.modifiers.join(", ")) + soDong(l.note);
+    return Math.ceil(m * dongK + (k.quan + k.so) * 1.5);
   }
   return Math.ceil(n * dong + c.lon * 3);
 }
@@ -125,10 +142,27 @@ function Hang({ trai, phai, dam }: { trai: string; phai?: string; dam?: boolean 
   );
 }
 
-function Mon({ qty, ten, tien, phu, ghiChu, nho }: { qty: number; ten: string; tien: string; phu: string[]; ghiChu: string | null; nho: number }) {
+function Mon({
+  qty,
+  ten,
+  tien,
+  phu,
+  ghiChu,
+  nho,
+  coTen,
+}: {
+  qty: number;
+  ten: string;
+  tien: string;
+  phu: string[];
+  ghiChu: string | null;
+  nho: number;
+  /** Dòng tên món to + đậm (phiếu khách, như `.ct-item-name`); bỏ trống = cỡ thường (hóa đơn). */
+  coTen?: number;
+}) {
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", marginBottom: 6 }}>
-      <div style={{ display: "flex", width: "100%" }}>
+      <div style={{ display: "flex", width: "100%", ...(coTen ? { fontSize: coTen, fontWeight: 700 } : {}) }}>
         <span style={{ width: 44, flexShrink: 0 }}>{qty}×</span>
         <span style={{ flexGrow: 1, flexShrink: 1 }}>{ten}</span>
         <span style={{ flexShrink: 0, paddingLeft: 8 }}>{tien}</span>
@@ -209,13 +243,13 @@ function QrChuyenKhoan({ qr, kho }: { qr: TransferQr; kho: Kho }) {
 }
 
 function PhieuKhach({ t, gio, kho }: { t: CustomerTicketView; gio: string; kho: Kho }) {
-  const c = COT[kho];
+  const k = CO_PHIEU_KHACH[kho];
   return (
     <Cot>
-      <Giua co={c.lon} dam>{t.tenantName}</Giua>
+      <Giua co={k.quan} dam>{t.tenantName}</Giua>
       <Giua dam>PHIẾU KHÁCH</Giua>
       {t.kitchenNo != null && (
-        <Giua co={Math.round(c.lon * 1.4)} dam>{`ĐƠN #${t.kitchenNo}`}</Giua>
+        <Giua co={k.so} dam>{`ĐƠN #${t.kitchenNo}`}</Giua>
       )}
       <div style={DUONG_KE} />
       <Hang trai={t.place} phai={`#${t.ticketNo}`} dam />
@@ -223,10 +257,10 @@ function PhieuKhach({ t, gio, kho }: { t: CustomerTicketView; gio: string; kho: 
       <Hang trai={gio} />
       <div style={DUONG_KE} />
       {t.items.map((l, i) => (
-        <Mon key={i} qty={l.qty} ten={l.name} tien={formatVnd(l.unitPrice * l.qty)} phu={l.modifiers} ghiChu={l.note} nho={c.nho} />
+        <Mon key={i} qty={l.qty} ten={l.name} tien={formatVnd(l.unitPrice * l.qty)} phu={l.modifiers} ghiChu={l.note} nho={k.chu} coTen={k.ten} />
       ))}
       <div style={DUONG_KE} />
-      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: c.lon, fontWeight: 700 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: k.ten, fontWeight: 700 }}>
         <span>TỔNG</span>
         <span>{formatVnd(t.total)}</span>
       </div>
@@ -250,7 +284,7 @@ export function dungAnhPhieu(p: PhieuAnh, kho: Kho): ImageResponse {
           background: "#fff",
           color: "#000",
           fontFamily: "BVP",
-          fontSize: COT[kho].chu,
+          fontSize: p.loai === "receipt" ? COT[kho].chu : CO_PHIEU_KHACH[kho].chu,
           lineHeight: 1.35,
           padding: `8px ${LE_NGANG}px`,
         }}
