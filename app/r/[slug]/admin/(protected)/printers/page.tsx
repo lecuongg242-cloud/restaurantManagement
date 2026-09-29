@@ -11,6 +11,8 @@ import { CAU_LOI } from "@/lib/print/ma-chu-quan";
 import { trangThaiMayIn, type NhipTim } from "@/lib/print/cau-in";
 import { demPhieuHomNay } from "@/lib/print/cau-in-db";
 import { resolveRange } from "@/lib/billing/report-range";
+import { docNguonCauIn, nguonCauIn } from "@/lib/print/nguon-cau-in";
+import { thongTinApp } from "@/lib/desktop/phat-hanh";
 import { cachDay, gioNgayNamVn, gioNgayVn, gioVn } from "@/lib/time/vn";
 
 /**
@@ -85,7 +87,7 @@ export default async function PrintersPage({
 
   const supabase = await createClient();
   const tenantId = session.tenant.id;
-  const [{ data: nhipRow }, dem, boCai] = await Promise.all([
+  const [{ data: nhipRow }, dem, boCai, nguon, app] = await Promise.all([
     supabase
       .from("printer_heartbeats")
       .select("seen_at, printer_ok, printer_host, printer_checked_at, counter_ok, counter_target, counter_checked_at, last_gap_from, last_gap_seconds")
@@ -93,6 +95,8 @@ export default async function PrintersPage({
       .maybeSingle(),
     demPhieuHomNay(supabase, tenantId, resolveRange({ preset: "today" }).fromUtc),
     thongTinBoCai(createAdminClient()),
+    docNguonCauIn(supabase.from("printer_heartbeats").select("tenant_id, agent").eq("tenant_id", tenantId)),
+    thongTinApp(),
   ]);
 
   const now = Date.now();
@@ -142,6 +146,8 @@ export default async function PrintersPage({
             {nhip?.seen_at && (
               <Dong nhan="Báo sống lần cuối" giaTri={`${gioVn(nhip.seen_at)} · ${cachDay(nhip.seen_at, now)}`} />
             )}
+            {/* P21 DESK-05: app Windows hay cầu in cũ — biết quán đã chuyển sang app chưa. */}
+            {nhip?.seen_at && nguon && <Dong nhan="Nguồn" giaTri={nguonCauIn(nguon.get(tenantId))} />}
             {/* P17 17-02: lần mất kết nối gần nhất (vd wifi quán mất) và bao lâu mới lên lại. */}
             {nhip?.last_gap_from && nhip.last_gap_seconds != null && (
               <Dong
@@ -219,9 +225,42 @@ export default async function PrintersPage({
         </div>
       </Card>
 
+      {/* P21 DESK-11 — như KiotViet "Tải KiotViet Thu ngân": một tệp cài, đăng nhập bằng tài khoản chủ quán ngay trong app. */}
+      {app && (
+        <Card className="mt-lg">
+          <CardTitle>Cài TechMenu Thu ngân trên máy quầy</CardTitle>
+          <ol className="mt-md list-decimal space-y-xs pl-lg text-sm text-slate">
+            <li>Mở trang này <span className="font-medium text-ink">trên chính máy quầy</span> → bấm tải.</li>
+            <li>
+              Mở tệp vừa tải. Windows báo &quot;Windows protected your PC&quot; → bấm{" "}
+              <span className="font-medium text-ink">More info</span> →{" "}
+              <span className="font-medium text-ink">Run anyway</span>.
+            </li>
+            <li>App tự mở → đăng nhập email + mật khẩu chủ quán → chọn &quot;Có — máy quầy&quot; → cài máy in → In thử.</li>
+          </ol>
+          <p className="mt-sm text-sm text-slate">
+            Đăng nhập trên máy mới thì máy cũ đang in cho quán <span className="font-medium text-ink">ngừng in</span>. Máy đặt
+            ở bếp chọn &quot;Không — chỉ xem&quot;. Chi tiết:{" "}
+            <a href="/huong-dan-cai-dat#cai-app" className="font-medium text-primary underline">
+              hướng dẫn cài đặt
+            </a>
+            .
+          </p>
+          <div className="mt-md flex flex-wrap items-center gap-md">
+            <a href="/api/desktop/latest" className={buttonVariants({ variant: "primary" })}>
+              Tải TechMenu Thu ngân{app.kichThuoc > 0 ? ` (${Math.max(1, Math.round(app.kichThuoc / 1048576))} MB)` : ""}
+            </a>
+            <span className="text-sm text-steel">Windows 10/11 · bản {app.phienBan}</span>
+          </div>
+        </Card>
+      )}
+
       {/* PRINT-17 — tải bộ cài ngay trên laptop quầy, không cần ai gửi qua Zalo/USB. */}
       <Card className="mt-lg">
-        <CardTitle>Cài cầu in trên laptop quầy</CardTitle>
+        <CardTitle>{app ? "Cách cũ — cầu in cài bằng CAI-DAT.bat" : "Cài cầu in trên laptop quầy"}</CardTitle>
+        {app && (
+          <p className="mt-xs text-sm text-steel">Chỉ dùng cho máy đã cài theo cách này trước đây. Máy mới cài TechMenu Thu ngân ở trên.</p>
+        )}
         <ol className="mt-md list-decimal space-y-xs pl-lg text-sm text-slate">
           <li>Mở trang này <span className="font-medium text-ink">trên chính laptop quầy</span> → bấm tải bộ cài (có thể mất tới 1 phút mới bắt đầu tải — đừng bấm lại).</li>
           <li>Chuột phải file vừa tải → <span className="font-medium text-ink">Extract All</span> (Giải nén tất cả) → Extract.</li>

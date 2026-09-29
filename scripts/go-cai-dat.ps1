@@ -8,7 +8,10 @@
 # CHI dung ky tu ASCII trong file nay: PowerShell 5.1 doc .ps1 UTF-8 khong BOM theo bang ma ANSI.
 
 param(
-  [string]$InstallDir = "C:\cau-in"
+  [string]$InstallDir = "C:\cau-in",
+  # App "TechMenu Thu ngan" goi khi chuyen tu cau in cu (DESK-08): da hoi nguoi dung trong app, chay voi quyen
+  # admin san -> khong hoi lai, khong cho Enter.
+  [switch]$KhongHoi
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,8 +38,10 @@ Write-Host ""
 Write-Host "==========================================" -ForegroundColor White
 Write-Host " GO CAU IN KHOI MAY NAY" -ForegroundColor White
 Write-Host "==========================================" -ForegroundColor White
-$chac = Read-Host "      Go cau in khoi may nay? Bep se KHONG tu nhan phieu nua. (go 'co' de dong y)"
-if ($chac -ne "co") { Warn "Da huy - khong go gi."; Read-Host "Nhan Enter de dong"; exit 0 }
+if (-not $KhongHoi) {
+  $chac = Read-Host "      Go cau in khoi may nay? Bep se KHONG tu nhan phieu nua. (go 'co' de dong y)"
+  if ($chac -ne "co") { Warn "Da huy - khong go gi."; Read-Host "Nhan Enter de dong"; exit 0 }
+}
 
 # Qua cmd /c: schtasks ghi loi ra stderr khi tac vu khong ton tai -> PowerShell 5.1 + "Stop" se dung script.
 cmd /c "schtasks /end /tn CauInBep >nul 2>&1"
@@ -68,4 +73,4 @@ foreach ($dir in @($InstallDir) + @(Get-ChildItem -Path "C:\" -Directory -Filter
 Write-Host ""
 Write-Host " XONG. Nho thu hoi tai khoan cau in o /super neu may nay bi mat hoac khong dung nua." -ForegroundColor Green
 Write-Host ""
-Read-Host "Nhan Enter de dong"
+if (-not $KhongHoi) { Read-Host "Nhan Enter de dong" }

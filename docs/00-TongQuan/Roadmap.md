@@ -272,10 +272,12 @@ Chi tiết: `30-KeHoach/P18/00-TongQuan.md` · quyết định `QD-025`. Yêu c�
 - P19 Voucher và ưu đãi — khung phạm vi `30-KeHoach/P19/00-TongQuan.md`.
 - P20 Mua hàng, nhà cung cấp, công nợ, sổ thu chi — khung phạm vi `30-KeHoach/P20/00-TongQuan.md`.
 
-## P21 — Ứng dụng Windows cho máy thu ngân (CHỜ QUYẾT)
+## P21 — Ứng dụng Windows "TechMenu Thu ngân" (CODE XONG 21-01→21-03, chưa deploy/phát hành)
 
-Ghi phương án 29/09/2026 (chủ dự án chưa chọn): bọc web app bằng Electron + gộp cầu in (đề xuất), Tauri, hoặc giữ PWA;
-bán khi mất Internet trong LAN là dự án riêng. Chi tiết + đối thủ + câu hỏi cần chốt: `30-KeHoach/P21/00-TongQuan.md`.
+Chốt 29/09/2026 (QD-026): Electron bọc POS + gộp cầu in; kích hoạt bằng email + mật khẩu chủ quán; Thu ngân + Màn bếp; cài không
+cần admin; ký số sau khi app hoàn thiện; bán khi mất Internet trong LAN là dự án riêng. Yêu cầu DESK-01..12; plan 21-01 (vỏ app +
+kích hoạt) · 21-02 (cầu in trong app) · 21-03 (bộ cài + tự cập nhật) · 21-04 (chuyển qt-food). Chi tiết: `30-KeHoach/P21/`.
+Còn lại (29/09/2026): áp 0075, deploy, chọn nơi đặt bản phát hành, thử máy thật, 21-04 — `P21/21-SUMMARY.md`.
 
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |

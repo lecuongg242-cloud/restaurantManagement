@@ -33,6 +33,8 @@ export const RULES = {
   bridgeActivate: { name: "bridge-activate", windowS: 600, max: 10 },
   /** Chủ quán tự tạo mã kích hoạt ở Admin → Máy in (PRINT-17) — khóa: quán. Lắp một máy cần 1–2 mã. */
   bridgeCode: { name: "bridge-code", windowS: 600, max: 5 },
+  /** POST api/desktop/activate (DESK-01) — khóa: IP, và riêng theo email (chặn dò mật khẩu một chủ quán). */
+  desktopActivate: { name: "desktop-activate", windowS: 600, max: 10 },
 } as const satisfies Record<string, RateRule>;
 
 export function hashKey(rule: RateRule, parts: string[], secret: string): string {

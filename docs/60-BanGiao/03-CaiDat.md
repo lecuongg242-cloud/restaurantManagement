@@ -48,6 +48,20 @@ email + PIN của họ. Nhân viên nghỉ việc → **Tắt** (giữ lịch s�
 
 ## 5. In ấn
 
+### 5.0. Cách mới: app "TechMenu Thu ngân" (P21 — dùng khi Admin → Máy in đã có nút tải app)
+
+Thay cho cả 5a và 5b: một app trên máy quầy gồm POS, Màn bếp và cầu in. Cần Windows 10/11 64-bit.
+
+1. Trên **chính máy quầy**: chủ quán mở admin → **Máy in** → **Tải TechMenu Thu ngân**. Trình duyệt hỏi → **Giữ lại** (Keep).
+2. Mở tệp. App **chưa ký số** (QD-026 D3) nên Windows báo *"Windows protected your PC"* → **More info** → **Run anyway**.
+   Cài trong vài giây, không hỏi quyền admin, xong tự mở.
+3. Màn **Đăng nhập**: email + mật khẩu **chủ quán** → chọn **Có — máy quầy** (máy khác đang in cho quán sẽ ngừng in).
+   Chủ nhiều chi nhánh: chọn chi nhánh. Máy đặt ở bếp: chọn **Không — chỉ xem** (không cướp cầu in của máy quầy).
+4. Màn **Cài đặt máy in**: máy in bếp (LAN — nút **Dò máy in**), máy in quầy (USB hoặc LAN), khổ giấy → **In thử** từng máy
+   → **Lưu**. Máy đang chạy cầu in cũ: app hỏi gỡ → đồng ý → bấm **Yes** ở hộp thoại Windows; IP / máy in cũ được điền sẵn.
+5. Admin → Máy in: "Nguồn — TechMenu Thu ngân x.y.z" (cần migration 0075), "Đang kết nối". Bấm ✕ thì app xuống khay, vẫn in.
+6. Sửa máy in sau này: ☰ Menu → **Cài đặt máy in**. Log cầu in: `%APPDATA%\TechMenu Thu ngân\logs\`.
+
 ### 5a. Quán chọn "Trình duyệt"
 
 1. Cài driver máy in quầy của hãng; đặt làm **máy in mặc định** của Windows; khổ giấy 80 mm.

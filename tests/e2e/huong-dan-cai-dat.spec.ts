@@ -39,14 +39,15 @@ test("trang chủ có lối vào; mở không cần đăng nhập, đủ nội d
 
   // Bên mình hỗ trợ gì: cài đặt, nhập thực đơn, thiết lập, hướng dẫn, 24/7, tận nơi báo phí.
   const hoTro = page.locator("[data-ho-tro]");
-  for (const y of ["Cài máy in và POSMenu", "Nhập thực đơn", "Thiết lập quán", "Hướng dẫn chủ quán và nhân viên", "24/7", "báo phí trước"]) {
+  for (const y of ["Cài máy in và TechMenu", "Nhập thực đơn", "Thiết lập quán", "Hướng dẫn chủ quán và nhân viên", "24/7", "báo phí trước"]) {
     await expect(hoTro).toContainText(y);
   }
   await expect(hoTro).toContainText("miễn phí");
 
-  // Chủ dự án chốt 29/09/2026: không mục "không cần mua", không mục mất mạng.
+  // Chủ dự án chốt 29/09/2026: không mục "không cần mua", không mục mất mạng. Tên chính thức TechMenu (QD-026 D4).
   const chu = await page.locator("main").innerText();
   expect(chu).not.toMatch(/không cần mua|mất mạng/i);
+  expect(chu).not.toContain("POSMenu");
 
   await expect(page.locator("form#lien-he")).toBeVisible();
   await page.screenshot({ path: "docs/30-KeHoach/MKT-04/anh/1-may-tinh.png", fullPage: true });
@@ -59,4 +60,15 @@ test("điện thoại 360px: không tràn ngang", async ({ page }) => {
   const tran = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(tran).toBeLessThanOrEqual(0);
   await page.screenshot({ path: "docs/30-KeHoach/MKT-04/anh/2-dien-thoai-360.png", fullPage: true });
+});
+
+// P21 DESK-11: mục cài app máy quầy, có bước qua SmartScreen (app chưa ký số — QD-026 D3). Mục chỉ hiện khi máy chủ đã cấu
+// hình nơi phát hành (DESKTOP_RELEASE_BASE) và có bản phát hành — chạy test này với dev server có biến đó.
+test("có bản phát hành → mục Cài TechMenu Thu ngân đủ các bước", async ({ page }) => {
+  test.skip(!process.env.DESKTOP_RELEASE_BASE, "dev server chưa cấu hình DESKTOP_RELEASE_BASE");
+  await page.goto(TRANG);
+  const caiApp = page.locator("[data-cai-app]");
+  for (const y of ["TechMenu Thu ngân", "Windows 10 hoặc 11", "More info", "Run anyway", "Có — máy quầy", "Không — chỉ xem", "In thử"]) {
+    await expect(caiApp).toContainText(y);
+  }
 });

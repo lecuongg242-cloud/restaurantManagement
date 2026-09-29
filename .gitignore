@@ -1,5 +1,7 @@
 _tmp/
 node_modules/
+# App máy quầy TechMenu Thu ngân (P21): bộ cài build ra — phát hành bằng `npm run release` trong desktop/, không commit.
+/desktop/dist/
 # Bộ triển khai cầu in cho từng quán (thư mục cau-in-<slug> + file .zip do scripts/print-pack.ps1
 # sinh ra): chứa SUPABASE_SERVICE_ROLE_KEY. Mang đi lắp máy, KHÔNG commit.
 /cau-in-*

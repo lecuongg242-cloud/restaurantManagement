@@ -121,9 +121,11 @@ beforeAll(async () => {
 
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cau-in-sim-"));
   fs.copyFileSync("scripts/print-bridge.mjs", path.join(tmp, "print-bridge.mjs"));
-  bridge = spawn(process.execPath, [path.join(tmp, "print-bridge.mjs")], {
+  // P21 DESK-05: BRIDGE_NODE=<electron.exe> → chạy cầu in bằng Node của Electron như trong app "TechMenu Thu ngân".
+  bridge = spawn(process.env.BRIDGE_NODE || process.execPath, [path.join(tmp, "print-bridge.mjs")], {
     cwd: tmp,
     env: {
+      ...(process.env.BRIDGE_NODE ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
       NODE_ENV: "production",
       PATH: process.env.PATH ?? "",
       SystemRoot: process.env.SystemRoot ?? "",

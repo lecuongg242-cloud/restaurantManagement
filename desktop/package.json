@@ -1,0 +1,81 @@
+{
+  "name": "techmenu-thu-ngan",
+  "productName": "TechMenu Thu ngân",
+  "version": "1.0.0",
+  "description": "TechMenu Thu ngân — ứng dụng máy quầy: POS, màn bếp và cầu in trong một app (P21, QD-026).",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "author": "TechMenu",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --publish never",
+    "release": "node scripts/phat-hanh.mjs"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "build": {
+    "appId": "vn.techmenu.thungan",
+    "productName": "TechMenu Thu ngân",
+    "executableName": "TechMenuThuNgan",
+    "artifactName": "TechMenu-ThuNgan-Setup-${version}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.mjs",
+      "preload.cjs",
+      "lib/**",
+      "trang/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../scripts/print-bridge.mjs",
+        "to": "cau-in/print-bridge.mjs"
+      },
+      {
+        "from": "../scripts/print-raw.ps1",
+        "to": "cau-in/print-raw.ps1"
+      },
+      {
+        "from": "../scripts/print-scan.mjs",
+        "to": "cau-in/print-scan.mjs"
+      },
+      {
+        "from": "../scripts/go-cai-dat.ps1",
+        "to": "cau-in/go-cai-dat.ps1"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "TechMenu Thu ngân",
+      "include": "build/installer.nsh"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://restaurant-management-zeta.vercel.app/api/desktop/update/"
+    }
+  }
+}

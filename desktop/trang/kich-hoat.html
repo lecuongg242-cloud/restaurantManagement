@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>Đăng nhập — TechMenu Thu ngân</title>
+  <link rel="stylesheet" href="chung.css">
+</head>
+<body>
+<main>
+  <div class="logo"><span class="o" aria-hidden="true">T</span><b>TechMenu Thu ngân</b></div>
+
+  <form id="form" class="the" novalidate>
+    <h1>Đăng nhập</h1>
+    <p class="phu">Dùng tài khoản <b>chủ quán</b>. Chỉ cần làm một lần trên máy này.</p>
+
+    <label class="o-nhap" for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" required autofocus>
+
+    <label class="o-nhap" for="mat-khau">Mật khẩu</label>
+    <input id="mat-khau" type="password" autocomplete="current-password" required>
+
+    <fieldset class="nhom">
+      <legend>Máy này có nối máy in không?</legend>
+      <div class="lua-chon">
+        <label>
+          <input type="radio" name="co-may-in" value="co" checked>
+          <span><b>Có — máy quầy</b>
+            <small>Máy này in phiếu bếp và hóa đơn. Nếu máy khác đang in cho quán, máy đó sẽ ngừng in.</small></span>
+        </label>
+        <label>
+          <input type="radio" name="co-may-in" value="khong">
+          <span><b>Không — chỉ xem</b>
+            <small>Ví dụ màn hình đặt ở bếp. Máy này không in, không ảnh hưởng máy quầy.</small></span>
+        </label>
+      </div>
+    </fieldset>
+
+    <div id="loi" class="thong-bao loi an" role="alert"></div>
+    <div class="nut-cuoi"><button id="nut" class="chinh" type="submit">Đăng nhập</button></div>
+  </form>
+
+  <section id="chon" class="the an" aria-labelledby="chon-tieu-de">
+    <h2 id="chon-tieu-de">Chọn chi nhánh cho máy này</h2>
+    <div id="ds" class="ds-chi-nhanh"></div>
+    <div id="loi-chon" class="thong-bao loi an" role="alert"></div>
+    <div class="nut-cuoi"><button id="quay-lai" type="button">Quay lại</button></div>
+  </section>
+</main>
+<script src="kich-hoat.js"></script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <title>Cài đặt máy in — TechMenu Thu ngân</title>
+  <link rel="stylesheet" href="chung.css">
+</head>
+<body>
+<main>
+  <div class="logo"><span class="o" aria-hidden="true">T</span><b>TechMenu Thu ngân</b></div>
+  <h1>Cài đặt máy in</h1>
+  <p id="quan" class="phu"></p>
+
+  <section class="the" aria-labelledby="t-bep">
+    <h2 id="t-bep">Máy in bếp</h2>
+    <p class="phu">Máy in đặt ở bếp, cắm dây mạng (LAN) vào cùng router với máy này.</p>
+    <div class="lua-chon">
+      <label><input type="radio" name="bep" value="lan"><span><b>Máy in mạng (LAN)</b></span></label>
+      <label><input type="radio" name="bep" value="khong"><span><b>Không có máy in bếp riêng</b></span></label>
+    </div>
+    <div id="bep-lan">
+      <div class="hang">
+        <div class="co-gian"><label class="o-nhap" for="bep-ip">Địa chỉ IP</label><input id="bep-ip" type="text" inputmode="decimal" placeholder="192.168.1.100" list="ds-ip"></div>
+        <div class="hep"><label class="o-nhap" for="bep-cong">Cổng</label><input id="bep-cong" type="number" value="9100" min="1" max="65535"></div>
+        <button type="button" data-do="bep-ip">Dò máy in</button>
+      </div>
+      <div class="nut-cuoi"><button type="button" data-in-thu="bep">In thử</button></div>
+    </div>
+    <div id="kq-bep" class="thong-bao an" role="status"></div>
+  </section>
+
+  <section class="the" aria-labelledby="t-quay">
+    <h2 id="t-quay">Máy in quầy (hóa đơn)</h2>
+    <div class="lua-chon">
+      <label><input type="radio" name="quay" value="usb"><span><b>Cắm USB vào máy này</b></span></label>
+      <label><input type="radio" name="quay" value="lan"><span><b>Máy in mạng (LAN)</b></span></label>
+      <label><input type="radio" name="quay" value="khong"><span><b>Không có</b></span></label>
+    </div>
+    <div id="quay-usb">
+      <label class="o-nhap" for="quay-ten">Máy in</label>
+      <select id="quay-ten"></select>
+    </div>
+    <div id="quay-lan">
+      <div class="hang">
+        <div class="co-gian"><label class="o-nhap" for="quay-ip">Địa chỉ IP</label><input id="quay-ip" type="text" inputmode="decimal" placeholder="192.168.1.101" list="ds-ip"></div>
+        <div class="hep"><label class="o-nhap" for="quay-cong">Cổng</label><input id="quay-cong" type="number" value="9100" min="1" max="65535"></div>
+        <button type="button" data-do="quay-ip">Dò máy in</button>
+      </div>
+    </div>
+    <div id="quay-thu" class="nut-cuoi"><button type="button" data-in-thu="quay">In thử</button></div>
+    <div id="kq-quay" class="thong-bao an" role="status"></div>
+  </section>
+
+  <section class="the" aria-labelledby="t-kho">
+    <h2 id="t-kho">Khổ giấy</h2>
+    <div class="lua-chon">
+      <label><input type="radio" name="kho" value="80"><span><b>80 mm</b><small>Phổ biến nhất</small></span></label>
+      <label><input type="radio" name="kho" value="58"><span><b>58 mm</b></span></label>
+    </div>
+  </section>
+
+  <datalist id="ds-ip"></datalist>
+  <div id="kq-luu" class="thong-bao an" role="alert"></div>
+  <div class="nut-cuoi">
+    <button id="bo-qua" type="button">Quay lại</button>
+    <button id="luu" class="chinh" type="button">Lưu</button>
+  </div>
+</main>
+<script src="cai-dat-may-in.js"></script>
+</body>
+</html>

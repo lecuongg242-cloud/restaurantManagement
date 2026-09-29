@@ -4,9 +4,10 @@ import Link from "next/link";
 import { BadgeCheck, Headset, Monitor, Printer, Settings2, UtensilsCrossed, Users } from "lucide-react";
 import { LeadForm } from "../LeadForm";
 import { platformConfig } from "@/lib/platform/config";
+import { thongTinApp } from "@/lib/desktop/phat-hanh";
 
 export const metadata: Metadata = {
-  title: "Hướng dẫn cài đặt POSMenu — quán cần chuẩn bị gì, POSMenu hỗ trợ gì",
+  title: "Hướng dẫn cài đặt TechMenu — quán cần chuẩn bị gì, TechMenu hỗ trợ gì",
   description:
     "Thiết bị quán cần chuẩn bị: máy tính ở quầy (laptop hoặc máy tính để bàn), máy in hóa đơn Sapo SPR02 hoặc tương đương, wifi. Cài đặt, nhập thực đơn, hướng dẫn nhân viên miễn phí, hỗ trợ 24/7.",
 };
@@ -20,14 +21,14 @@ export const revalidate = 600;
  *
  * Làm theo đối thủ (tra 29/09/2026): danh sách đánh số, mỗi thiết bị một ảnh + một câu công dụng (iPOS "Sản phẩm thiết
  * bị nhà hàng"); ghi đúng mã máy (POS365 "Máy in hóa đơn Xprinter Q806K"); cấu hình máy tính Tối thiểu / Khuyến nghị
- * (CUKCUK "Cài đặt trên máy tính"). Mục "POSMenu hỗ trợ gì" theo POS365 ("giá gói đã bao gồm hỗ trợ thiết lập ban đầu,
+ * (CUKCUK "Cài đặt trên máy tính"). Mục "TechMenu hỗ trợ gì" theo POS365 ("giá gói đã bao gồm hỗ trợ thiết lập ban đầu,
  * chuyển giao thao tác cơ bản… hỗ trợ kỹ thuật 24/7"; tận nơi báo giá riêng).
  * Chủ dự án chốt: không mục "không cần mua", không mục mất mạng, không sơ đồ nối; mỗi thiết bị ghi chi phí dự kiến
  * (29/09/2026, đổi ý so với "không ghi giá" lúc đầu); hỗ trợ từ xa miễn phí, tận nơi báo phí, 24/7. Nội dung khớp `docs/60-BanGiao/02-ThietBiChuan.md`. Ảnh kho miễn phí — nguồn ở
  * `public/marketing/thiet-bi/NGUON-ANH.md`.
  */
 export default async function HuongDanCaiDat() {
-  const { supportPhone } = await platformConfig();
+  const [{ supportPhone }, app] = await Promise.all([platformConfig(), thongTinApp()]);
   return (
     <main className="min-h-screen bg-canvas">
       <header className="mx-auto max-w-4xl px-lg pt-xl">
@@ -40,7 +41,7 @@ export default async function HuongDanCaiDat() {
       <section className="mx-auto max-w-4xl px-lg pb-xl pt-lg">
         <p className="text-xs font-semibold uppercase tracking-widest text-primary">Trước khi bắt đầu</p>
         <h1 className="mt-md font-display text-4xl leading-tight text-ink sm:text-5xl">Quán cần chuẩn bị gì?</h1>
-        <p className="mt-lg text-lg leading-relaxed text-slate">Để dùng POSMenu, quán cần có đủ ba thứ:</p>
+        <p className="mt-lg text-lg leading-relaxed text-slate">Để dùng TechMenu, quán cần có đủ ba thứ:</p>
         <ol className="mt-md flex flex-col gap-sm text-lg text-ink" data-bat-buoc>
           <DongBatBuoc so={1}>
             <strong>Một máy tính ở quầy</strong> — máy tính xách tay (laptop) hoặc máy tính để bàn
@@ -54,7 +55,7 @@ export default async function HuongDanCaiDat() {
         </ol>
         <p className="mt-lg text-lg leading-relaxed text-slate">
           Nhân viên gọi món, tính tiền bằng <strong className="text-ink">điện thoại của mình</strong> — không phải mua thêm.
-          Cài đặt và nhập thực đơn <a href="#ho-tro" className="font-medium text-primary underline-offset-4 hover:underline">POSMenu làm cùng anh/chị</a>.
+          Cài đặt và nhập thực đơn <a href="#ho-tro" className="font-medium text-primary underline-offset-4 hover:underline">TechMenu làm cùng anh/chị</a>.
         </p>
       </section>
 
@@ -87,7 +88,7 @@ export default async function HuongDanCaiDat() {
               <tbody className="divide-y divide-hairline-soft">
                 <tr>
                   <td className="py-xs pr-md text-steel">Hệ điều hành</td>
-                  <td className="py-xs pr-md">Windows 10</td>
+                  <td className="py-xs pr-md">Windows 10 (64-bit)</td>
                   <td className="py-xs">Windows 10 hoặc 11</td>
                 </tr>
                 <tr>
@@ -107,7 +108,13 @@ export default async function HuongDanCaiDat() {
                 </tr>
               </tbody>
             </table>
-            <p className="mt-sm">Có trình duyệt <strong>Google Chrome</strong> (tải miễn phí).</p>
+            {app ? (
+              <p className="mt-sm">
+                Cài <a href="#cai-app" className="font-medium text-primary underline-offset-4 hover:underline">TechMenu Thu ngân</a> (miễn phí) — xem cách cài bên dưới.
+              </p>
+            ) : (
+              <p className="mt-sm">Có trình duyệt <strong>Google Chrome</strong> (tải miễn phí).</p>
+            )}
             <Luu>
               Máy này phải <strong>bật suốt giờ bán</strong> (laptop thì cắm sạc). Máy tắt thì bếp không ra phiếu, điện thoại
               không in được hóa đơn.
@@ -134,7 +141,7 @@ export default async function HuongDanCaiDat() {
                 Có <strong>cổng mạng LAN</strong> (lỗ cắm dây mạng, giống lỗ trên cục wifi)
               </Tick>
             </ul>
-            <p className="mt-xs text-slate">Quán đang có sẵn máy in? Để lại số, POSMenu xem giúp máy đó dùng được không.</p>
+            <p className="mt-xs text-slate">Quán đang có sẵn máy in? Để lại số, TechMenu xem giúp máy đó dùng được không.</p>
           </ThietBi>
 
           <ThietBi
@@ -220,24 +227,58 @@ export default async function HuongDanCaiDat() {
             </tbody>
           </table>
           <p className="mt-sm text-sm text-steel">
-            Gồm máy in, dây mạng, một thùng giấy in. Giá tham khảo, thay đổi theo nơi bán. Chưa gồm phí dùng POSMenu.
+            Gồm máy in, dây mạng, một thùng giấy in. Giá tham khảo, thay đổi theo nơi bán. Chưa gồm phí dùng TechMenu.
           </p>
         </div>
       </section>
 
-      {/* ---- POSMenu hỗ trợ gì ---- */}
+      {/* ---- Cài app máy quầy (P21 DESK-11) — như KiotViet: tải → chạy tệp → đăng nhập ngay trong app. Chỉ hiện khi đã
+           có bản phát hành: không hướng dẫn bấm một nút chưa có. ---- */}
+      {app && (
+        <section id="cai-app" className="mx-auto max-w-4xl scroll-mt-lg px-lg py-section-sm" data-cai-app>
+          <h2 className="font-display text-3xl text-ink">Cài TechMenu Thu ngân trên máy quầy</h2>
+          <p className="mt-md text-lg text-slate">
+            Một ứng dụng cho máy tính ở quầy: bán hàng, màn bếp và in phiếu. Máy chạy <strong className="text-ink">Windows 10 hoặc 11</strong>.
+            Điện thoại nhân viên không cần cài gì.
+          </p>
+          <ol className="mt-xl flex flex-col gap-md text-lg text-ink">
+            <DongBatBuoc so={1}>
+              Trên máy tính ở quầy, vào <strong>Quản trị → Máy in</strong> → bấm <strong>Tải TechMenu Thu ngân</strong>.
+            </DongBatBuoc>
+            <DongBatBuoc so={2}>
+              Trình duyệt hỏi có giữ tệp không → bấm <strong>Giữ lại</strong> (Keep).
+            </DongBatBuoc>
+            <DongBatBuoc so={3}>
+              Mở tệp vừa tải. Windows báo <em>&quot;Windows protected your PC&quot;</em> → bấm <strong>More info</strong> →{" "}
+              <strong>Run anyway</strong>. Chỉ gặp ở lần cài đầu.
+            </DongBatBuoc>
+            <DongBatBuoc so={4}>
+              App tự mở → đăng nhập <strong>email và mật khẩu chủ quán</strong> → chọn <strong>Có — máy quầy</strong>.
+            </DongBatBuoc>
+            <DongBatBuoc so={5}>
+              Cài máy in bếp và máy in quầy → bấm <strong>In thử</strong> → <strong>Lưu</strong>. Từ đó bật máy là app tự mở.
+            </DongBatBuoc>
+          </ol>
+          <p className="mt-lg text-base text-slate">
+            Máy tính đặt ở bếp để xem món: cài giống vậy, bước 4 chọn <strong className="text-ink">Không — chỉ xem</strong>. Bấm
+            dấu ✕ thì app thu xuống góc phải thanh tác vụ và vẫn in phiếu; trên Windows 11 biểu tượng có thể nằm trong mũi tên ^.
+          </p>
+        </section>
+      )}
+
+      {/* ---- TechMenu hỗ trợ gì ---- */}
       <section id="ho-tro" className="mx-auto max-w-4xl scroll-mt-lg px-lg py-section-sm" data-ho-tro>
-        <h2 className="font-display text-3xl text-ink">POSMenu hỗ trợ gì</h2>
+        <h2 className="font-display text-3xl text-ink">TechMenu hỗ trợ gì</h2>
         <p className="mt-md text-lg text-slate">
-          Quán chỉ cần chuẩn bị thiết bị. Phần cài đặt và nhập liệu POSMenu làm cùng anh/chị —{" "}
+          Quán chỉ cần chuẩn bị thiết bị. Phần cài đặt và nhập liệu TechMenu làm cùng anh/chị —{" "}
           <strong className="text-ink">miễn phí</strong>, qua Zalo và điều khiển máy từ xa.
         </p>
         <div className="mt-xl grid grid-cols-1 gap-md sm:grid-cols-2">
-          <HoTro icon={<Printer />} ten="Cài máy in và POSMenu">
+          <HoTro icon={<Printer />} ten="Cài máy in và TechMenu">
             Cài lên máy tính ở quầy, nối máy in, in thử phiếu bếp và hóa đơn tới khi ra giấy đúng.
           </HoTro>
           <HoTro icon={<UtensilsCrossed />} ten="Nhập thực đơn">
-            Anh/chị chụp ảnh thực đơn gửi qua Zalo — POSMenu nhập món, giá, nhóm món.
+            Anh/chị chụp ảnh thực đơn gửi qua Zalo — TechMenu nhập món, giá, nhóm món.
           </HoTro>
           <HoTro icon={<Settings2 />} ten="Thiết lập quán">
             Bàn và khu vực, mã QR từng bàn, tài khoản cho nhân viên, tên và địa chỉ in trên hóa đơn, tài khoản nhận chuyển
@@ -263,7 +304,7 @@ export default async function HuongDanCaiDat() {
             .
           </HoTro>
           <HoTro icon={<Monitor />} ten="Cần người tới tận quán?">
-            POSMenu tới cài đặt và hướng dẫn tại quán — báo phí trước khi đi.
+            TechMenu tới cài đặt và hướng dẫn tại quán — báo phí trước khi đi.
           </HoTro>
         </div>
       </section>
@@ -274,13 +315,13 @@ export default async function HuongDanCaiDat() {
           <h2 className="font-display text-3xl text-ink">Bắt đầu thế nào</h2>
           <ol className="mt-xl grid grid-cols-1 gap-lg sm:grid-cols-3">
             <Buoc so={1} ten="Để lại số điện thoại">
-              POSMenu gọi lại, hỏi quán đang có những gì và tư vấn cần mua thêm gì.
+              TechMenu gọi lại, hỏi quán đang có những gì và tư vấn cần mua thêm gì.
             </Buoc>
             <Buoc so={2} ten="Chuẩn bị thiết bị">
               Máy tính ở quầy, máy in hóa đơn, dây mạng — theo danh sách phía trên.
             </Buoc>
             <Buoc so={3} ten="Cài đặt và bán">
-              POSMenu cài máy in, nhập thực đơn, thiết lập quán và hướng dẫn nhân viên. Xong là bán được.
+              TechMenu cài máy in, nhập thực đơn, thiết lập quán và hướng dẫn nhân viên. Xong là bán được.
             </Buoc>
           </ol>
         </div>
@@ -291,17 +332,17 @@ export default async function HuongDanCaiDat() {
         <h2 className="font-display text-3xl text-ink">Câu hỏi thường gặp</h2>
         <div className="mt-xl flex flex-col gap-md">
           <Hoi hoi="Tôi không rành máy tính, có dùng được không?">
-            Được. Thu ngân chỉ bấm chọn món và bấm thu tiền, giống bấm trên điện thoại. POSMenu cài sẵn, nhập sẵn thực đơn và
+            Được. Thu ngân chỉ bấm chọn món và bấm thu tiền, giống bấm trên điện thoại. TechMenu cài sẵn, nhập sẵn thực đơn và
             hướng dẫn tới khi quán dùng quen.
           </Hoi>
           <Hoi hoi="Cài đặt có mất phí không?">
             Không — cài máy in, nhập thực đơn, thiết lập quán và hướng dẫn qua Zalo, điều khiển máy từ xa đều miễn phí. Chỉ khi
-            cần người tới tận quán thì POSMenu báo phí trước.
+            cần người tới tận quán thì TechMenu báo phí trước.
           </Hoi>
           <Hoi hoi="Có phải cài phần mềm lên điện thoại không?">Không. Mở bằng trình duyệt trên điện thoại là dùng được.</Hoi>
           <Hoi hoi="Dùng iPhone được không?">Được — cả iPhone, điện thoại Android và iPad.</Hoi>
           <Hoi hoi="Quán đã có máy in rồi, có phải mua máy mới không?">
-            Không nhất thiết. Máy in khổ 80mm và có cổng mạng LAN thường dùng được — để lại số, POSMenu kiểm tra giúp.
+            Không nhất thiết. Máy in khổ 80mm và có cổng mạng LAN thường dùng được — để lại số, TechMenu kiểm tra giúp.
           </Hoi>
           <Hoi hoi="Máy tính ở quầy có phải bật cả ngày không?">
             Bật trong giờ bán. Máy tắt thì bếp không tự ra phiếu và điện thoại không in được hóa đơn.
@@ -313,7 +354,7 @@ export default async function HuongDanCaiDat() {
       <section className="border-t border-hairline bg-cream py-section-sm">
         <div className="mx-auto max-w-4xl px-lg">
           <h2 className="font-display text-3xl text-ink">Chưa chắc quán cần gì? Để lại số</h2>
-          <p className="mt-md text-lg text-slate">POSMenu gọi lại, xem quán đang có gì và tư vấn phần còn thiếu.</p>
+          <p className="mt-md text-lg text-slate">TechMenu gọi lại, xem quán đang có gì và tư vấn phần còn thiếu.</p>
           <div className="mt-xl">
             <LeadForm variant="full" id="lien-he" />
           </div>

@@ -139,3 +139,49 @@ describe("quán browser", () => {
     expect(iframe).toHaveLength(1);
   });
 });
+
+/**
+ * DESK-07 — máy quầy chạy app Windows "TechMenu Thu ngân" có cầu in (preload đặt `window.techmenuDesktop.coCauIn`):
+ * mọi phiếu qua cầu in trong app, KHÔNG hộp thoại in dù màn rộng ≥ 1024.
+ */
+describe("trong app TechMenu Thu ngân", () => {
+  const trongApp = (rong = 1920) => {
+    dungMoiTruong(rong);
+    Object.assign(window, { techmenuDesktop: { phienBan: "1.0.0", coCauIn: true } });
+  };
+
+  it("hóa đơn ở máy quầy màn rộng → xếp ra máy in quầy qua cầu in, không iframe", async () => {
+    trongApp();
+    queueReceiptPrint.mockResolvedValue({ ok: true });
+    (await import("@/lib/print/adapter")).getPrintAdapter("bridge").printReceipt({ slug: "q", billId: "b1" });
+    await cho();
+    expect(queueReceiptPrint).toHaveBeenCalledWith("q", "b1");
+    expect(iframe).toEqual([]);
+  });
+
+  it("chưa cài máy in quầy → báo mở Cài đặt máy in, KHÔNG mở hộp thoại in", async () => {
+    trongApp();
+    queueCustomerTicketPrint.mockResolvedValue({ ok: false, lyDo: "chua-khai" });
+    (await import("@/lib/print/adapter")).getPrintAdapter("bridge").printCustomerTicket({ slug: "q", orderId: "o1" });
+    await cho();
+    expect(iframe).toEqual([]);
+    expect(thongBao[0]).toMatchObject({ loai: "loi", noiDung: expect.stringContaining("Cài đặt máy in") });
+  });
+
+  it("phiếu bếp → luôn xếp (kể cả cầu in đang khởi động lại); không xếp được → báo lỗi, không iframe", async () => {
+    trongApp();
+    queueKitchenTicketPrint.mockResolvedValue({ ok: false });
+    (await import("@/lib/print/adapter")).getPrintAdapter("bridge").printKitchenTicket({ slug: "q", orderId: "o1" });
+    await cho();
+    expect(queueKitchenTicketPrint).toHaveBeenCalledWith("q", "o1", true);
+    expect(iframe).toEqual([]);
+    expect(thongBao[0]).toMatchObject({ loai: "loi" });
+  });
+
+  it("app máy chỉ xem (coCauIn=false) → như trình duyệt thường", async () => {
+    dungMoiTruong(1920);
+    Object.assign(window, { techmenuDesktop: { phienBan: "1.0.0", coCauIn: false } });
+    (await import("@/lib/print/adapter")).getPrintAdapter("bridge").printReceipt({ slug: "q", billId: "b1" });
+    expect(iframe[0]).toMatch(/\/print\/receipt\/b1/);
+  });
+});

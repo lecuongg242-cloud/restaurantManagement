@@ -1,0 +1,54 @@
+/* Trang cục bộ của TechMenu Thu ngân — cùng tông kem/cam với POS (OPS-03). Nút ≥ 44px cho màn cảm ứng. */
+:root {
+  --cream: #fffaeb;
+  --paper: #ffffff;
+  --ink: #1f1f1f;
+  --steel: #6b6b6b;
+  --line: #e8e2cf;
+  --primary: #fa520f;
+  --primary-deep: #c93f06;
+  --ok: #067647;
+  --ok-bg: #ecfdf3;
+  --bad: #b42318;
+  --bad-bg: #fef3f2;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--cream); display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px; }
+main { width: 100%; max-width: 560px; }
+.the { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 24px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.the + .the { margin-top: 16px; }
+.logo { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.logo span.o { width: 44px; height: 44px; border-radius: 10px; background: var(--primary); color: #fff; font-weight: 800; font-size: 26px; display: grid; place-items: center; }
+.logo b { font-size: 20px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 0 0 12px; }
+p { margin: 0 0 12px; line-height: 1.5; }
+.phu { color: var(--steel); font-size: 14px; }
+label.o-nhap { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
+input[type=email], input[type=password], input[type=text], input[type=number], select {
+  width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff;
+}
+input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(250,82,15,.35); outline-offset: 1px; }
+.hang { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.hang > .co-gian { flex: 1 1 200px; }
+.hang > .hep { width: 110px; }
+button { min-height: 44px; padding: 8px 18px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+button.chinh { background: var(--primary); border-color: var(--primary); color: #fff; }
+button.chinh:hover { background: var(--primary-deep); }
+button:disabled { opacity: .55; cursor: default; }
+fieldset.nhom { border: 0; padding: 0; margin: 18px 0 0; }
+fieldset.nhom legend { font-weight: 600; font-size: 14px; padding: 0; }
+.lua-chon { display: grid; gap: 8px; margin-top: 8px; }
+.lua-chon label { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 12px; cursor: pointer; }
+.lua-chon label:has(input:checked) { border-color: var(--primary); background: #fff4ed; }
+.lua-chon input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--primary); }
+.lua-chon small { display: block; color: var(--steel); margin-top: 2px; }
+.thong-bao { margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 14px; }
+.thong-bao.loi { background: var(--bad-bg); color: var(--bad); }
+.thong-bao.tot { background: var(--ok-bg); color: var(--ok); }
+.nut-cuoi { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+.an { display: none !important; }
+.ds-chi-nhanh { display: grid; gap: 8px; }
+.ds-chi-nhanh button { text-align: left; }

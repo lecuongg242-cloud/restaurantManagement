@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { docBanPhatHanh } from "@/lib/print/bridge-release";
 import { hangCauIn, type HangCauIn } from "@/lib/print/cau-in-super";
+import { docNguonCauIn, nguonCauIn } from "@/lib/print/nguon-cau-in";
 import { parseSettings } from "@/lib/tenant/settings";
 import { gioNgayVn } from "@/lib/time/vn";
 import { cn } from "@/lib/utils";
@@ -18,12 +19,13 @@ type QuanCauIn = { id: string; slug: string; name: string; khoa?: string | null 
 export async function docCauIn<T extends QuanCauIn>(tenants: T[]) {
   const admin = createAdminClient();
   const ids = tenants.map((t) => t.id);
-  const [{ data: rows }, { data: nhip }] = await Promise.all([
+  const [{ data: rows }, { data: nhip }, nguon] = await Promise.all([
     admin.from("tenants").select("id, settings").in("id", ids),
     admin
       .from("printer_heartbeats")
       .select("tenant_id, seen_at, printer_ok, printer_checked_at, version")
       .in("tenant_id", ids),
+    docNguonCauIn(admin.from("printer_heartbeats").select("tenant_id, agent").in("tenant_id", ids)),
   ]);
   const settingsById = new Map((rows ?? []).map((r) => [r.id, parseSettings(r.settings)]));
   const nhipById = new Map((nhip ?? []).map((n) => [n.tenant_id, n]));
@@ -36,6 +38,8 @@ export async function docCauIn<T extends QuanCauIn>(tenants: T[]) {
       return {
         t,
         seenAt: n?.seen_at ?? null,
+        /** P21: null = không đọc được cột (máy chủ chưa áp 0075) → không hiện dòng nguồn. */
+        nguon: n && nguon ? nguonCauIn(nguon.get(t.id)) : null,
         hang: hangCauIn({
           printMode: settingsById.get(t.id)?.print_mode ?? "browser",
           nhip: n,
@@ -83,7 +87,7 @@ export async function BridgeTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-hairline-soft">
-            {danhSach.map(({ t, hang, seenAt }) => (
+            {danhSach.map(({ t, hang, seenAt, nguon }) => (
               <tr key={t.id} className={cn(hang.canChuY && "bg-status-late/5")}>
                 <td className="py-sm pr-md">
                   <span className="text-ink">{t.name}</span>{" "}
@@ -103,6 +107,7 @@ export async function BridgeTable({
                 <td className={cn("py-sm pr-md font-mono", hang.banCu ? "font-medium text-status-late" : "text-slate")}>
                   {hang.cauIn === "chua-co" ? "—" : hang.version === null ? "cũ (trước 11-06)" : hang.version}
                   {hang.banCu && hang.version !== null && " · cũ"}
+                  {nguon && <span className="block font-sans text-xs text-steel">{nguon}</span>}
                 </td>
                 {thaoTac && (
                   <td className="py-sm align-top">

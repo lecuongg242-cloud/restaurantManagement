@@ -1,8 +1,8 @@
-# P21 — Ứng dụng Windows cho máy thu ngân "POSMenu Thu ngân" (CHỜ QUYẾT)
+# P21 — Ứng dụng Windows cho máy thu ngân "TechMenu Thu ngân" (CODE XONG 21-01→21-03 — chưa deploy/phát hành)
 
-> Lập 29/09/2026. **Trạng thái: CHỜ QUYẾT** — chủ dự án hỏi "đổi web app thành ứng dụng Windows như đối thủ thì triển khai
-> thế nào", chốt: **tạm ghi các phương án**, chưa làm. Đây là khung phạm vi + phương án, **chưa** có plan chi tiết. Khi xếp
-> lịch: chủ dự án chọn phương án (§Câu hỏi cần chốt) → viết QD + yêu cầu DESK-xx trong `20-DanhSachYeuCau` → plan 21-0x.
+> Lập 29/09/2026. **Trạng thái: ĐÃ CHỐT PHƯƠNG ÁN A** (chủ dự án, 29/09/2026 — xem **QD-026**): Electron + gộp cầu in,
+> **ký số sau khi app hoàn thiện**, tên **TechMenu Thu ngân** (tên miền dự kiến `techmenu.vn`, chưa mua), bán khi mất Internet để sau. Kích hoạt bằng email + mật khẩu chủ quán, app có Thu ngân + Màn bếp (QD-026 D6, D7).
+> Yêu cầu: **DESK-01..12** trong `20-DanhSachYeuCau/00-Requirements.md`. Plan: `21-01-PLAN.md` … `21-04-PLAN.md`. Kết quả + việc còn lại: `21-SUMMARY.md`.
 > Phụ thuộc: P11/P12 (cầu in, bộ cài `CAI-DAT.bat`, tự cập nhật PRINT-12), P17 (bán khi mất mạng — màn xem offline).
 
 ## Bài toán
@@ -14,7 +14,7 @@ tác vụ Windows `CauInBep` (cài bằng `CAI-DAT.bat`, tự cập nhật). H�
 - Tác vụ nền có cạm bẫy riêng của Windows: tự tắt sau 72 giờ (sửa 29/09/2026, máy cài trước đó phải sửa tay), dừng khi
   rút sạc.
 - Hai tiến trình cầu in chạy cùng lúc thì in trùng; Chrome có thể bị tắt nhầm, đổi cài đặt in.
-- Không có "một biểu tượng POSMenu" như đối thủ — trông kém chuyên nghiệp khi bán hàng.
+- Không có "một biểu tượng TechMenu" như đối thủ — trông kém chuyên nghiệp khi bán hàng.
 
 ## Đối thủ làm thế nào (tra 29/09/2026)
 
@@ -24,6 +24,13 @@ tác vụ Windows `CauInBep` (cài bằng `CAI-DAT.bat`, tự cập nhật). H�
 | **CUKCUK** | Bộ cài Windows "Dành cho Thu ngân/Lễ tân" (Hỗ trợ → Download), chạy với quyền admin | Cấu hình Windows 10/11, RAM 4GB (khuyến nghị 8GB); nâng cấp bản mới làm tay | helpv2.cukcuk.vn/vi/kb/phan_mem_cho_thu_ngan |
 | **Sapo FnB** | **Không có bản Windows** — app Thu ngân / Phục vụ / Bếp trên Android, iOS | "Khi mất kết nối internet… vẫn cho phép nhân viên gọi món, xem bàn, chuyển món xuống bếp/bar và thanh toán như bình thường" | sapo.vn/app-sapo-fnb-thu-ngan.html |
 
+**Chi tiết luồng KiotViet Thu ngân** (tra 29/09/2026, kiotviet.vn/huong-dan-su-dung-kiotviet/fnb-che-bien/ung-dung-kiotviet-thu-ngan-may-tinh/):
+- Tải: trang quản trị → biểu tượng (?) góc phải → **Tải KiotViet Thu ngân** → chạy `KiotViet_Thungan.exe` → cài xong app tự mở.
+- Màn đăng nhập: **Tên gian hàng**, **Tên đăng nhập**, **Mật khẩu**.
+- Sau đăng nhập: màn **Thu ngân** / **Bếp** / **Lễ tân**; menu ☰ có **Đồng bộ dữ liệu** và đổi chi nhánh.
+- Máy in: khuyến nghị đặt IP tĩnh cho máy in; mọi thiết bị chung một router (LAN).
+- Cấu hình tối thiểu Windows 7 SP1, Pentium 4, RAM 1GB, ổ 4GB; khuyến nghị Core i3, RAM 2GB.
+
 **Kết luận:** đối thủ có **ứng dụng riêng cho máy thu ngân**; quản trị + điện thoại nhân viên vẫn là web. Làm theo mô
 hình này (giống KiotViet): **không viết lại app**, chỉ thêm ứng dụng cho máy quầy.
 
@@ -31,7 +38,7 @@ hình này (giống KiotViet): **không viết lại app**, chỉ thêm ứng d�
 
 ### A. Bọc web app bằng Electron + gộp cầu in (ĐỀ XUẤT)
 
-Một ứng dụng "POSMenu Thu ngân" cho Windows:
+Một ứng dụng "TechMenu Thu ngân" cho Windows:
 
 1. Cửa sổ mở **chính trang POS hiện tại** (`/r/{slug}/pos`) — không viết lại giao diện; tính năng mới trên web có ngay.
 2. **Cầu in nằm trong app**: dùng lại gần như nguyên `scripts/print-bridge.mjs` (Node) — in phiếu bếp + hóa đơn thẳng ra
@@ -83,15 +90,15 @@ một bàn). Đây là thay đổi kiến trúc lớn, **không** đi kèm A/B. 
 |---|---|---|
 | 21-01 | Vỏ app mở POS, nhớ đăng nhập, tự khởi động cùng Windows, khay hệ thống | Bật máy → POS tự mở đúng quán, không phải đăng nhập lại; tắt cửa sổ → app vẫn chạy ở khay |
 | 21-02 | Gộp cầu in vào app, in thẳng hóa đơn + phiếu bếp | Test giả lập mất mạng của P17 (`cau-in-mat-mang`) xanh với app; in không hộp thoại; không in trùng |
-| 21-03 | Bộ cài `.exe`, tự cập nhật, ký số | Cài trên máy Windows sạch ≤ 5 phút không cảnh báo SmartScreen; bản mới tự cập nhật ≤ 1 giờ |
+| 21-03 | Bộ cài `.exe`, tự cập nhật (chưa ký số — ký sau khi hoàn thiện, QD-026 D3) | Cài trên máy Windows sạch ≤ 5 phút theo hướng dẫn (có bước qua SmartScreen "More info → Run anyway"); bản mới tự cập nhật ≤ 1 giờ không hiện cảnh báo |
 | 21-04 | Chuyển qt-food, gỡ cầu in cũ, cập nhật trang `/huong-dan-cai-dat` + tài liệu bàn giao | qt-food bán 1 tuần bằng app, 0 phiếu mất, 0 phiếu trùng |
 | (sau) | Bán khi mất Internet trong LAN | Dự án riêng, QD riêng |
 
-## Câu hỏi cần chốt khi xếp lịch
+## Đã chốt (chủ dự án, 29/09/2026 — chi tiết QD-026)
 
-1. **Lý do chính** muốn có ứng dụng Windows: (a) trông chuyên nghiệp / dễ cài, (b) in ổn định, bỏ Chrome + cầu in rời,
-   (c) bán được khi mất Internet? — (a)/(b) ⇒ A hoặc B đợt 21-01…21-04; (c) ⇒ thêm phần mở rộng.
-2. **Electron (A) hay Tauri (B)?** Đề xuất A vì dùng lại được cầu in Node.
-3. **Ký số:** mua chứng chỉ loại nào, đứng tên ai (cá nhân / công ty)?
-4. Có cần bản **macOS** như KiotViet không? (đề xuất: không — quán VN dùng Windows là chính)
-5. Tên hiển thị: "POSMenu Thu ngân"? (tên POSMenu mới dùng ở trang `/huong-dan-cai-dat`, chưa chốt thành tên chính thức)
+1. **Mục tiêu:** thương mại hóa lâu dài ⇒ làm (a) + (b) ngay (đợt 21-01…21-04); (c) bán khi mất Internet trong LAN để sau.
+2. **Electron (A)** — dùng lại cầu in Node; phần offline sau này cũng viết bằng Node.
+3. **Ký số để sau, khi app hoàn thiện.** Trong lúc chưa ký, lần cài đầu phải qua SmartScreen theo hướng dẫn; bản cập nhật
+   tự cài trong app không bị cảnh báo.
+4. **Không làm macOS.**
+5. Tên: **TechMenu Thu ngân**, tên miền dự kiến `techmenu.vn` (+ giữ `techmenu.com.vn`), chưa mua. Tra sơ bộ chưa trùng ai ở VN; nộp đơn nhãn hiệu tại VN trước khi bán rộng (QD-026 D4).

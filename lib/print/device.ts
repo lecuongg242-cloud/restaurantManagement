@@ -7,6 +7,17 @@
  */
 export const KHOA_THIET_BI_CO_MAY_IN = "pos-thiet-bi-co-may-in";
 
+/**
+ * Đang chạy trong app Windows "TechMenu Thu ngân" có cầu in (DESK-07, QD-026) — preload của app đặt
+ * `window.techmenuDesktop.coCauIn`. Khi đó MỌI phiếu (bếp, hóa đơn, phiếu khách) đi qua cầu in ngay trong app:
+ * không hộp thoại in, không cần Chrome `--kiosk-printing`.
+ */
+export function trongAppCoCauIn(): boolean {
+  if (typeof window === "undefined") return false;
+  const td = (window as unknown as { techmenuDesktop?: { coCauIn?: unknown } }).techmenuDesktop;
+  return td?.coCauIn === true;
+}
+
 export function thietBiCoMayIn(): boolean {
   if (typeof window === "undefined") return false;
   try {

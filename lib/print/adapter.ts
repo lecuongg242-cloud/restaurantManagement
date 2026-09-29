@@ -5,7 +5,7 @@
  * `tenants.settings.print_mode` (PRINT-10). Component lấy adapter qua `usePrintAdapter()`.
  */
 import { queueKitchenTicketPrint, queueReceiptPrint, queueCustomerTicketPrint } from "@/app/r/[slug]/print/actions";
-import { thietBiCoMayIn } from "@/lib/print/device";
+import { thietBiCoMayIn, trongAppCoCauIn } from "@/lib/print/device";
 import { baoIn } from "@/lib/print/thong-bao-in";
 import type { PrintMode } from "@/lib/tenant/settings";
 
@@ -109,6 +109,8 @@ const KHONG_CO_MAY_IN =
 const CAU_IN_DANG_MAT_KET_NOI =
   "Đã xếp phiếu bếp, nhưng máy in quầy đang mất kết nối — phiếu sẽ in khi có mạng lại (trong 30 phút). Gấp thì đọc món cho bếp.";
 const CAU_IN_KHONG_NHAN = "Cầu in ở quầy không chạy (laptop quầy tắt?) — in từ máy quầy.";
+const APP_CHUA_CAI_QUAY = "Chưa cài máy in quầy — mở ☰ Menu → Cài đặt máy in.";
+const APP_KHONG_XEP_DUOC = "Chưa gửi được phiếu bếp — kiểm tra mạng rồi bấm in lại.";
 
 /**
  * In qua trình duyệt: route in nạp vào iframe ẩn (route lo window.print + ghi print_jobs). Thiết bị không
@@ -139,6 +141,17 @@ class BridgePrintAdapter implements PrintAdapter {
   private browser = new BrowserPrintAdapter();
 
   printKitchenTicket(args: PrintKitchenArgs): void {
+    // App "TechMenu Thu ngân" (DESK-07): cầu in nằm ngay trong app — luôn xếp phiếu (cầu in đang khởi động lại thì in
+    // bù), không lui về hộp thoại in của trình duyệt.
+    if (trongAppCoCauIn()) {
+      queueKitchenTicketPrint(args.slug, args.orderId, true)
+        .then((res) => {
+          if (!res?.ok) baoIn("loi", APP_KHONG_XEP_DUOC);
+          else if (res.cho) baoIn("loi", CAU_IN_DANG_MAT_KET_NOI);
+        })
+        .catch(() => baoIn("loi", APP_KHONG_XEP_DUOC));
+      return;
+    }
     // Đường lui khi cầu in không nhận: in trình duyệt NHƯ TRƯỚC P12, không xét thiết bị — laptop quầy phóng
     // to chữ 125–150% có thể rộng < 1024 px; báo lỗi ở đó là bếp mất phiếu. Điện thoại thì thấy hộp thoại in
     // vô ích, nhưng mất phiếu bếp đắt hơn nhiều.
@@ -160,15 +173,22 @@ class BridgePrintAdapter implements PrintAdapter {
    * qua cầu in.
    */
   printCustomerTicket(args: PrintCustomerArgs): void {
-    if (thietBiCoMayIn()) return this.browser.printCustomerTicket(args);
+    const app = trongAppCoCauIn();
+    if (!app && thietBiCoMayIn()) return this.browser.printCustomerTicket(args);
     xepRaQuay(() => queueCustomerTicketPrint(args.slug, args.orderId), "phiếu khách", () =>
-      printViaHiddenFrame(`/r/${args.slug}/print/customer/${args.orderId}?w=${args.width ?? "80"}`)
+      app
+        ? baoIn("loi", APP_CHUA_CAI_QUAY)
+        : printViaHiddenFrame(`/r/${args.slug}/print/customer/${args.orderId}?w=${args.width ?? "80"}`)
     );
   }
   printReceipt(args: PrintReceiptArgs): void {
-    if (thietBiCoMayIn()) return this.browser.printReceipt(args);
+    // Máy quầy chạy app: hóa đơn cũng qua cầu in (ảnh có dấu, PRINT-14) như điện thoại — không hộp thoại in (DESK-07).
+    const app = trongAppCoCauIn();
+    if (!app && thietBiCoMayIn()) return this.browser.printReceipt(args);
     xepRaQuay(() => queueReceiptPrint(args.slug, args.billId), "hóa đơn", () =>
-      printViaHiddenFrame(`/r/${args.slug}/print/receipt/${args.billId}?w=${args.width ?? "80"}`)
+      app
+        ? baoIn("loi", APP_CHUA_CAI_QUAY)
+        : printViaHiddenFrame(`/r/${args.slug}/print/receipt/${args.billId}?w=${args.width ?? "80"}`)
     );
   }
 }

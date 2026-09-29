@@ -229,6 +229,28 @@ function log(...args) {
   console.log(new Date().toLocaleTimeString("vi-VN"), ...args);
 }
 
+/**
+ * Gửi byte thô tới máy in Windows theo TÊN qua `print-raw.ps1` (máy quầy cắm USB). Ở cấp module (không trong
+ * khối vòng lặp thật) để chế độ in thử `--vai=quay` dùng chung.
+ */
+function inQuaWindows(buffer, ten) {
+  const tep = path.join(os.tmpdir(), `cau-in-${process.pid}-${Date.now()}.bin`);
+  fs.writeFileSync(tep, buffer);
+  const kichBan = path.join(path.dirname(fileURLToPath(import.meta.url)), "print-raw.ps1");
+  return new Promise((resolve, reject) => {
+    execFile(
+      "powershell",
+      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", kichBan, "-PrinterName", ten, "-Path", tep],
+      { timeout: 60_000, windowsHide: true },
+      (err, _out, stderr) => {
+        fs.rmSync(tep, { force: true });
+        if (err) reject(new Error((stderr || err.message).toString().trim()));
+        else resolve();
+      }
+    );
+  });
+}
+
 // ── Chế độ thử máy in (không cần DB) ───────────────────────────────────────────
 if (TEST_MODE) {
   const demo = {
@@ -243,10 +265,24 @@ if (TEST_MODE) {
       { qty: 1, name: "Cơm gà xối mỡ", modifiers: [], note: null },
     ],
   };
-  log(`In phiếu thử tới ${HOST}:${PORT} (khổ ${CHARS} ký tự)…`);
+  // `--vai=quay` (DESK-06): in thử MÁY IN QUẦY theo COUNTER_PRINTER — app "TechMenu Thu ngân" có nút In thử cho cả hai.
+  const quay = process.argv.includes("--vai=quay");
+  const mayQuay = quay ? docCauHinhMayIn(COUNTER_PRINTER) : null;
+  if (quay && !mayQuay) {
+    console.error(`Chưa khai máy in quầy hợp lệ (COUNTER_PRINTER="${COUNTER_PRINTER}").`);
+    process.exit(1);
+  }
+  log(
+    mayQuay
+      ? `In phiếu thử tới máy in quầy ${mayQuay.kieu === "usb" ? mayQuay.ten : `${mayQuay.host}:${mayQuay.port}`}…`
+      : `In phiếu thử tới ${HOST}:${PORT} (khổ ${CHARS} ký tự)…`
+  );
   try {
-    await sendToPrinter(buildKitchenTicket(demo));
-    log("Đã gửi xong. Kiểm tra giấy ra ở máy in bếp.");
+    const giay = buildKitchenTicket(demo);
+    if (mayQuay?.kieu === "usb") await inQuaWindows(giay, mayQuay.ten);
+    else if (mayQuay) await sendToPrinter(giay, mayQuay.host, mayQuay.port);
+    else await sendToPrinter(giay);
+    log(`Đã gửi xong. Kiểm tra giấy ra ở máy in ${mayQuay ? "quầy" : "bếp"}.`);
     process.exit(0);
   } catch (err) {
     console.error("Lỗi gửi máy in:", err.message);
@@ -661,26 +697,51 @@ if (COUNTER_PRINTER && !MAY_QUAY) {
   log(`COUNTER_PRINTER="${COUNTER_PRINTER}" không hợp lệ (cần usb:<tên> hoặc lan:<ip>) — bỏ qua máy in quầy.`);
 }
 
+/**
+ * Nguồn cầu in (DESK-05): app "TechMenu Thu ngân" đặt `BRIDGE_AGENT` (vd `app/1.0.0`) để màn Máy in phân biệt với
+ * cầu in cũ. Cầu in cũ không đặt ⇒ thân nhịp tim y như bản 4. Máy chủ chưa có migration 0075 (không nhận
+ * `p_agent`) ⇒ bỏ trường này, gửi lại, và thôi gửi luôn — cầu in không được chết vì máy chủ cũ hơn.
+ */
+let guiAgent = Boolean(process.env.BRIDGE_AGENT);
+
+/** Chạy trong app (có kênh IPC): báo tình trạng cho biểu tượng khay sau mỗi nhịp tim. Chạy tay / bat: không làm gì. */
+function baoChoApp(nhipOk) {
+  if (typeof process.send !== "function" || !process.connected) return;
+  try {
+    process.send({ loai: "trang-thai", nhipOk, bep: mayInPhanHoi, quay: MAY_QUAY ? quayPhanHoi : undefined });
+  } catch {
+    /* app đang tắt */
+  }
+}
+
 async function baoSong() {
   if (inFlight.size === 0) {
     mayInPhanHoi = await thuMayIn(HOST, PORT);
     // Máy quầy LAN: thử kết nối như máy bếp. USB: không thử được rẻ — dùng kết quả lần in gần nhất.
     if (MAY_QUAY?.kieu === "lan") quayPhanHoi = await thuMayIn(MAY_QUAY.host, MAY_QUAY.port);
   }
-  try {
-    await rest(`/rpc/printer_heartbeat`, {
-      method: "POST",
-      body: JSON.stringify({
-        p_printer_ok: mayInPhanHoi,
-        p_printer_host: `${HOST}:${PORT}`,
-        p_version: BRIDGE_VERSION,
-        ...(MAY_QUAY ? { p_counter_ok: quayPhanHoi, p_counter_target: COUNTER_PRINTER.trim().slice(0, 150) } : {}),
-      }),
+  const than = () =>
+    JSON.stringify({
+      p_printer_ok: mayInPhanHoi,
+      p_printer_host: `${HOST}:${PORT}`,
+      p_version: BRIDGE_VERSION,
+      ...(MAY_QUAY ? { p_counter_ok: quayPhanHoi, p_counter_target: COUNTER_PRINTER.trim().slice(0, 150) } : {}),
+      ...(guiAgent ? { p_agent: String(process.env.BRIDGE_AGENT).slice(0, 40) } : {}),
     });
+  try {
+    try {
+      await rest(`/rpc/printer_heartbeat`, { method: "POST", body: than() });
+    } catch (err) {
+      if (!guiAgent || !/PGRST202|p_agent/.test(err.message)) throw err;
+      guiAgent = false;
+      await rest(`/rpc/printer_heartbeat`, { method: "POST", body: than() });
+    }
     if (nhipTimDangLoi) log("Nhịp tim đã nối lại — POS quay về gửi phiếu bếp qua cầu in.");
     nhipTimDangLoi = false;
+    baoChoApp(true);
     return true;
   } catch (err) {
+    baoChoApp(false);
     if (!nhipTimDangLoi) {
       log(`KHÔNG báo sống được (${err.message}). Sau 90 giây POS sẽ tự in phiếu bếp bằng trình duyệt.`);
     }
@@ -757,6 +818,22 @@ const TEP_DEM_LOI = path.join(path.dirname(TEP_NAY), "loi-lien-tiep.txt");
  * an toàn trong vòng poll — xem `thoatNeuCanThoat`.
  */
 let yeuCauThoat = null;
+/** Đánh thức vòng poll đang ngủ giữa hai lượt — xin thoát thì thoát ngay, không chờ hết nhịp nghỉ (tới 10 giây). */
+let danhThuc = null;
+
+// Chạy trong app "TechMenu Thu ngân" (DESK-05): app xin thoát bằng tin "thoat" — thoát ở điểm an toàn, không bỏ dở
+// phiếu đang gửi (kill tiến trình con trên Windows là giết ngang). App chết mất kênh IPC → cũng thoát, không để
+// cầu in mồ côi chạy song song với cầu in của lần mở app sau.
+if (typeof process.send === "function") {
+  const xinThoat = () => {
+    if (yeuCauThoat === null) yeuCauThoat = 0;
+    danhThuc?.();
+  };
+  process.on("message", (m) => {
+    if (m === "thoat") xinThoat();
+  });
+  process.on("disconnect", xinThoat);
+}
 
 /**
  * Tải bản mới nếu có: kiểm SHA → giữ bản đang chạy làm `print-bridge.old.mjs` (bat quay về nó nếu bản
@@ -764,7 +841,8 @@ let yeuCauThoat = null;
  * lại lần sau. Tệp đã thay trước khi thoát: tiến trình có chết kiểu gì thì bat cũng chạy bản mới.
  */
 async function capNhatNeuCo() {
-  if (!APP_BASE) return;
+  // App "TechMenu Thu ngân" tự cập nhật cả gói (DESK-10) — tệp cầu in trong thư mục cài là chỉ đọc, không tự thay.
+  if (!APP_BASE || process.env.BRIDGE_TU_CAP_NHAT === "0") return;
   try {
     const r = await fetch(`${APP_BASE}/api/bridge/latest`, { signal: AbortSignal.timeout(15_000) });
     if (!r.ok) return;
@@ -843,25 +921,6 @@ async function baoBu() {
       return; // vẫn mất mạng — lượt sau
     }
   }
-}
-
-/** Gửi byte thô tới máy in Windows theo TÊN qua `print-raw.ps1` (máy quầy cắm USB). */
-function inQuaWindows(buffer, ten) {
-  const tep = path.join(os.tmpdir(), `cau-in-${process.pid}-${Date.now()}.bin`);
-  fs.writeFileSync(tep, buffer);
-  const kichBan = path.join(path.dirname(fileURLToPath(import.meta.url)), "print-raw.ps1");
-  return new Promise((resolve, reject) => {
-    execFile(
-      "powershell",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", kichBan, "-PrinterName", ten, "-Path", tep],
-      { timeout: 60_000, windowsHide: true },
-      (err, _out, stderr) => {
-        fs.rmSync(tep, { force: true });
-        if (err) reject(new Error((stderr || err.message).toString().trim()));
-        else resolve();
-      }
-    );
-  });
 }
 
 /** Tải ẢNH phiếu từ server bằng token của cầu in (401 → đăng nhập lại một lần). */
@@ -962,7 +1021,14 @@ for (;;) {
   else if (ketQua === "co-phieu") emptyStreak = 0;
   // "khong-xac-dinh" (lỗi mạng / quán tạm ngưng): giữ nguyên streak, không phạt cũng không thưởng.
 
-  await new Promise((r) => setTimeout(r, nextPollMs(emptyStreak, POLL_MS)));
+  await new Promise((r) => {
+    const hen = setTimeout(r, nextPollMs(emptyStreak, POLL_MS));
+    danhThuc = () => {
+      clearTimeout(hen);
+      r();
+    };
+  });
+  danhThuc = null;
 }
 
 } // hết khối `if (laEntry)` — xem ghi chú ở guard phía trên.
