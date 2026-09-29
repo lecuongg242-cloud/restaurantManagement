@@ -37,10 +37,11 @@
 
 ## Chưa làm — cần người / hạ tầng
 
-1. **`.env.local` máy dev trỏ project Supabase cũ** (tên miền không còn phân giải; production chạy project khác) ⇒ chưa chạy
-   `tests/rls/desktop-activate.test.ts`, `cau-in-mat-mang` với Electron, E2E web `huong-dan-cai-dat`. Cần `.env.local` mới.
-2. **Áp migration 0075 lên production** (chỉ thêm cột + thay hàm; cầu in cũ vẫn gọi được) rồi `npm run schema:snapshot`. Trước khi áp,
-   app vẫn chạy (cầu in tự bỏ `p_agent`), màn Máy in chỉ không hiện dòng Nguồn.
+1. `.env.local` đã trỏ project production (29/09/2026). **Chưa chạy** `tests/rls/desktop-activate.test.ts`, `cau-in-mat-mang` với
+   Electron: các test này ghi vào quán demo trên DB production — chờ chủ dự án đồng ý.
+2. ~~Áp migration 0075~~ — **đã áp production 29/09/2026** (`supabase db push`, chỉ 0075). Kiểm: hàm còn đúng một bản 6 tham số, cột
+   `agent` có, anon không gọi được / authenticated gọi được; đóng vai tài khoản printer qt-food trong giao dịch ROLLBACK — kiểu gọi cầu
+   in cũ (3 tham số) và kiểu app (`p_agent`) đều chạy. `schema-snapshot.json` cập nhật.
 3. ~~Deploy web~~ — **đã deploy** (main `4c366e4`): `/api/desktop/activate` trả đúng câu lỗi chung với tài khoản sai; `/huong-dan-cai-dat` hiện TechMenu.
 4. **Chọn nơi đặt bản phát hành** (QD-026 §Nơi đặt): tạo repo công khai chỉ chứa tệp cài → đặt `DESKTOP_RELEASE_BASE` trên Vercel →
    `DESKTOP_RELEASE_REPO=<repo> npm run release` trong `desktop/`. Sau đó thử 1.0.0 → 1.0.1 (DESK-10).
