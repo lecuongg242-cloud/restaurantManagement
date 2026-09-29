@@ -315,7 +315,7 @@ function ReportShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="w-full max-w-6xl">
+    <div className="w-full">
       <div className="mb-lg flex flex-wrap items-center justify-between gap-md">
         <div>
           <h1 className="font-display text-2xl text-ink">Báo cáo dòng tiền</h1>

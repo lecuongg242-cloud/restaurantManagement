@@ -267,10 +267,16 @@ Chi tiết: `30-KeHoach/P18/00-TongQuan.md` · quyết định `QD-025`. Yêu c�
 
 - [ ] 18-01 Dự báo doanh thu/món + backtest · 18-02 Gợi ý nhập nguyên liệu · 18-03 Nhận xét tuần + bất thường.
 
-## P19, P20 — Để sau
+## P19 — Để sau
 
 - P19 Voucher và ưu đãi — khung phạm vi `30-KeHoach/P19/00-TongQuan.md`.
-- P20 Mua hàng, nhà cung cấp, công nợ, sổ thu chi — khung phạm vi `30-KeHoach/P20/00-TongQuan.md`.
+
+## P20 — Mua hàng, nhà cung cấp, công nợ, sổ quỹ (SẴN SÀNG LÀM, chốt 29/09/2026)
+
+Chi tiết: `30-KeHoach/P20/00-TongQuan.md` · quyết định `QD-027`. Yêu cầu PURCH-01..06, CASH-01..04, REPORT-20.
+
+- [ ] 20-01 Nhà cung cấp + phiếu nhập · 20-02 Sổ quỹ · 20-03 Công nợ NCC · 20-04 Kết quả kinh doanh (kèm khai thuế).
+- Để sau: sổ S2c/S2e-HKD; phần mở rộng chuyển sang **P22**.
 
 ## P21 — Ứng dụng Windows "TechMenu Thu ngân" (CODE XONG 21-01→21-03, chưa deploy/phát hành)
 
@@ -278,6 +284,11 @@ Chốt 29/09/2026 (QD-026): Electron bọc POS + gộp cầu in; kích hoạt b�
 cần admin; ký số sau khi app hoàn thiện; bán khi mất Internet trong LAN là dự án riêng. Yêu cầu DESK-01..12; plan 21-01 (vỏ app +
 kích hoạt) · 21-02 (cầu in trong app) · 21-03 (bộ cài + tự cập nhật) · 21-04 (chuyển qt-food). Chi tiết: `30-KeHoach/P21/`.
 Còn lại (29/09/2026): áp 0075, deploy, chọn nơi đặt bản phát hành, thử máy thật, 21-04 — `P21/21-SUMMARY.md`.
+
+## P22 — Mở rộng mua hàng & quỹ (ĐỂ SAU)
+
+Tách từ P20 (29/09/2026): chuyển hàng giữa chi nhánh / bếp trung tâm · thu ngân chi tiền trong ca (kèm module ca) · trả hàng
+nhập · đặt hàng nhập (PO) riêng · nhiều tài khoản ngân hàng. Khung phạm vi `30-KeHoach/P22/00-TongQuan.md`; phụ thuộc P20.
 
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |

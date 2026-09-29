@@ -1,7 +1,7 @@
 # P21 — Ứng dụng Windows cho máy thu ngân "TechMenu Thu ngân" (CODE XONG 21-01→21-03 — chưa deploy/phát hành)
 
 > Lập 29/09/2026. **Trạng thái: ĐÃ CHỐT PHƯƠNG ÁN A** (chủ dự án, 29/09/2026 — xem **QD-026**): Electron + gộp cầu in,
-> **ký số sau khi app hoàn thiện**, tên **TechMenu Thu ngân** (tên miền dự kiến `techmenu.vn`, chưa mua), bán khi mất Internet để sau. Kích hoạt bằng email + mật khẩu chủ quán, app có Thu ngân + Màn bếp (QD-026 D6, D7).
+> **ký số sau khi app hoàn thiện**, tên **TechMenu Thu ngân** (tên miền dự kiến `techmenu.vn`, chưa mua), bán khi mất Internet để sau. Kích hoạt bằng email + mật khẩu chủ quán **hoặc quản lý chi nhánh** (QD-028 — quản lý vào thẳng chi nhánh của mình, chỉ tài khoản nhiều chi nhánh mới chọn), app có Thu ngân + Màn bếp (QD-026 D6, D7).
 > Yêu cầu: **DESK-01..12** trong `20-DanhSachYeuCau/00-Requirements.md`. Plan: `21-01-PLAN.md` … `21-04-PLAN.md`. Kết quả + việc còn lại: `21-SUMMARY.md`.
 > Phụ thuộc: P11/P12 (cầu in, bộ cài `CAI-DAT.bat`, tự cập nhật PRINT-12), P17 (bán khi mất mạng — màn xem offline).
 

@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/desktop/activate { email, password, tenantId?, coMayIn } — app "TechMenu Thu ngân" kích hoạt máy quầy
- * bằng tài khoản chủ quán (DESK-01, QD-026 D6).
+ * bằng tài khoản chủ quán hoặc quản lý chi nhánh (DESK-01, QD-026 D6, QD-028).
  *
- * Trả: `{ chonChiNhanh }` khi chủ có nhiều chi nhánh; hoặc quán + (máy có máy in) tài khoản `printer` + khóa CÔNG
- * KHAI của Supabase. Không bao giờ trả service-role (QD-012 §1). Mật khẩu chủ quán chỉ dùng để kiểm rồi bỏ — phiên
+ * Trả: `{ chonChiNhanh }` khi tài khoản có nhiều chi nhánh; hoặc quán + (máy có máy in) tài khoản `printer` + khóa CÔNG
+ * KHAI của Supabase. Không bao giờ trả service-role (QD-012 §1). Mật khẩu đăng nhập chỉ dùng để kiểm rồi bỏ — phiên
  * đăng nhập bị thu hồi ngay. Không log thân yêu cầu/phản hồi.
  */
 export async function POST(req: Request) {

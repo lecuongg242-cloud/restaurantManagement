@@ -296,7 +296,7 @@ async function dangXuatMayQuay(kieu) {
     message: doi ? "Đổi sang chi nhánh khác?" : "Đăng xuất máy quầy?",
     detail:
       (cauHinh?.coMayIn ? "Máy này sẽ NGỪNG in phiếu bếp và hóa đơn cho tới khi đăng nhập lại.\n" : "") +
-      "Cần email và mật khẩu chủ quán để đăng nhập lại.",
+      "Cần email và mật khẩu chủ quán hoặc quản lý chi nhánh để đăng nhập lại.",
   });
   if (response !== 0) return;
   await cauIn.dungLai();

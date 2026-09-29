@@ -3,8 +3,9 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createActivationCode, redeemActivationCode } from "@/lib/print/activation";
 
 /**
- * Kích hoạt máy quầy "TechMenu Thu ngân" bằng email + mật khẩu CHỦ QUÁN (DESK-01, QD-026 D6) — như KiotViet
- * Thu ngân đăng nhập tài khoản ngay trong app, không phải vào Admin tạo mã.
+ * Kích hoạt máy quầy "TechMenu Thu ngân" bằng email + mật khẩu CHỦ QUÁN hoặc QUẢN LÝ CHI NHÁNH (DESK-01, QD-026 D6,
+ * QD-028) — như KiotViet Thu ngân đăng nhập tài khoản ngay trong app, không phải vào Admin tạo mã. Quản lý chỉ thuộc
+ * một chi nhánh ⇒ vào thẳng chi nhánh đó; chỉ tài khoản có > 1 chi nhánh mới phải chọn.
  *
  * Máy có máy in: tạo mã kích hoạt rồi đổi NGAY trong cùng lượt (dùng lại nguyên PRINT-11: xoay mật khẩu
  * `printer`, đặt `print_mode = bridge`). Mã không bao giờ rời server. Máy chỉ xem (màn bếp): chỉ trả quán,
@@ -14,7 +15,7 @@ import { createActivationCode, redeemActivationCode } from "@/lib/print/activati
  */
 
 export const LOI_DANG_NHAP = "Email hoặc mật khẩu không đúng.";
-export const LOI_KHONG_PHAI_CHU = "Chỉ chủ quán kích hoạt được máy quầy.";
+export const LOI_KHONG_DU_QUYEN = "Chỉ chủ quán hoặc quản lý chi nhánh kích hoạt được máy quầy.";
 export const LOI_TAM_NGUNG = "Nhà hàng đang tạm ngưng — liên hệ TechMenu để mở lại.";
 export const LOI_DU_LIEU = "Dữ liệu gửi lên không hợp lệ.";
 export const LOI_KHAC = "Không kích hoạt được — thử lại sau ít phút.";
@@ -59,7 +60,7 @@ export async function dangNhapRoiThuHoi(email: string, password: string): Promis
 
 /**
  * `dangNhap` trả user id khi email + mật khẩu đúng, null khi sai. Sai email hay sai mật khẩu cùng một câu —
- * không cho dò email nào là chủ quán.
+ * không cho dò email nào là chủ quán / quản lý.
  */
 export async function kichHoatMayQuay(
   admin: SupabaseClient,
@@ -73,13 +74,13 @@ export async function kichHoatMayQuay(
     .from("memberships")
     .select("tenant_id")
     .eq("user_id", userId)
-    .eq("role", "owner")
+    .in("role", ["owner", "manager"])
     .eq("active", true);
   if (loiMs) return { loai: "loi", status: 500, error: LOI_KHAC };
   const ids = (ms ?? []).map((m) => m.tenant_id as string);
-  if (ids.length === 0) return { loai: "loi", status: 403, error: LOI_KHONG_PHAI_CHU };
-  // Chọn chi nhánh không thuộc mình → như không phải chủ (không nói quán đó có tồn tại không).
-  if (vao.tenantId && !ids.includes(vao.tenantId)) return { loai: "loi", status: 403, error: LOI_KHONG_PHAI_CHU };
+  if (ids.length === 0) return { loai: "loi", status: 403, error: LOI_KHONG_DU_QUYEN };
+  // Chọn chi nhánh không thuộc mình → như không đủ quyền (không nói quán đó có tồn tại không).
+  if (vao.tenantId && !ids.includes(vao.tenantId)) return { loai: "loi", status: 403, error: LOI_KHONG_DU_QUYEN };
 
   const { data: quans, error: loiQ } = await admin
     .from("tenants")

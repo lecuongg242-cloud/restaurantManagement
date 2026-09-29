@@ -101,7 +101,8 @@ export function AdminShell({
         {/* Bỏ overflow-x-auto: khung ngoài cuộn ngang che mất lỗi tràn của từng trang; nay mỗi
             bảng/biểu đồ tự bọc vùng cuộn riêng nên nội dung KHÔNG đẩy trang lệch trên mobile. */}
         <main className="min-w-0 flex-1 p-md sm:p-lg lg:p-xl xl:p-xxl">
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+          {/* Trải hết bề ngang màn PC như KiotViet/Sapo. Trang form (Cài đặt, Onboarding) tự giới hạn độ rộng riêng. */}
+          <div className="w-full">{children}</div>
         </main>
       </div>
     </div>

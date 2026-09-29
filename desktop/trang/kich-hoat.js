@@ -1,4 +1,4 @@
-// Màn Đăng nhập (DESK-01). Mật khẩu chủ quán chỉ sống trong biến của trang này tới khi kích hoạt xong — app không lưu.
+// Màn Đăng nhập (DESK-01, QD-028). Mật khẩu chủ quán / quản lý chỉ sống trong biến của trang này tới khi kích hoạt xong — app không lưu.
 const $ = (id) => document.getElementById(id);
 const form = $("form");
 const chon = $("chon");
@@ -27,7 +27,7 @@ form.addEventListener("submit", async (e) => {
   e.preventDefault();
   baoLoi($("loi"), "");
   if (!$("email").value.trim() || !$("mat-khau").value) {
-    baoLoi($("loi"), "Nhập email và mật khẩu chủ quán.");
+    baoLoi($("loi"), "Nhập email và mật khẩu.");
     return;
   }
   const nut = $("nut");

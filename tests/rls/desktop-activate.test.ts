@@ -7,17 +7,18 @@ import {
   dangNhapRoiThuHoi,
   kichHoatMayQuay,
   LOI_DANG_NHAP,
-  LOI_KHONG_PHAI_CHU,
+  LOI_KHONG_DU_QUYEN,
   type DauVaoKichHoat,
 } from "@/lib/desktop/kich-hoat";
 import { bridgeEmailForSlug } from "@/lib/print/bridge-account";
 
 /**
- * DESK-01 — kích hoạt máy quầy "TechMenu Thu ngân" bằng email + mật khẩu chủ quán, trên DB thật.
+ * DESK-01 — kích hoạt máy quầy "TechMenu Thu ngân" bằng email + mật khẩu chủ quán hoặc quản lý chi nhánh
+ * (QD-028), trên DB thật.
  *
  * Chủ quán đúng → nhận quán; máy có máy in → tài khoản `printer` đăng nhập được; máy chỉ xem → KHÔNG động tới
- * tài khoản `printer` (PC ở bếp không được cướp cầu in của máy quầy). Không phải chủ / sai mật khẩu → từ chối,
- * sai email và sai mật khẩu cùng một câu.
+ * tài khoản `printer` (PC ở bếp không được cướp cầu in của máy quầy). Quản lý → vào thẳng chi nhánh của mình, không
+ * chọn được chi nhánh khác. Thu ngân / sai mật khẩu → từ chối, sai email và sai mật khẩu cùng một câu.
  *
  * Đụng hai quán demo pho-viet / bun-bo (như bridge-activation.test): trả lại `settings`, xóa tài khoản `printer`
  * và người dùng tạm trong afterAll.
@@ -29,6 +30,7 @@ let tenantB = "";
 const tam: string[] = [];
 const settingsCu = new Map<string, unknown>();
 let quanLy = { email: "", password: "" };
+let thuNgan = { email: "", password: "" };
 let chuHaiQuan = { email: "", password: "" };
 
 const vao = (x: Partial<DauVaoKichHoat>): DauVaoKichHoat => ({
@@ -59,6 +61,9 @@ beforeAll(async () => {
   const ql = await taoNguoi("manager");
   await admin.from("memberships").insert({ tenant_id: tenantA, user_id: ql.id, role: "manager", display_name: "DESK", active: true });
   quanLy = ql;
+  const tn = await taoNguoi("cashier");
+  await admin.from("memberships").insert({ tenant_id: tenantA, user_id: tn.id, role: "cashier", display_name: "DESK", active: true });
+  thuNgan = tn;
   const chu = await taoNguoi("owner2");
   await admin.from("memberships").insert([
     { tenant_id: tenantA, user_id: chu.id, role: "owner", display_name: "DESK", active: true },
@@ -81,7 +86,7 @@ afterAll(async () => {
   }
 }, 120_000);
 
-describe("kích hoạt máy quầy bằng tài khoản chủ quán", () => {
+describe("kích hoạt máy quầy bằng tài khoản chủ quán / quản lý", () => {
   it("máy chỉ xem → nhận quán, KHÔNG có tài khoản printer, không tạo mã", async () => {
     const truoc = await admin.from("bridge_activation_codes").select("id", { count: "exact", head: true }).eq("tenant_id", tenantA);
     const kq = await kichHoatMayQuay(admin, dangNhapRoiThuHoi, vao({ coMayIn: false }));
@@ -114,9 +119,19 @@ describe("kích hoạt máy quầy bằng tài khoản chủ quán", () => {
     expect(saiEmail).toEqual(saiMk);
   }, 60_000);
 
-  it("quản lý → từ chối, không phải chủ", async () => {
-    const kq = await kichHoatMayQuay(admin, dangNhapRoiThuHoi, vao({ ...quanLy, coMayIn: true }));
-    expect(kq).toEqual({ loai: "loi", status: 403, error: LOI_KHONG_PHAI_CHU });
+  it("quản lý chi nhánh → vào thẳng chi nhánh của mình, không có bước chọn chi nhánh", async () => {
+    const kq = await kichHoatMayQuay(admin, dangNhapRoiThuHoi, vao({ ...quanLy, coMayIn: false }));
+    expect(kq).toEqual({ loai: "xong", slug: OWNER_A.slug, tenantName: expect.any(String), may: null });
+  }, 60_000);
+
+  it("quản lý chọn chi nhánh khác → từ chối", async () => {
+    const kq = await kichHoatMayQuay(admin, dangNhapRoiThuHoi, vao({ ...quanLy, tenantId: tenantB }));
+    expect(kq).toEqual({ loai: "loi", status: 403, error: LOI_KHONG_DU_QUYEN });
+  }, 60_000);
+
+  it("thu ngân → từ chối", async () => {
+    const kq = await kichHoatMayQuay(admin, dangNhapRoiThuHoi, vao({ ...thuNgan, coMayIn: true }));
+    expect(kq).toEqual({ loai: "loi", status: 403, error: LOI_KHONG_DU_QUYEN });
   }, 60_000);
 
   it("chủ hai quán → danh sách chọn chi nhánh; chọn một → nhận đúng quán đó", async () => {
@@ -129,7 +144,7 @@ describe("kích hoạt máy quầy bằng tài khoản chủ quán", () => {
 
   it("chọn chi nhánh không thuộc mình → từ chối", async () => {
     const kq = await kichHoatMayQuay(admin, dangNhapRoiThuHoi, vao({ tenantId: tenantB }));
-    expect(kq).toEqual({ loai: "loi", status: 403, error: LOI_KHONG_PHAI_CHU });
+    expect(kq).toEqual({ loai: "loi", status: 403, error: LOI_KHONG_DU_QUYEN });
   }, 60_000);
   // Quán tạm ngưng: tests/desktop/kich-hoat.test.ts (giả lập DB — không tạm ngưng quán demo dùng chung).
 });

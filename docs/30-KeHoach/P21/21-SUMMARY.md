@@ -43,18 +43,20 @@
 | 1.0.1 (web) | Ngay sau khi phát hành bản mới, nút tải đọc `latest.yml` lưu đệm 5 phút → trỏ tệp bản cũ đã không còn ở release "latest" (tải về 404) | `/api/desktop/latest` đọc không lưu đệm; unit test |
 | 1.0.2 | Chủ dự án muốn có nút cập nhật: hộp thoại "Cập nhật ngay / Để sau" khi tải xong, "Cập nhật lên bản…" + "Kiểm tra cập nhật" ở ☰ và khay; Giới thiệu có nút cập nhật | 9/9 E2E trên bản đã cài; hỏi production → "Đã là bản mới nhất (1.0.2)"; **1.0.1 đã cài tự tải 1.0.2 (27 giây) và tự cài khi Thoát (< 10 giây)** |
 
+| 1.0.3 (chưa phát hành) · web | Chủ dự án: màn "Chọn chi nhánh cho máy này" không hợp lý — chi nhánh phải do quản lý phân cho nhân viên. **QD-028**: tài khoản **quản lý chi nhánh** kích hoạt được máy, vào thẳng chi nhánh của mình; chỉ tài khoản > 1 chi nhánh mới phải chọn ("Chọn chi nhánh làm việc", theo CUKCUK). Thu ngân vẫn chỉ đăng nhập POS bằng email + PIN, máy chi nhánh khác từ chối như cũ | `tests/rls/desktop-activate.test.ts` 9/9 trên DB production (quán demo): quản lý → vào thẳng; quản lý gửi chi nhánh khác → từ chối; thu ngân → từ chối · `tests/desktop` 43/43 · E2E app 7/7 (ảnh `anh/1-dang-nhap.png`, `anh/2-chon-chi-nhanh.png` chụp lại) |
+
 Phát hành 1.0.1 và 1.0.2: build → quét bí mật (0) → tạo release nháp trên GitHub bằng quyền git đã lưu → tải đủ 3 tệp → mới công bố "latest".
 
 ## Chưa làm — cần người / hạ tầng
 
-1. `.env.local` đã trỏ project production (29/09/2026). **Chưa chạy** `tests/rls/desktop-activate.test.ts`, `cau-in-mat-mang` với
-   Electron: các test này ghi vào quán demo trên DB production — chờ chủ dự án đồng ý.
+1. `.env.local` đã trỏ project production (29/09/2026). Chủ dự án cho phép test ghi vào quán demo, **chỉ cấm đụng qt-food**.
+   `tests/rls/desktop-activate.test.ts` đã chạy 9/9 (29/09/2026). Chưa chạy `cau-in-mat-mang` với Electron.
 2. ~~Áp migration 0075~~ — **đã áp production 29/09/2026** (`supabase db push`, chỉ 0075). Kiểm: hàm còn đúng một bản 6 tham số, cột
    `agent` có, anon không gọi được / authenticated gọi được; đóng vai tài khoản printer qt-food trong giao dịch ROLLBACK — kiểu gọi cầu
    in cũ (3 tham số) và kiểu app (`p_agent`) đều chạy. `schema-snapshot.json` cập nhật.
 3. ~~Deploy web~~ — **đã deploy** (main `4c366e4`): `/api/desktop/activate` trả đúng câu lỗi chung với tài khoản sai; `/huong-dan-cai-dat` hiện TechMenu.
-4. **Nơi đặt bản phát hành: đã chốt** — Releases của chính repo; bản `thu-ngan-v1.0.0` đã đăng 29/09/2026 (sha512 khớp). **Còn: thêm
-   `DESKTOP_RELEASE_BASE` trên Vercel (Production) + redeploy**, rồi thử 1.0.0 → 1.0.1 (DESK-10).
+4. **Nơi đặt bản phát hành: đã chốt** — Releases của chính repo; bản `thu-ngan-v1.0.0` đã đăng 29/09/2026 (sha512 khớp).
+   `DESKTOP_RELEASE_BASE` đã có trên Vercel Production (kiểm 29/09/2026: `/api/desktop/latest` → 302 tới `Setup-1.0.2.exe`).
 5. **Máy thật**: bấm giờ cài trên Win10 + Win11 sạch kèm ảnh SmartScreen (DESK-09); in LAN + USB ra giấy thật (DESK-06/07); máy có
    cầu in cũ (DESK-08); khởi động lại máy → POS tự mở (DESK-03).
 6. **21-04 qt-food** (DESK-12): làm theo `21-04-PLAN.md` sau khi 1–5 xong.
