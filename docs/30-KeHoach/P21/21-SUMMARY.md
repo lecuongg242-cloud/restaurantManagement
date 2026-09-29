@@ -35,6 +35,16 @@
 
 Ảnh (chụp từ cửa sổ app trong E2E): `anh/1-dang-nhap.png`, `anh/2-chon-chi-nhanh.png`, `anh/3-cai-dat-may-in.png`, `anh/4-mat-mang.png`.
 
+## Sau khi chạy thật (29/09/2026 chiều)
+
+| Bản | Vì sao | Kiểm |
+|---|---|---|
+| 1.0.1 | qt-food: máy quầy còn cầu in cũ chạy dưới SYSTEM giữ khóa cổng → cầu in của app thoát mã 3; bước dò lúc mở app không thấy cầu in cũ (không đọc được tác vụ/dòng lệnh của SYSTEM) nên app **không hỏi gỡ**, khay chỉ báo "đang có cầu in khác chạy". Sửa: bị chặn là LUÔN hỏi (kể cả khi bước dò đang chạy), khay có "Gỡ cầu in cũ…"; `go-cai-dat.ps1` tắt thêm vòng `print-bridge.bat` và mọi tiến trình giữ cổng 47291 | E2E tái hiện (giữ cổng, bước dò rỗng) — đỏ trên bản cũ, xanh trên 1.0.1 |
+| 1.0.1 (web) | Ngay sau khi phát hành bản mới, nút tải đọc `latest.yml` lưu đệm 5 phút → trỏ tệp bản cũ đã không còn ở release "latest" (tải về 404) | `/api/desktop/latest` đọc không lưu đệm; unit test |
+| 1.0.2 | Chủ dự án muốn có nút cập nhật: hộp thoại "Cập nhật ngay / Để sau" khi tải xong, "Cập nhật lên bản…" + "Kiểm tra cập nhật" ở ☰ và khay; Giới thiệu có nút cập nhật | 9/9 E2E trên bản đã cài; hỏi production → "Đã là bản mới nhất (1.0.2)"; **1.0.1 đã cài tự tải 1.0.2 (27 giây) và tự cài khi Thoát (< 10 giây)** |
+
+Phát hành 1.0.1 và 1.0.2: build → quét bí mật (0) → tạo release nháp trên GitHub bằng quyền git đã lưu → tải đủ 3 tệp → mới công bố "latest".
+
 ## Chưa làm — cần người / hạ tầng
 
 1. `.env.local` đã trỏ project production (29/09/2026). **Chưa chạy** `tests/rls/desktop-activate.test.ts`, `cau-in-mat-mang` với
