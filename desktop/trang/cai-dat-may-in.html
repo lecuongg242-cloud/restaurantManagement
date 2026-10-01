@@ -33,7 +33,7 @@
   <section class="the" aria-labelledby="t-quay">
     <h2 id="t-quay">Máy in quầy (hóa đơn)</h2>
     <div class="lua-chon">
-      <label><input type="radio" name="quay" value="usb"><span><b>Cắm USB vào máy này</b></span></label>
+      <label id="chon-usb"><input type="radio" name="quay" value="usb"><span><b>Cắm USB vào máy này</b></span></label>
       <label><input type="radio" name="quay" value="lan"><span><b>Máy in mạng (LAN)</b></span></label>
       <label><input type="radio" name="quay" value="khong"><span><b>Không có</b></span></label>
     </div>
@@ -62,6 +62,13 @@
 
   <datalist id="ds-ip"></datalist>
   <div id="kq-luu" class="thong-bao an" role="alert"></div>
+  <!-- Chỉ app Android (P24 24-03): máy quầy cắm sạc nên giữ màn hình sáng. App Windows không hiện khối này. -->
+  <section id="khoi-giu-sang" class="the an" aria-labelledby="t-man">
+    <h2 id="t-man">Màn hình</h2>
+    <div class="lua-chon">
+      <label><input id="giu-sang" type="checkbox"><span><b>Giữ màn hình sáng</b><small>Nên bật cho máy quầy luôn cắm sạc</small></span></label>
+    </div>
+  </section>
   <div class="nut-cuoi">
     <button id="bo-qua" type="button">Quay lại</button>
     <button id="luu" class="chinh" type="button">Lưu</button>

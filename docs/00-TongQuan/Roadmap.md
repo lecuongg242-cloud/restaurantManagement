@@ -297,6 +297,12 @@ Chủ dự án hỏi 01/10/2026 (đoàn 20 người, 5 bàn, menu giống nhau, 
 một phiên nhiều bàn, đơn ghi bàn gọi, một hóa đơn "Bàn B1 +4". Yêu cầu TABLE-03..06; plan `30-KeHoach/P23/23-01-PLAN.md`;
 giao diện đã chốt ở `30-KeHoach/P23/00-TongQuan.md`.
 
+## P24 — Ứng dụng Android "TechMenu Thu ngân" (CODE XONG 24-01→24-03 trên máy ảo, chưa phát hành APK)
+
+Chủ dự án 01/10/2026: phát hành APK tự cài + tự cập nhật như app Windows, làm trước; tablet tự in không cần laptop. Đề xuất
+QD-030: app Android gốc nhỏ (WebView mở POS + dịch vụ in chạy nền), dùng lại kích hoạt + trang của app Windows. Đợt 24-01 vỏ
+app · 24-02 phát hành + tự cập nhật · 24-03 tự in LAN · 24-04 Bluetooth + Sunmi. Yêu cầu ANDR-01..08; `30-KeHoach/P24/00-TongQuan.md`.
+
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
 |---|---|

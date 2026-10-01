@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cùng màu với app Windows (desktop/trang/chung.css). -->
+    <color name="primary">#FA520F</color>
+    <color name="primary_deep">#C93F06</color>
+    <color name="cream">#FFFAEB</color>
+    <color name="ink">#1F1F1F</color>
+</resources>

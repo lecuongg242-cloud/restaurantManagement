@@ -255,6 +255,18 @@
 | DESK-11 | Tải app ở Admin → Máy in + hướng dẫn | Admin → Máy in có nút **Tải TechMenu Thu ngân** (như KiotViet "Tải KiotViet Thu ngân"); bộ cài cầu in cũ vẫn tải được cho tới khi không còn quán dùng. `/huong-dan-cai-dat` có mục cài app kèm ảnh bước SmartScreen; đổi tên "POSMenu" → "TechMenu" trên trang và tài liệu. Cấu hình máy ghi **Tối thiểu / Khuyến nghị** theo RAM đo thật khi app chạy POS + cầu in | P21 | ☐ |
 | DESK-12 | Chạy thật tại qt-food | qt-food bán 7 ngày bằng app: 0 phiếu mất, 0 phiếu trùng (đối chiếu `print_jobs`); cầu in cũ đã gỡ; tài liệu bàn giao (`60-BanGiao/`) cập nhật cách cài app | P21 | ☐ |
 
+## ANDR — Ứng dụng Android "TechMenu Thu ngân" (P24, `QD-030`)
+| Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
+|---|---|---|---|---|
+| ANDR-01 | Tải + cài APK không qua Google Play | Nút "Tải TechMenu Thu ngân cho Android" ở Quản trị → Máy in; tablet sạch cài theo hướng dẫn ≤ 5 phút | P24 | ◐ code (24-02): route + nút tải (ẩn tới khi phát hành); chưa có khóa ký thật / bản phát hành |
+| ANDR-02 | Kích hoạt như app Windows | Email + mật khẩu chủ quán/quản lý → chọn chi nhánh → "Máy này có nối máy in không?"; mật khẩu chủ quán không lưu trên máy; tắt mở lại vào thẳng POS | P24 | ◐ code (24-01, 24-03): kích hoạt "chỉ xem" và "Có — máy quầy" vào pho-viet trên máy ảo |
+| ANDR-03 | Mở POS / Màn bếp + menu app | POS chạy toàn màn hình, đổi Thu ngân ↔ Màn bếp, Cài đặt máy in, Tải lại, Đổi chi nhánh, Đăng xuất máy | P24 | ◐ code (24-01): kiem-may-ao.mjs 9/9 trên máy ảo tablet Android 14 |
+| ANDR-04 | Tự cập nhật | Bản mới hiện "Cập nhật" ≤ 1 giờ khi máy để yên; bấm là lên bản mới, giữ đăng nhập và cài đặt máy in | P24 | ◐ code (24-02): thu-cap-nhat.mjs 8/8 (lên 1.0.1, giữ kích hoạt, tệp hỏng không cài); chưa có bản phát hành thật |
+| ANDR-05 | Tablet tự in LAN, không laptop | Đơn gọi từ máy khác → phiếu bếp ra máy in LAN ≤ 5 giây; hóa đơn in thẳng không hộp thoại; 0 phiếu trùng khi đổi trạm in | P24 | ◐ code (24-03): thu-in-lan.mjs 12/12 trên máy ảo + máy in giả — phiếu bếp từ máy khác in sau 1,8–3,7 s, hóa đơn ảnh 576 chấm; chưa thử máy in thật |
+| ANDR-06 | In chạy nền ổn định | Thông báo thường trực; để máy yên 8 giờ (màn tắt) vẫn in; máy in lỗi → thông báo đỏ + chip trên POS | P24 | ◐ code (24-03): thông báo thường trực + giữ CPU/Wi-Fi; tắt màn 90 s vẫn in; chưa đo 8 giờ |
+| ANDR-07 | Máy in Bluetooth + liền thân Sunmi | In hóa đơn có dấu 58/80 ≤ 3 giây trên máy thật | P24 | ☐ |
+| ANDR-08 | Đăng ký nhà phát triển Android | Đăng ký Android Developer Console + khai báo app trước khi Google áp xác minh ở Việt Nam (dự kiến 2027) | P24 | ☐ |
+
 ## PURCH — Nhà cung cấp, phiếu nhập, công nợ (P20, `QD-027`)
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|

@@ -5,6 +5,7 @@ import { BadgeCheck, Headset, Monitor, Printer, Settings2, UtensilsCrossed, User
 import { LeadForm } from "../LeadForm";
 import { platformConfig } from "@/lib/platform/config";
 import { thongTinApp } from "@/lib/desktop/phat-hanh";
+import { thongTinAndroid } from "@/lib/android/phat-hanh";
 
 export const metadata: Metadata = {
   title: "Hướng dẫn cài đặt TechMenu — quán cần chuẩn bị gì, TechMenu hỗ trợ gì",
@@ -28,7 +29,7 @@ export const revalidate = 600;
  * `public/marketing/thiet-bi/NGUON-ANH.md`.
  */
 export default async function HuongDanCaiDat() {
-  const [{ supportPhone }, app] = await Promise.all([platformConfig(), thongTinApp()]);
+  const [{ supportPhone }, app, appAndroid] = await Promise.all([platformConfig(), thongTinApp(), thongTinAndroid()]);
   return (
     <main className="min-h-screen bg-canvas">
       <header className="mx-auto max-w-4xl px-lg pt-xl">
@@ -262,6 +263,37 @@ export default async function HuongDanCaiDat() {
           <p className="mt-lg text-base text-slate">
             Máy tính đặt ở bếp để xem món: cài giống vậy, bước 4 chọn <strong className="text-ink">Không — chỉ xem</strong>. Bấm
             dấu ✕ thì app thu xuống góc phải thanh tác vụ và vẫn in phiếu; trên Windows 11 biểu tượng có thể nằm trong mũi tên ^.
+          </p>
+        </section>
+      )}
+
+      {/* ---- P24 ANDR-01: app Android — APK tự cài, không qua Google Play (QD-030 D2). Ẩn khi chưa phát hành. ---- */}
+      {appAndroid && (
+        <section id="cai-app-android" className="mx-auto max-w-4xl scroll-mt-lg px-lg py-section-sm" data-cai-app-android>
+          <h2 className="font-display text-3xl text-ink">Cài TechMenu Thu ngân trên tablet / điện thoại Android</h2>
+          <p className="mt-md text-lg text-slate">
+            Dùng tablet hoặc máy POS Android làm máy quầy. Máy chạy <strong className="text-ink">Android 8 trở lên</strong>.
+          </p>
+          <ol className="mt-xl flex flex-col gap-md text-lg text-ink">
+            <DongBatBuoc so={1}>
+              Trên chính máy Android, vào <strong>Quản trị → Máy in</strong> → bấm{" "}
+              <strong>Tải TechMenu Thu ngân cho Android</strong>.
+            </DongBatBuoc>
+            <DongBatBuoc so={2}>
+              Mở tệp vừa tải. Android hỏi quyền → bật <strong>Cho phép cài ứng dụng không rõ nguồn gốc</strong> → quay lại
+              → <strong>Cài đặt</strong>.
+            </DongBatBuoc>
+            <DongBatBuoc so={3}>
+              Nếu Play Protect báo <em>&quot;ứng dụng chưa xác định&quot;</em> → bấm <strong>Vẫn cài đặt</strong>. Chỉ gặp ở
+              lần cài đầu.
+            </DongBatBuoc>
+            <DongBatBuoc so={4}>
+              Mở app → đăng nhập <strong>email và mật khẩu chủ quán</strong>.
+            </DongBatBuoc>
+          </ol>
+          <p className="mt-lg text-base text-slate">
+            Có bản mới, app tự hỏi → bấm <strong className="text-ink">Cập nhật</strong>. Nút <strong className="text-ink">☰</strong>{" "}
+            nổi ở mép màn hình mở menu: đổi Thu ngân / Màn bếp, cài đặt máy in, đăng xuất máy.
           </p>
         </section>
       )}

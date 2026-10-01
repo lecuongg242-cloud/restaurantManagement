@@ -68,6 +68,8 @@ describe("GET /api/desktop/update/[file]", () => {
 describe("nguồn cầu in", () => {
   it("app/<phiên bản> → TechMenu Thu ngân; trống → cầu in cũ", () => {
     expect(nguonCauIn("app/1.0.0")).toBe("TechMenu Thu ngân 1.0.0");
+    expect(nguonCauIn("android/1.0.1")).toBe("TechMenu Thu ngân Android 1.0.1");
+    expect(nguonCauIn("android/")).toBe("Cầu in cũ (CAI-DAT.bat)");
     expect(nguonCauIn(null)).toBe("Cầu in cũ (CAI-DAT.bat)");
     expect(nguonCauIn("app/<script>")).toBe("Cầu in cũ (CAI-DAT.bat)");
   });

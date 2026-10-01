@@ -33,7 +33,7 @@ function nhap() {
       : q === "lan"
         ? { kieu: "lan", host: $("quay-ip").value.trim(), port: Number($("quay-cong").value || 9100) }
         : null;
-  return { bep, quay, kho: chon("kho") === "58" ? "58" : "80" };
+  return { bep, quay, kho: chon("kho") === "58" ? "58" : "80", giuSang: $("giu-sang").checked };
 }
 
 async function napLai() {
@@ -53,12 +53,17 @@ async function napLai() {
     })
   );
   const { bep, quay, kho } = d.mayIn;
+  // App Android (P24): không có máy in USB của Windows; có ô "Giữ màn hình sáng". App Windows không gửi `nenTang`.
+  const android = d.nenTang === "android";
+  $("chon-usb").classList.toggle("an", android);
+  $("khoi-giu-sang").classList.toggle("an", !android);
+  $("giu-sang").checked = Boolean(d.mayIn.giuSang);
   dat("bep", bep ? "lan" : lanDau ? "lan" : "khong");
   if (bep) {
     $("bep-ip").value = bep.host;
     $("bep-cong").value = bep.port;
   }
-  dat("quay", quay ? quay.kieu : lanDau ? "usb" : "khong");
+  dat("quay", quay ? quay.kieu : lanDau ? (android ? "lan" : "usb") : "khong");
   if (quay?.kieu === "usb") sel.value = quay.ten;
   if (quay?.kieu === "lan") {
     $("quay-ip").value = quay.host;

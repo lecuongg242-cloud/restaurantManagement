@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chỉ HTTPS. Máy in LAN (24-03) đi bằng socket thô cổng 9100, không qua HTTP nên không cần mở cleartext. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

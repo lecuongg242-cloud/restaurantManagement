@@ -13,6 +13,7 @@ import { demPhieuHomNay } from "@/lib/print/cau-in-db";
 import { resolveRange } from "@/lib/billing/report-range";
 import { docNguonCauIn, nguonCauIn } from "@/lib/print/nguon-cau-in";
 import { thongTinApp } from "@/lib/desktop/phat-hanh";
+import { thongTinAndroid } from "@/lib/android/phat-hanh";
 import { cachDay, gioNgayNamVn, gioNgayVn, gioVn } from "@/lib/time/vn";
 
 /**
@@ -87,7 +88,7 @@ export default async function PrintersPage({
 
   const supabase = await createClient();
   const tenantId = session.tenant.id;
-  const [{ data: nhipRow }, dem, boCai, nguon, app] = await Promise.all([
+  const [{ data: nhipRow }, dem, boCai, nguon, app, appAndroid] = await Promise.all([
     supabase
       .from("printer_heartbeats")
       .select("seen_at, printer_ok, printer_host, printer_checked_at, counter_ok, counter_target, counter_checked_at, last_gap_from, last_gap_seconds")
@@ -97,6 +98,7 @@ export default async function PrintersPage({
     thongTinBoCai(createAdminClient()),
     docNguonCauIn(supabase.from("printer_heartbeats").select("tenant_id, agent").eq("tenant_id", tenantId)),
     thongTinApp(),
+    thongTinAndroid(),
   ]);
 
   const now = Date.now();
@@ -251,6 +253,35 @@ export default async function PrintersPage({
               Tải TechMenu Thu ngân{app.kichThuoc > 0 ? ` (${Math.max(1, Math.round(app.kichThuoc / 1048576))} MB)` : ""}
             </a>
             <span className="text-sm text-steel">Windows 10/11 · bản {app.phienBan}</span>
+          </div>
+        </Card>
+      )}
+
+      {/* P24 ANDR-01 — APK tự cài, không qua Google Play (QD-030 D2). Ẩn khi chưa có bản phát hành, như bản Windows. */}
+      {appAndroid && (
+        <Card className="mt-lg">
+          <CardTitle>Cài TechMenu Thu ngân trên tablet / điện thoại Android</CardTitle>
+          <ol className="mt-md list-decimal space-y-xs pl-lg text-sm text-slate">
+            <li>Mở trang này <span className="font-medium text-ink">trên chính máy Android</span> → bấm tải.</li>
+            <li>
+              Mở tệp vừa tải. Android hỏi quyền → bật{" "}
+              <span className="font-medium text-ink">Cho phép cài ứng dụng không rõ nguồn gốc</span> (cho Chrome) → quay lại →{" "}
+              <span className="font-medium text-ink">Cài đặt</span>.
+            </li>
+            <li>
+              Nếu hiện cảnh báo &quot;ứng dụng chưa xác định&quot; của Play Protect → bấm{" "}
+              <span className="font-medium text-ink">Vẫn cài đặt</span>.
+            </li>
+            <li>Mở app → đăng nhập email + mật khẩu chủ quán.</li>
+          </ol>
+          <p className="mt-sm text-sm text-slate">
+            App tự báo khi có bản mới — bấm <span className="font-medium text-ink">Cập nhật</span>.
+          </p>
+          <div className="mt-md flex flex-wrap items-center gap-md">
+            <a href="/api/android/latest" className={buttonVariants({ variant: "primary" })}>
+              Tải TechMenu Thu ngân cho Android ({Math.max(1, Math.round(appAndroid.kichThuoc / 1048576))} MB)
+            </a>
+            <span className="text-sm text-steel">Android 8 trở lên · bản {appAndroid.phienBan}</span>
           </div>
         </Card>
       )}

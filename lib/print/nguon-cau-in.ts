@@ -3,8 +3,10 @@
  * bản>`, cầu in cũ (tác vụ `CauInBep` cài bằng CAI-DAT.bat) không báo gì. Thuần hàm để test được.
  */
 export function nguonCauIn(agent: string | null | undefined): string {
-  const m = typeof agent === "string" ? agent.match(/^app\/([0-9A-Za-z.+-]{1,30})$/) : null;
-  return m ? `TechMenu Thu ngân ${m[1]}` : "Cầu in cũ (CAI-DAT.bat)";
+  const m = typeof agent === "string" ? agent.match(/^(app|android)\/([0-9A-Za-z.+-]{1,30})$/) : null;
+  if (!m) return "Cầu in cũ (CAI-DAT.bat)";
+  // App Android (P24 24-03) báo `android/<phiên bản>` — tablet / máy POS Android làm trạm in.
+  return m[1] === "android" ? `TechMenu Thu ngân Android ${m[2]}` : `TechMenu Thu ngân ${m[2]}`;
 }
 
 /**
