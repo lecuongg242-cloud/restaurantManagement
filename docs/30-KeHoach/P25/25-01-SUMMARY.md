@@ -1,6 +1,10 @@
 # 25-01 — Kết quả: một chỗ nhập hàng, kiểm kê thấy lệch
 
-> Làm 01/10/2026, ngay sau khi chủ dự án chốt "A + B". Không có migration, không đổi RPC hay dữ liệu. **Chưa commit, chưa deploy.**
+> Làm 01/10/2026, ngay sau khi chủ dự án chốt "A + B". Không có migration, không đổi RPC hay dữ liệu.
+> **Đã deploy production 02/10/2026** (dev c58aa9f → main 04c889d). Trước khi push, commit đã được kiểm trên một worktree sạch,
+> không có file chưa commit của phiên P24: `tsc` sạch, unit 1000/1000, `next build` xanh. Sau deploy: `smoke:prod` 3 đạt ·
+> 0 hỏng · 2 không kiểm được, và `p25-nhap-kiem-ke.spec.ts` chạy trên production **2/2 xanh**. Ảnh trong `anh/` chụp từ
+> production.
 
 ## File đã đổi
 

@@ -1,6 +1,6 @@
 # P25 — Gọn khu kho: một chỗ nhập hàng, kiểm kê thấy lệch
 
-> Lập 01/10/2026. **Trạng thái: CHỦ DỰ ÁN CHỐT 01/10/2026 ("A + B"); CODE XONG 25-01**, kết quả ở `25-01-SUMMARY.md`.
+> Lập 01/10/2026. **Trạng thái: CHỦ DỰ ÁN CHỐT 01/10/2026 ("A + B"); ĐÃ DEPLOY PRODUCTION 02/10/2026** (main 04c889d), kết quả ở `25-01-SUMMARY.md`.
 > Yêu cầu: INV-11 (kiểm kê thấy lệch), INV-12 (một chỗ nhập hàng). Sửa: QD-027 C2/D2, P20 `00-GiaoDien.md` G1.
 > Phụ thuộc: P10 (kho, kiểm kê), P18 (gợi ý nhập), P20 (phiếu nhập).
 

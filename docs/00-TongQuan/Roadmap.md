@@ -303,6 +303,14 @@ Chủ dự án 01/10/2026: phát hành APK tự cài + tự cập nhật như ap
 QD-030: app Android gốc nhỏ (WebView mở POS + dịch vụ in chạy nền), dùng lại kích hoạt + trang của app Windows. Đợt 24-01 vỏ
 app · 24-02 phát hành + tự cập nhật · 24-03 tự in LAN · 24-04 Bluetooth + Sunmi. Yêu cầu ANDR-01..08; `30-KeHoach/P24/00-TongQuan.md`.
 
+## P25 — Gọn khu kho: một chỗ nhập hàng, kiểm kê thấy lệch (ĐÃ DEPLOY PRODUCTION 02/10/2026, main 04c889d)
+
+Chủ dự án 01/10/2026: hai chỗ nhập hàng là thừa, và kiểm kê ghi im lặng +72 kg khi gõ 82 trên sổ 10 kg. Chốt "A + B":
+- Nhập hàng chỉ ở menu Nhập hàng (nút "Lấy hàng lần trước"). Nguyên liệu có tab "Tồn kho" thay "Nhập hôm nay".
+- Kiểm kê có cột như KiotViet (Tồn kho / Thực tế / SL lệch / Giá trị lệch); lệch lớn thì bôi vàng và hỏi lại.
+
+Yêu cầu INV-11, INV-12; `30-KeHoach/P25/00-TongQuan.md`.
+
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
 |---|---|
