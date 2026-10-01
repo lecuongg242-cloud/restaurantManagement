@@ -75,10 +75,21 @@ của Node; kịch bản `android/scripts/thu-in-lan.mjs` + `thiet-bi.mjs`.
 **Tiêu chí 24-03:** #1–#7 ✅ trên máy ảo + máy in giả. #8 (tablet + máy in LAN thật) ☐ cần thiết bị. #5 (mạng rớt ngay sau khi in
 ⇒ không in lần hai) chưa có ca thử riêng — cơ chế sổ "đã in chưa báo" chép nguyên từ bản Node.
 
+## Phát hành 1.0.0 (02/10/2026)
+
+- Khóa ký tạo 02/10/2026: RSA 4096, alias `techmenu`, chứng chỉ SHA-256
+  `ae654a27540aefa3571f4f9ee6b4f880fe8ffb8f9042bf397dfd41e089972204`. Tệp + mật khẩu ở `C:\Users\lecuong\techmenu-khoa-ky\` trên máy
+  dev (NGOÀI repo) — **chủ dự án cần chép bản sao thứ hai**.
+- `node android/scripts/phat-hanh.mjs 1.0.0` (mã 10000) ⇒ `TechMenu-ThuNgan-1.0.0.apk` 4,4 MB lên bản phát hành GitHub nhãn
+  `android` (không phải "latest" — bản Windows 1.0.3 vẫn là Latest). `gh` cài tại `C:\Users\lecuong\tools\gh`, đăng nhập
+  `lecuongg242-cloud`.
+- Production: `/api/android/latest?thongTin=1` trả đúng phiên bản + sha256; `/api/android/latest` tải đủ 4.663.982 byte;
+  Quản trị → Máy in hiện khối Android + nút "Tải TechMenu Thu ngân cho Android (4 MB)". APK tải từ production cài lên máy ảo ⇒
+  chạy 1.0.0, chữ ký đúng khóa trên. 24-02 #1 (cài từ nút tải) ✅ máy ảo; #5 (trang tải) ✅.
+
 ## Còn lại
 
-1. **Khóa ký thật** (chủ dự án quyết nơi giữ bản sao thứ hai) → `phat-hanh.mjs 1.0.0` → bản phát hành nhãn `android` (máy dev
-   chưa có GitHub CLI — tải lên tay hoặc cài `gh`).
-2. Deploy route `/api/android/*` (merge `main`) → cài từ nút tải trên tablet thật.
+1. ~~Khóa ký + phát hành 1.0.0 + deploy~~ — xong 02/10/2026. Còn: **chép bản sao thứ hai của khóa ký**.
+2. Cài từ nút tải trên tablet thật.
 3. Thử tablet + máy in LAN thật (24-03 #8); thử Android 8–10 (máy ảo mới thử Android 14).
 4. Đăng ký Android Developer Console trước khi Google áp xác minh ở Việt Nam (ANDR-08).

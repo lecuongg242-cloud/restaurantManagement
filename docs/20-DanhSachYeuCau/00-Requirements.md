@@ -258,7 +258,7 @@
 ## ANDR — Ứng dụng Android "TechMenu Thu ngân" (P24, `QD-030`)
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
 |---|---|---|---|---|
-| ANDR-01 | Tải + cài APK không qua Google Play | Nút "Tải TechMenu Thu ngân cho Android" ở Quản trị → Máy in; tablet sạch cài theo hướng dẫn ≤ 5 phút | P24 | ◐ code (24-02): route + nút tải (ẩn tới khi phát hành); chưa có khóa ký thật / bản phát hành |
+| ANDR-01 | Tải + cài APK không qua Google Play | Nút "Tải TechMenu Thu ngân cho Android" ở Quản trị → Máy in; tablet sạch cài theo hướng dẫn ≤ 5 phút | P24 | ◐ phát hành 1.0.0 (02/10): APK ký khóa thật trên GitHub nhãn `android`, nút tải hiện ở Quản trị → Máy in; cài từ link production lên máy ảo OK; chưa thử tablet thật |
 | ANDR-02 | Kích hoạt như app Windows | Email + mật khẩu chủ quán/quản lý → chọn chi nhánh → "Máy này có nối máy in không?"; mật khẩu chủ quán không lưu trên máy; tắt mở lại vào thẳng POS | P24 | ◐ code (24-01, 24-03): kích hoạt "chỉ xem" và "Có — máy quầy" vào pho-viet trên máy ảo |
 | ANDR-03 | Mở POS / Màn bếp + menu app | POS chạy toàn màn hình, đổi Thu ngân ↔ Màn bếp, Cài đặt máy in, Tải lại, Đổi chi nhánh, Đăng xuất máy | P24 | ◐ code (24-01): kiem-may-ao.mjs 9/9 trên máy ảo tablet Android 14 |
 | ANDR-04 | Tự cập nhật | Bản mới hiện "Cập nhật" ≤ 1 giờ khi máy để yên; bấm là lên bản mới, giữ đăng nhập và cài đặt máy in | P24 | ◐ code (24-02): thu-cap-nhat.mjs 8/8 (lên 1.0.1, giữ kích hoạt, tệp hỏng không cài); chưa có bản phát hành thật |
