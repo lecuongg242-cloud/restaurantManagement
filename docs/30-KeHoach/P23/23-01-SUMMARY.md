@@ -1,7 +1,8 @@
 # 23-01 — Kết quả: ghép bàn khi mở cho khách đoàn
 
 > Làm 01/10/2026, ngay sau khi chủ dự án chốt giao diện ("ok rồi"). Migration `0082_table_groups` **đã áp production
-> 01/10/2026 20:12** (giờ VN), có chủ dự án đồng ý; chỉ thêm, không đổi dữ liệu cũ. **Chưa commit, chưa deploy.**
+> 01/10/2026 20:12** (giờ VN), có chủ dự án đồng ý; chỉ thêm, không đổi dữ liệu cũ. **Đã deploy production 01/10/2026**
+> (dev 6fbbe98 → main 77b1206; Vercel build xanh; `smoke:prod` 3 đạt · 0 hỏng; POS demo trên production có đủ ghép bàn, ô bàn mới).
 
 ## File đã đổi
 
@@ -46,4 +47,4 @@
 
 - Chạy `p3.spec`, `pos-dien-thoai.spec` khi B1, T1 không còn dữ liệu thử tay.
 - Đo realtime hai máy (#1). Thử QR từ bàn phụ (#3). In thật hóa đơn / phiếu khách / phiếu bếp (#6).
-- Commit, push `dev`, deploy.
+- ~~Commit, push `dev`, deploy~~ — xong 01/10/2026.
