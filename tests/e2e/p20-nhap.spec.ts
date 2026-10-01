@@ -50,7 +50,7 @@ test("nhập hàng có NCC, trả một phần, hủy bỏ trả lại tồn và
 
   try {
     await dangNhap(page);
-    await page.goto(`/r/${SLUG}/admin/inventory/today`, { waitUntil: "networkidle" });
+    await page.goto(`/r/${SLUG}/admin/nhap-hang/moi`, { waitUntil: "networkidle" });
     // Không tràn ngang trên 360px.
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
 
@@ -134,7 +134,7 @@ test("chọn 'Chưa trả (ghi nợ)' → không phiếu chi, nợ = cần trả
   const { data: ncc } = await db.from("suppliers").insert({ tenant_id: tenant, code: `${TAG}-GN`, name: `${TAG} Mối gạo` }).select("id").single();
   try {
     await dangNhap(page);
-    await page.goto(`/r/${SLUG}/admin/inventory/today`, { waitUntil: "networkidle" });
+    await page.goto(`/r/${SLUG}/admin/nhap-hang/moi`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "+ Thêm nguyên liệu khác" }).click();
     await page.getByRole("combobox", { name: "Nguyên liệu" }).last().selectOption({ label: `${TAG} Gạo` });
     await page.getByRole("textbox", { name: /Số lượng/ }).last().fill("50");

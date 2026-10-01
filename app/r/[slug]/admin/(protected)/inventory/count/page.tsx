@@ -4,7 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { CountForm } from "@/components/admin/inventory/CountForm";
-import { loadInventory } from "@/lib/inventory/data";
+import { costContext, loadInventory } from "@/lib/inventory/data";
+import { unitCost } from "@/lib/inventory/cost";
 import { businessDate } from "@/lib/inventory/day";
 import { gioVn } from "@/lib/time/vn";
 import { BASE_UNIT_LABEL, type Ingredient } from "@/lib/inventory/types";
@@ -14,7 +15,9 @@ export const dynamic = "force-dynamic";
 
 const fmt = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
 const unitOf = (i: Ingredient) => i.purchase_unit ?? BASE_UNIT_LABEL[i.base_unit];
-const inPurchase = (i: Ingredient, qty: number) => `${fmt(qty / (i.purchase_unit ? i.purchase_factor : 1))} ${unitOf(i)}`;
+/** Hệ số từ đơn vị gốc ra đơn vị hiện trên form (đơn vị nhập nếu có). */
+const factorOf = (i: Ingredient) => (i.purchase_unit ? i.purchase_factor : 1);
+const inPurchase = (i: Ingredient, qty: number) => `${fmt(qty / factorOf(i))} ${unitOf(i)}`;
 
 const REASON_LABEL: Record<string, string> = {
   hong: "Hỏng / hết hạn",
@@ -58,6 +61,7 @@ export default async function CountPage({ params }: { params: Promise<{ slug: st
   const active = data.ingredients.filter((i) => i.active);
   const toCount = active.filter((i) => i.must_count);
   const byId = new Map(data.ingredients.map((i) => [i.id, i]));
+  const ctx = costContext(data);
   const [y, m, d] = today.split("-");
   const lc = lastClose.data?.[0];
 
@@ -75,7 +79,8 @@ export default async function CountPage({ params }: { params: Promise<{ slug: st
       <Card>
         <h2 className="font-display text-lg text-ink">Kiểm kê cuối ngày</h2>
         <p className="mt-xxs text-sm text-steel">
-          Chỉ đếm nguyên liệu đã đánh dấu &quot;cần kiểm&quot;. Không kiểm cũng được — khi đó sẽ không có số hao hụt thật.
+          Chỉ đếm nguyên liệu đã đánh dấu &quot;cần kiểm&quot;. Số thực tế thay cho tồn kho trên sổ. Không kiểm cũng được — khi
+          đó sẽ không có số hao hụt thật.
         </p>
         <div className="mt-md">
           {toCount.length === 0 ? (
@@ -87,7 +92,12 @@ export default async function CountPage({ params }: { params: Promise<{ slug: st
                 id: i.id,
                 name: i.name,
                 unit: unitOf(i),
-                theoretical: inPurchase(i, theo.get(i.id) ?? 0),
+                theoretical: Math.round(((theo.get(i.id) ?? 0) / factorOf(i)) * 1000) / 1000,
+                // Giá trị lệch theo giá vốn hiện tại (KiotViet: "giá vốn tại thời điểm tạo phiếu kiểm kho").
+                unitPrice: (() => {
+                  const c = unitCost(i.id, ctx).cost;
+                  return c === null ? null : c * factorOf(i);
+                })(),
               }))}
             />
           )}

@@ -25,6 +25,7 @@ Nhập buổi sáng P10 (`recordReceipts`) đã ghi được lượng và giá, 
 | C6 | Quán không dùng kho mà muốn theo dõi nợ mối | **Khai mặt hàng như nguyên liệu** ("Bia Hà Nội", "Gas"), không cần định lượng — giống KiotViet; không có dòng phiếu gõ tên tự do |
 | C7 | Tiền bán hàng trong sổ quỹ | **Một dòng mỗi ngày mỗi phương thức**, bấm vào mở báo cáo ngày đó. **Khác KiotViet** (một phiếu thu mỗi hóa đơn) — chủ dự án đồng ý vì sổ gọn (~2.700 dòng/tháng với qt-food) và luôn khớp báo cáo |
 | C9 | Khai thuế nộp nhà nước | **Cài đặt → "Thuế nộp nhà nước"**, chỉ owner: danh sách dòng thuế (tên, %, tính trên **doanh thu** hoặc **lợi nhuận**) — ví dụ "10% doanh thu", "GTGT 3% + TNCN 1,5% doanh thu", "TNCN 17% lợi nhuận". Kết quả kinh doanh hiện "Thuế phải nộp (ước tính)" từng dòng → **Lợi nhuận sau thuế**. Khác ô "VAT %" sẵn có (khách trả, cộng vào hóa đơn) |
+| C2' | Sửa C2 + D2 (01/10/2026, P25) | Chốt G1 (30/09) thêm menu "Nhập hàng" nhưng vẫn giữ tab "Nhập hôm nay", nên có hai màn nhập (trái C2). Chủ dự án thấy không hợp lí, và ngày 01/10 chốt: **nhập hàng chỉ ở menu Nhập hàng** (như KiotViet: Giao dịch → Nhập hàng). Bỏ tab "Nhập hôm nay"; nhập buổi sáng nhanh nhờ nút **"Lấy hàng lần trước"** ở "+ Nhập hàng"; Tồn kho + Chế biến thành tab "Tồn kho". Xem `30-KeHoach/P25/00-TongQuan.md` |
 | C8 | Tài khoản ngân hàng | **Một tài khoản** (tài khoản P13). **Khác KiotViet** (nhiều tài khoản) — chủ dự án đồng ý; nhiều tài khoản làm cùng sổ S2e |
 
 ## Quyết định

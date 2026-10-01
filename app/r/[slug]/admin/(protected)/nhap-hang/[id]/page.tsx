@@ -53,7 +53,6 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
       <ReceiptForm
         slug={slug}
         ingredients={(ings ?? []) as { id: string; name: string; base_unit: BaseUnit; purchase_unit: string | null }[]}
-        prefill={[]}
         suppliers={suppliers}
         draft={{
           id: r.id,

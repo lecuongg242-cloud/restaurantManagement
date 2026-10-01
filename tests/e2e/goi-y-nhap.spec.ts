@@ -6,7 +6,7 @@ config({ path: ".env.local" });
 config();
 
 /**
- * P18 18-02 (AI-03) — màn "Nhập hôm nay": gợi ý nhập theo dự báo + nút "Điền theo gợi ý".
+ * P18 18-02 (AI-03) — màn "+ Nhập hàng" (P25: trước ở tab "Nhập hôm nay"): gợi ý nhập theo dự báo + nút "Điền theo gợi ý".
  *
  * Chưa quán nào khai định lượng, nên test tự dựng trên quán DEMO pho-viet: một nguyên liệu + định lượng cho món bán
  * nhiều nhất trong dự báo hôm nay, và (vì dữ liệu demo ngẫu nhiên, sai lệch backtest > 25% nên dự báo bị ẩn) tạm đặt
@@ -69,14 +69,14 @@ test("gợi ý = món dự báo × 150 g ÷ 90% + 10%, làm tròn lên kg; 'Đi�
   await page.fill('input[name="email"]', OWNER.email);
   await page.fill('input[name="password"]', OWNER.pass);
   await Promise.all([page.waitForLoadState("networkidle"), page.click('button[type="submit"]')]);
-  await page.goto(`/r/${SLUG}/admin/inventory/today`, { waitUntil: "networkidle" });
+  await page.goto(`/r/${SLUG}/admin/nhap-hang/moi`, { waitUntil: "networkidle" });
 
   const kg = Math.ceil(((slHomNay * 150) / 0.9) * 1.1 / 1000 - 1e-9);
   const khoi = page.locator("[data-goi-y-nhap]");
   await expect(khoi).toBeVisible();
   const dong = khoi.locator("tr").filter({ hasText: TEN });
   await expect(dong).toContainText(`${kg} kg`);
-  await page.screenshot({ path: "docs/30-KeHoach/P18/anh/3-goi-y-nhap.png", fullPage: true });
+  // Ảnh P18 (3-goi-y-nhap.png) chụp ở tab "Nhập hôm nay" cũ — không chụp đè sau P25.
 
   await page.getByRole("button", { name: "Điền theo gợi ý" }).click();
   // Dòng của nguyên liệu vừa thêm: ô chọn đang chọn nó, ô số lượng = gợi ý.

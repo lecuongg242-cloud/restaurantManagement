@@ -38,7 +38,7 @@ test("G1: menu Nhập hàng → danh sách → + Nhập hàng; đường cũ t�
   await page.goto(`/r/${SLUG}/admin/inventory/phieu-nhap`);
   await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/admin/nhap-hang$`), { timeout: 90_000 });
 
-  await page.goto(`/r/${SLUG}/admin/inventory/today`, { waitUntil: "networkidle" });
+  await page.goto(`/r/${SLUG}/admin/inventory/stock`, { waitUntil: "networkidle" });
   await expect(page.getByRole("navigation", { name: "Khu nguyên liệu" }).getByRole("link", { name: "Phiếu nhập" })).toHaveCount(0);
 });
 

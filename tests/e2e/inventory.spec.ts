@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
+import { getServiceMode, setServiceMode } from "./tenant-mode";
 
 /**
  * P10 — Nguyên liệu & định lượng trên trình duyệt thật (INV-01..03). Chỉ chạy trên tenant DEMO
@@ -130,7 +131,7 @@ test("công thức vòng bị chặn, không lưu (INV-03)", async ({ page }) =>
 
 test("360px không cuộn ngang", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 });
-  for (const path of [BASE, `${BASE}/recipes`, `${BASE}/today`, `${BASE}/count`]) {
+  for (const path of [BASE, `${BASE}/recipes`, `${BASE}/stock`, `${BASE}/count`, `/r/${SLUG}/admin/nhap-hang/moi`]) {
     await page.goto(path);
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth
@@ -143,6 +144,9 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
   const db = admin();
   const { data: t } = await db.from("tenants").select("id").eq("slug", SLUG).single();
   const tenant = t!.id as string;
+  // Ca này bấm món ngay không chọn bàn → cần chế độ bán tại quầy. Tự đặt rồi trả lại, không dựa vào cài đặt đang có của
+  // tenant demo dùng chung (pho-viet đã bị đổi sang "table" → nút thêm món khóa, cùng kiểu lỗi 522963b).
+  const modeCu = await getServiceMode(SLUG);
 
   // Món demo KHÔNG có nhóm tùy chọn → bấm là vào giỏ ngay.
   const { data: links } = await db.from("menu_item_modifier_groups").select("item_id").eq("tenant_id", tenant);
@@ -168,8 +172,9 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
   const receiptIds: string[] = [];
 
   try {
+    await setServiceMode(SLUG, "counter");
     // Nhập 1 kg qua màn thật → sổ lưu 1000 g (INV-04)
-    await page.goto(`${BASE}/today`);
+    await page.goto(`/r/${SLUG}/admin/nhap-hang/moi`);
     await page.getByRole("button", { name: "+ Thêm nguyên liệu khác" }).click();
     await page.getByRole("combobox", { name: "Nguyên liệu" }).last().selectOption({ label: ingName });
     await page.getByRole("textbox", { name: /Số lượng/ }).last().fill("1");
@@ -218,6 +223,7 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     await db.from("purchase_receipts").delete().in("id", receiptIds);
     await db.from("recipe_lines").delete().eq("ingredient_id", ing!.id);
     await db.from("ingredients").delete().eq("id", ing!.id);
+    await setServiceMode(SLUG, modeCu);
   }
 
   // Hồi quy INV-10: hết dữ liệu sổ → POS không còn nhãn nào
@@ -245,9 +251,11 @@ test("kiểm kê lệch 200 g + phiếu hủy có lý do (INV-08)", async ({ pag
     await page.goto(`${BASE}/count`);
     await expect(page.getByText(/tính cho ngày \d{2}\/\d{2}\/\d{4}/)).toBeVisible();
     const row = page.locator("li").filter({ hasText: name });
-    await expect(row.getByText("Sổ: 1 kg")).toBeVisible();
+    await expect(row.getByText("1 kg", { exact: true })).toBeVisible(); // cột Tồn kho
     await row.getByRole("textbox").fill("0,8");
-    await page.getByRole("button", { name: "Ghi kiểm kê" }).click();
+    // P25 (INV-11): lệch 20% — không phải lệch lớn, không hỏi lại.
+    await expect(page.getByLabel(`SL lệch ${name}`)).toContainText("-0,2 kg");
+    await page.getByRole("button", { name: "Hoàn thành" }).click();
     await expect(page.getByText(/Đã ghi kiểm kê/)).toBeVisible();
     const { data: adj } = await db.from("stock_entries").select("qty").eq("ingredient_id", ing!.id).eq("kind", "count_adjust");
     expect(adj!.map((r) => Number(r.qty))).toEqual([-200]);
@@ -273,28 +281,50 @@ test("kiểm kê lệch 200 g + phiếu hủy có lý do (INV-08)", async ({ pag
   }
 });
 
-test("báo cáo: chưa khai nguyên liệu thì không có khối P10; khai rồi thì có, dòng nối khớp KPI (REPORT-13, INV-10)", async ({ page }) => {
+test("báo cáo: chưa khai nguyên liệu thì không có khối P10; khai rồi thì có, dòng nối khớp KPI (REPORT-13, INV-10)", async ({ page, browser, baseURL }) => {
   const REPORTS = `/r/${SLUG}/admin/reports?preset=30d`;
-  // Các test trước chỉ dọn ở afterAll — dọn ngay để quán demo thật sự "chưa khai nguyên liệu".
   await cleanup();
-  await page.goto(REPORTS);
-  await expect(page.getByRole("heading", { name: "Báo cáo dòng tiền" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Lãi gộp theo món" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Hao hụt" })).toHaveCount(0);
+
+  // Phần "chưa khai": khối P10 ẩn khi quán KHÔNG có nguyên liệu nào (report-server `if (!count) return null`). pho-viet là
+  // quán demo dùng chung — chủ dự án khai nguyên liệu thử ở đó (01/10/2026: "Thịt ngựa"), nên kiểm trên bun-bo.
+  const EMPTY = "bun-bo";
+  const { data: bb } = await admin().from("tenants").select("id").eq("slug", EMPTY).single();
+  const { count: soNl } = await admin().from("ingredients").select("id", { count: "exact", head: true }).eq("tenant_id", bb!.id);
+  expect(soNl, `${EMPTY} phải chưa khai nguyên liệu nào để kiểm INV-10`).toBe(0);
+  const ctx = await browser.newContext({ baseURL });
+  try {
+    const p2 = await ctx.newPage();
+    await p2.goto(`/r/${EMPTY}/admin/login`);
+    await p2.fill('input[name="email"]', process.env.SEED_OWNER_B_EMAIL ?? "ownerB@bun-bo.test");
+    await p2.fill('input[name="password"]', process.env.SEED_OWNER_B_PASSWORD ?? "DemoPass123!");
+    await Promise.all([p2.waitForURL((u) => !u.pathname.endsWith("/login"), { timeout: 90_000 }), p2.click('button[type="submit"]')]);
+    await p2.goto(`/r/${EMPTY}/admin/reports?preset=30d`);
+    await expect(p2.getByRole("heading", { name: "Báo cáo dòng tiền" })).toBeVisible();
+    await expect(p2.getByRole("heading", { name: "Lãi gộp theo món" })).toHaveCount(0);
+    await expect(p2.getByRole("heading", { name: "Hao hụt" })).toHaveCount(0);
+  } finally {
+    await ctx.close();
+  }
 
   // Dựng một hóa đơn đã thanh toán HÔM NAY: món có định lượng 100 g × 200đ/g = 20.000đ giá vốn,
   // bán 50.000đ → khối lãi gộp phải có dòng "tạm tính" và dòng nối phải khớp KPI trên cùng trang.
   const db = admin();
   const { data: t } = await db.from("tenants").select("id").eq("slug", SLUG).single();
   const tenant = t!.id as string;
-  const { data: items } = await db.from("menu_items").select("id, name").eq("tenant_id", tenant).eq("active", true).limit(1);
-  const item = items![0];
+  // Món RIÊNG của test (ẩn khỏi thực đơn): món demo có sẵn còn đơn thật khác trong ngày → lãi/phần không còn là của mỗi
+  // hóa đơn này (01/10/2026: "Bún bò Huế" 2 phần có giá hôm nay → 35.000₫ thay vì 30.000₫).
+  const { data: cats } = await db.from("menu_categories").select("id").eq("tenant_id", tenant).limit(1);
+  const { data: item } = await db
+    .from("menu_items")
+    .insert({ tenant_id: tenant, category_id: cats![0].id, name: `${TAG} Món báo cáo`, base_price: 50_000, active: false })
+    .select("id, name")
+    .single();
   const { data: ing } = await db
     .from("ingredients")
     .insert({ tenant_id: tenant, name: `${TAG} Báo cáo`, base_unit: "g", last_unit_cost: 200, last_cost_at: new Date().toISOString() })
     .select("id")
     .single();
-  await db.from("recipe_lines").insert({ tenant_id: tenant, ingredient_id: ing!.id, menu_item_id: item.id, qty: 100 });
+  await db.from("recipe_lines").insert({ tenant_id: tenant, ingredient_id: ing!.id, menu_item_id: item!.id, qty: 100 });
   const { data: o } = await db
     .from("orders")
     .insert({ tenant_id: tenant, channel: "takeaway", source: "staff", status: "completed", confirmed_at: new Date().toISOString(), note: TAG })
@@ -302,7 +332,7 @@ test("báo cáo: chưa khai nguyên liệu thì không có khối P10; khai rồ
     .single();
   const { data: oi } = await db
     .from("order_items")
-    .insert({ tenant_id: tenant, order_id: o!.id, menu_item_id: item.id, name_snapshot: item.name, unit_price_snapshot: 50_000, qty: 1, status: "served" })
+    .insert({ tenant_id: tenant, order_id: o!.id, menu_item_id: item!.id, name_snapshot: item!.name, unit_price_snapshot: 50_000, qty: 1, status: "served" })
     .select("id")
     .single();
   const { data: b } = await db
@@ -317,7 +347,7 @@ test("báo cáo: chưa khai nguyên liệu thì không có khối P10; khai rồ
     await expect(page.getByRole("heading", { name: "Lãi gộp theo món" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Hao hụt" })).toBeVisible();
 
-    const row = page.locator("tr", { hasText: item.name });
+    const row = page.locator("tr", { hasText: item!.name });
     await expect(row.getByText("20.000₫").first()).toBeVisible(); // giá vốn/phần
     await expect(row.getByText("30.000₫").first()).toBeVisible(); // lãi/phần
     await expect(page.getByText(/phần của hôm nay — tạm tính/)).toBeVisible();
@@ -331,5 +361,6 @@ test("báo cáo: chưa khai nguyên liệu thì không có khối P10; khai rồ
     await db.from("orders").delete().eq("id", o!.id);
     await db.from("recipe_lines").delete().eq("ingredient_id", ing!.id);
     await db.from("ingredients").delete().eq("id", ing!.id);
+    await db.from("menu_items").delete().eq("id", item!.id);
   }
 });

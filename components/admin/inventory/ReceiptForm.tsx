@@ -41,21 +41,22 @@ const soLuong = (s: string) => {
 };
 
 /**
- * Nhập hàng (INV-04 + P20 PURCH-02). Danh sách ĐIỀN SẴN nguyên liệu của lần nhập gần nhất — sáng nào quán cũng mua gần
- * như cùng một danh sách, chỉ sửa số. Dòng để trống số lượng = hôm nay không nhập, bỏ qua. Nhà cung cấp, giá, tiền trả
- * đều không bắt buộc: bỏ trống hết thì y như nhập buổi sáng trước đây. Mỗi lần "Hoàn thành" là một phiếu nhập.
+ * Nhập hàng (INV-04 + P20 PURCH-02). "Lấy hàng lần trước" chép danh sách nguyên liệu của ngày nhập gần nhất — sáng nào quán
+ * cũng mua gần như cùng một danh sách, chỉ sửa số (P25: thay cho tab "Nhập hôm nay" điền sẵn). Dòng để trống số lượng =
+ * không nhập, bỏ qua. Nhà cung cấp, giá, tiền trả đều không bắt buộc. Mỗi lần "Hoàn thành" là một phiếu nhập.
  */
 export function ReceiptForm({
   slug,
   ingredients,
-  prefill,
+  lastIngredients = [],
   goiY = {},
   suppliers = [],
   draft,
 }: {
   slug: string;
   ingredients: ReceiptIngredient[];
-  prefill: string[];
+  /** Nguyên liệu của ngày nhập gần nhất — cho nút "Lấy hàng lần trước". Rỗng = không hiện nút. */
+  lastIngredients?: string[];
   /** P18 18-02: gợi ý nhập (đơn vị nhập) theo dự báo hôm nay — nguyên liệu id → số. Rỗng = không có gợi ý. */
   goiY?: Record<string, number>;
   suppliers?: ReceiptSupplierOption[];
@@ -67,8 +68,7 @@ export function ReceiptForm({
         key: i, ingredient_id: l.ingredient_id, qty: String(l.qty), price: l.unit_price === null ? "" : String(l.unit_price),
       }));
     }
-    const start = prefill.length > 0 ? prefill : [""];
-    return start.map((id, i) => ({ key: i, ingredient_id: id, qty: "", price: "" }));
+    return [{ key: 0, ingredient_id: "", qty: "", price: "" }];
   });
   const [nextKey, setNextKey] = useState(rows.length);
   const [supplierId, setSupplierId] = useState(draft?.supplier_id ?? "");
@@ -96,6 +96,16 @@ export function ReceiptForm({
       .map((id, i) => ({ key: nextKey + i, ingredient_id: id, qty: "", price: "" }));
     setNextKey(nextKey + them.length);
     setRows([...rows, ...them].map((r) => (goiY[r.ingredient_id] ? { ...r, qty: String(goiY[r.ingredient_id]) } : r)));
+  };
+
+  /** Thêm dòng cho nguyên liệu lần trước chưa có trên phiếu; dòng trống chưa chọn gì thì bỏ đi. Không đụng dòng đã điền. */
+  const layHangLanTruoc = () => {
+    const co = new Set(rows.map((r) => r.ingredient_id));
+    const them = lastIngredients
+      .filter((id) => !co.has(id))
+      .map((id, i) => ({ key: nextKey + i, ingredient_id: id, qty: "", price: "" }));
+    setNextKey(nextKey + them.length);
+    setRows([...rows.filter((r) => r.ingredient_id || r.qty || r.price), ...them]);
   };
 
   const filled = rows.filter((r) => r.ingredient_id && soLuong(r.qty) > 0);
@@ -202,6 +212,15 @@ export function ReceiptForm({
         >
           + Thêm nguyên liệu khác
         </button>
+        {!draft && lastIngredients.length > 0 && (
+          <button
+            type="button"
+            onClick={layHangLanTruoc}
+            className="inline-flex min-h-11 items-center rounded-md border border-hairline-strong px-md text-sm text-ink hover:bg-surface"
+          >
+            Lấy hàng lần trước
+          </button>
+        )}
         {coGoiY && (
           <button
             type="button"

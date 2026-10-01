@@ -22,6 +22,15 @@ export function pricePerThousand(u: BaseUnit): boolean {
   return u === "g" || u === "ml";
 }
 
+const fmtQty = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+
+/** Lượng (đơn vị gốc) hiện theo đơn vị nhập nếu có ("1,25 kg (1.250 g)"), kèm đơn vị gốc cho người bếp. */
+export function qtyLabel(ing: Ingredient, qty: number): string {
+  const base = `${fmtQty(qty)} ${BASE_UNIT_LABEL[ing.base_unit]}`;
+  if (!ing.purchase_unit || ing.purchase_factor === 1) return base;
+  return `${fmtQty(qty / ing.purchase_factor)} ${ing.purchase_unit} (${base})`;
+}
+
 export type Ingredient = {
   id: string;
   name: string;
