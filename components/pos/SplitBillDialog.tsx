@@ -17,6 +17,7 @@ import { QtyStepper } from "@/components/customer/QtyStepper";
 export function SplitBillDialog({
   bill,
   busy,
+  orderTableNames,
   onSplitByItems,
   onSplitByOrders,
   onSplitEvenly,
@@ -24,6 +25,8 @@ export function SplitBillDialog({
 }: {
   bill: BillView;
   busy: boolean;
+  /** Nhóm bàn (P23): orderId → bàn gọi, hiện "Đơn #4 · B3" để chọn đúng phần một bàn trả riêng. */
+  orderTableNames?: Map<string, string>;
   onSplitByItems: (picks: SplitPick[]) => void;
   onSplitByOrders: (orderIds: string[]) => void;
   onSplitEvenly: (n: number) => void;
@@ -160,6 +163,7 @@ export function SplitBillDialog({
                               className="h-4 w-4 rounded border-hairline-strong text-primary focus-visible:ring-primary"
                             />
                             {g.kitchenNo != null ? `Đơn #${g.kitchenNo}` : "Đơn (chưa số)"}
+                            {orderTableNames?.get(g.orderId) && ` · ${orderTableNames.get(g.orderId)}`}
                           </span>
                           <span className="text-sm font-semibold tabular-nums text-primary">{formatVnd(g.total)}</span>
                         </div>

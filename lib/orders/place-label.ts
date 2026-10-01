@@ -40,3 +40,49 @@ export function orderPlaceGroup(args: {
   if (args.hasTable) return "Tại bàn";
   return orderPlaceLabel({ ...args, tableName: null });
 }
+
+/** Bàn tối thiểu để dựng nhãn nhóm (P23, QD-029). `group_session_id` = phiên mà bàn được GHÉP vào (bàn phụ). */
+export type GroupTableRef = { id: string; name: string; group_session_id?: string | null };
+
+/**
+ * Tên bàn trên PHIẾU BẾP / màn bếp / chip "Đơn cần in phiếu" (QD-029 D4): bàn GỌI kèm nhóm — "B3 (nhóm B1)" —
+ * để phục vụ biết bưng món ra bàn nào. Bàn không ghép giữ nguyên "B3". Trả TÊN (không có chữ "Bàn"): nơi gọi
+ * tự thêm như trước. `null` khi không tra ra bàn chính.
+ */
+export function kitchenTableName(args: {
+  sessionId: string | null;
+  mainTableId: string | null;
+  orderTableId: string | null;
+  tables: Map<string, GroupTableRef>;
+}): string | null {
+  const main = args.mainTableId ? args.tables.get(args.mainTableId) : undefined;
+  if (!main) return null;
+  const caller = args.orderTableId ? args.tables.get(args.orderTableId) : undefined;
+  const fromOther = !!caller && caller.id !== main.id;
+  const grouped =
+    fromOther ||
+    (args.sessionId != null && [...args.tables.values()].some((t) => t.group_session_id === args.sessionId));
+  if (!grouped) return main.name;
+  return `${(fromOther ? caller : main).name} (nhóm ${main.name})`;
+}
+
+/**
+ * Tên bàn trên HÓA ĐƠN / phiếu khách / khối hóa đơn POS (QD-029 D4, theo Sapo): bàn chính + số bàn còn lại —
+ * "B1 +4". Bàn còn lại = bàn đang ghép vào phiên ∪ bàn gọi của các đơn trong phiên (để hóa đơn in lại sau khi
+ * phiên đóng — lúc đó không còn bàn nào trỏ về phiên — vẫn ghi đúng nhóm). Không ghép ⇒ "B1".
+ */
+export function groupTableName(args: {
+  sessionId: string | null;
+  mainTableId: string | null;
+  orderTableIds?: (string | null)[];
+  tables: Map<string, GroupTableRef>;
+}): string | null {
+  const main = args.mainTableId ? args.tables.get(args.mainTableId) : undefined;
+  if (!main) return null;
+  const others = new Set<string>();
+  for (const t of args.tables.values())
+    if (args.sessionId != null && t.group_session_id === args.sessionId) others.add(t.id);
+  for (const id of args.orderTableIds ?? []) if (id) others.add(id);
+  others.delete(main.id);
+  return others.size > 0 ? `${main.name} +${others.size}` : main.name;
+}

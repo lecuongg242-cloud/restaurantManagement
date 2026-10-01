@@ -31,7 +31,11 @@ export function OfflineView({ slug }: { slug: string }) {
     docBanChup(slug).then(setB);
   }, [slug]);
 
-  const phienTheoBan = useMemo(() => new Map((b?.phien ?? []).map((p) => [p.banId, p])), [b]);
+  // Bàn phụ của nhóm (P23) mở đúng phiên chung.
+  const phienTheoBan = useMemo(
+    () => new Map((b?.phien ?? []).flatMap((p) => [p.banId, ...(p.banPhu ?? [])].map((id) => [id, p] as const))),
+    [b]
+  );
   const coBan = (b?.ban.length ?? 0) > 0;
   useEffect(() => {
     if (b && !coBan) setTab("khong-ban");

@@ -17,7 +17,7 @@ const SANG_24 = "2026-09-24T06:34:00.000Z"; // 13:34 giờ VN
 const KHUYA_23 = "2026-09-23T18:00:00.000Z"; // 01:00 ngày 24 giờ VN — qua ngày khác
 
 // Nạp sau khi đã đặt TZ.
-const { gioVn, gioNgayVn, gioNgayNamVn } = await import("@/lib/time/vn");
+const { gioVn, gioNgayVn, gioNgayNamVn, thoiGianNgoi } = await import("@/lib/time/vn");
 
 describe("đối chứng: TZ=UTC thật sự có hiệu lực", () => {
   it("cách định dạng CŨ (không nêu timeZone) cho ra giờ UTC — đây chính là lỗi", () => {
@@ -119,4 +119,24 @@ describe("cachDay — màn Máy in (PRINT-09)", async () => {
   it("tương lai gần (lệch đồng hồ) → vừa xong, không ra số âm", () =>
     expect(cachDay(new Date(now + 3_000).toISOString(), now)).toBe("vừa xong"));
   it("không có mốc → rỗng", () => expect(cachDay(null, now)).toBe(""));
+});
+
+describe("thoiGianNgoi — thời gian khách ngồi trên ô bàn POS", () => {
+  const mo = "2026-10-01T11:00:00Z";
+  const sau = (phut: number) => Date.parse(mo) + phut * 60_000;
+  it("dưới 1 giờ: số phút", () => {
+    expect(thoiGianNgoi(mo, sau(0))).toBe("0'");
+    expect(thoiGianNgoi(mo, sau(25) + 59_000)).toBe("25'");
+    expect(thoiGianNgoi(mo, sau(59))).toBe("59'");
+  });
+  it("từ 1 giờ: giờ + phút hai chữ số", () => {
+    expect(thoiGianNgoi(mo, sau(60))).toBe("1g00'");
+    expect(thoiGianNgoi(mo, sau(85))).toBe("1g25'");
+    expect(thoiGianNgoi(mo, sau(26 * 60 + 5))).toBe("26g05'");
+  });
+  it("lệch đồng hồ (mốc ở tương lai) → 0', mốc hỏng → chuỗi rỗng", () => {
+    expect(thoiGianNgoi(mo, sau(-3))).toBe("0'");
+    expect(thoiGianNgoi("rác", sau(5))).toBe("");
+    expect(thoiGianNgoi(null, sau(5))).toBe("");
+  });
 });

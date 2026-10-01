@@ -8,6 +8,7 @@ import { parseSettings } from "@/lib/tenant/settings";
 import { orderPlaceLabel } from "@/lib/orders/place-label";
 import type { OrderChannel, OrderSource } from "@/lib/orders/types";
 import { getBillView } from "./bill";
+import { sessionGroupName } from "@/lib/orders/table-group";
 import type { PaymentMethod } from "./types";
 import { urlAnh } from "@/lib/storage/public-url";
 import { dungTransferQr, type TransferQr } from "./transfer-qr";
@@ -49,6 +50,9 @@ async function tableLabelFor(
   tableSessionId: string | null
 ): Promise<string> {
   if (!tableSessionId) return "Gộp bàn";
+  // Nhóm bàn (P23): "Bàn B1 +4" (QD-029 D4). Không phải nhóm thì ra đúng tên bàn như cũ.
+  const groupName = await sessionGroupName(client, tenantId, tableSessionId);
+  if (groupName) return `Bàn ${groupName}`;
   const { data } = await client
     .from("table_sessions")
     .select("tables(name)")

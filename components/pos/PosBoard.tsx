@@ -47,6 +47,7 @@ import { CauInBanner, ThietBiInChip, useCauIn } from "@/components/pos/CauInBann
 import { PhoneAlertBar } from "@/components/pos/PhoneAlertBar";
 import { TablePickerDrawer } from "@/components/pos/TablePickerDrawer";
 import { conLaiSauKhiGui, formatVnd, unitPrice } from "@/lib/orders/cart";
+import { groupTableName } from "@/lib/orders/place-label";
 import { MobileTabBar, type MobileTab } from "@/components/pos/MobileTabBar";
 import { KHOA_KHI_MAT_MANG, NetworkBanner } from "@/components/pos/NetworkStatus";
 import { useOfflineShell } from "@/lib/offline/use-offline";
@@ -231,7 +232,8 @@ export function PosBoard({
 
   const sessionByTable = useMemo(() => {
     const m = new Map<string, PosSnapshot["sessions"][number]>();
-    for (const s of initial.sessions) m.set(s.tableId, s);
+    // Nhóm bàn (P23): bàn phụ tra ra đúng phiên chung — chạm bàn nào cũng mở cùng một đơn (chốt #2).
+    for (const s of initial.sessions) for (const id of [s.tableId, ...s.memberTableIds]) m.set(id, s);
     return m;
   }, [initial.sessions]);
 
@@ -339,7 +341,9 @@ export function PosBoard({
    */
   const splitEvenlyTableIds = useMemo(() => {
     const ids = new Set(
-      initial.sessions.filter((s) => s.openBill?.splitCount != null).map((s) => s.tableId)
+      initial.sessions
+        .filter((s) => s.openBill?.splitCount != null)
+        .flatMap((s) => [s.tableId, ...s.memberTableIds])
     );
     if (selectedTableId) {
       if (splitEvenlyNow) ids.add(selectedTableId);
@@ -420,6 +424,31 @@ export function PosBoard({
       })
       .filter((c) => c.isCurrent || c.total > 0);
   }, [initial.sessions, initial.tables, selectedSession]);
+
+  // Nhóm bàn (P23): tiêu đề hóa đơn "Bàn B1 +4" và nhãn bàn gọi trên từng đơn ở "Tách bill → Theo đơn".
+  // Phiên một bàn ⇒ null / rỗng: khối hóa đơn y như cũ.
+  const groupLabel = useMemo(() => {
+    if (!selectedSession || selectedSession.memberTableIds.length === 0) return null;
+    const refs = new Map(
+      initial.tables.map((t) => [t.id, { id: t.id, name: t.name, group_session_id: t.groupSessionId }])
+    );
+    const name = groupTableName({
+      sessionId: selectedSession.id,
+      mainTableId: selectedSession.tableId,
+      orderTableIds: selectedSession.orders.map((o) => o.table_id),
+      tables: refs,
+    });
+    return name ? `Bàn ${name}` : null;
+  }, [selectedSession, initial.tables]);
+  const orderTableNames = useMemo(() => {
+    const m = new Map<string, string>();
+    if (!selectedSession || selectedSession.memberTableIds.length === 0) return m;
+    for (const o of selectedSession.orders) {
+      const id = o.table_id ?? selectedSession.tableId;
+      m.set(o.id, initial.tables.find((t) => t.id === id)?.name ?? "—");
+    }
+    return m;
+  }, [selectedSession, initial.tables]);
 
   /**
    * Đường chung của MỌI thao tác đổi hóa đơn (chia, gộp, giảm giá, phí). Mất mạng ⇒ action ném ⇒
@@ -985,6 +1014,10 @@ export function PosBoard({
               onClose={() => setSelectedTableId(null)}
               phoneCartOpen={gioMo}
               onPhoneCartOpenChange={setGioMo}
+              areas={initial.areas}
+              tables={initial.tables}
+              sessions={initial.sessions}
+              pending={initial.pending}
             />
           ) : (
             <div className="grid h-full place-items-center p-lg text-center text-sm text-steel">
@@ -1012,6 +1045,8 @@ export function PosBoard({
           busy={billBusy}
           error={billError}
           mergeCandidates={mergeCandidates}
+          groupLabel={groupLabel}
+          orderTableNames={orderTableNames}
           allowDiscount={allowDiscount}
           adjustStaff={cancelStaff}
           canSkipPin={canCancelWithoutPin}

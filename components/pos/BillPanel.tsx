@@ -22,6 +22,8 @@ export function BillPanel({
   busy,
   error,
   mergeCandidates,
+  groupLabel = null,
+  orderTableNames,
   allowDiscount,
   adjustStaff,
   canSkipPin,
@@ -41,6 +43,10 @@ export function BillPanel({
   busy: boolean;
   error: string | null;
   mergeCandidates: MergeCandidate[];
+  /** Nhóm bàn (P23): "Bàn B1 +4" cạnh tiêu đề. Null = bàn thường, tiêu đề như cũ. */
+  groupLabel?: string | null;
+  /** Nhóm bàn (P23): orderId → tên bàn gọi, cho "Tách bill → Theo đơn". */
+  orderTableNames?: Map<string, string>;
   allowDiscount: boolean;
   adjustStaff: CancelStaff[];
   canSkipPin: boolean;
@@ -89,7 +95,10 @@ export function BillPanel({
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-md max-sm:p-0" role="dialog" aria-modal="true" aria-label="Hóa đơn">
       <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none">
         <div className="flex items-center justify-between border-b border-hairline-soft px-lg py-md">
-          <h2 className="font-display text-xl text-ink">Hóa đơn</h2>
+          <h2 className="font-display text-xl text-ink">
+            Hóa đơn
+            {groupLabel && <span className="text-base font-normal text-steel"> · {groupLabel}</span>}
+          </h2>
           <div className="flex items-center gap-xs">
             {mergeCandidates.some((c) => !c.isCurrent) && (
               <button
@@ -268,6 +277,7 @@ export function BillPanel({
         <SplitBillDialog
           bill={splitFor}
           busy={busy}
+          orderTableNames={orderTableNames}
           onSplitByItems={(picks) => {
             onSplitByItems(splitFor.id, picks);
             setSplitFor(null);

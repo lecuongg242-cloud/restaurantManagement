@@ -69,3 +69,16 @@ export function cachDay(iso: string | null | undefined, now: number): string {
   if (giay < 86_400) return `${Math.floor(giay / 3600)} giờ trước`;
   return `${Math.floor(giay / 86_400)} ngày trước`;
 }
+
+/**
+ * Thời gian khách ngồi trên ô bàn POS — "25'", "1g25'" (như Sapo / CUKCUK hiện trên sơ đồ bàn). Đo từ lúc mở phiên,
+ * cùng mốc với "phút ngồi" của báo cáo Hiệu quả bàn (`report_table_usage`). Mốc ở tương lai (lệch đồng hồ) → "0'".
+ */
+export function thoiGianNgoi(openedAt: string | null | undefined, now: number): string {
+  if (!openedAt) return "";
+  const t = Date.parse(openedAt);
+  if (!Number.isFinite(t)) return "";
+  const phut = Math.max(0, Math.floor((now - t) / 60_000));
+  if (phut < 60) return `${phut}'`;
+  return `${Math.floor(phut / 60)}g${String(phut % 60).padStart(2, "0")}'`;
+}

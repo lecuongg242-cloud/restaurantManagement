@@ -14,6 +14,7 @@ import { phoneForStorage } from "@/lib/orders/guest-contact";
 import { parseSettings } from "@/lib/tenant/settings";
 import { isDuplicateKeyError, normalizeIdempotencyKey } from "@/lib/idempotency";
 import type { OrderLineInput } from "./types";
+import { findOpenSessionForTable } from "./table-group";
 
 export type CreateOrderResult = { orderId: string } | { error: string };
 
@@ -100,23 +101,22 @@ export async function validateAndBuildLines(
   return { built };
 }
 
-/** Mở/ghép table_session open (1 phiên open/bàn — D3). Bàn sang occupied. */
+/**
+ * Mở/ghép table_session open (1 phiên open/bàn — D3). Bàn sang occupied. Bàn PHỤ của một nhóm (P23) đi vào
+ * phiên của nhóm — `findOpenSessionForTable` tra cả trường hợp đó.
+ */
 async function openOrJoinSession(
   admin: SupabaseClient,
   tenantId: string,
   tableId: string,
   openedBy: string | null
 ): Promise<string | null> {
-  const { data: openSession } = await admin
-    .from("table_sessions")
-    .select("id")
-    .eq("table_id", tableId)
-    .eq("status", "open")
-    .maybeSingle();
+  const found = await findOpenSessionForTable(admin, tenantId, tableId);
+  if ("error" in found) return null;
 
   let sessionId: string;
-  if (openSession) {
-    sessionId = openSession.id;
+  if (found.id) {
+    sessionId = found.id;
   } else {
     const { data: created, error } = await admin
       .from("table_sessions")
@@ -211,6 +211,8 @@ export async function insertOrderGraph(
     built: BuiltLine[];
     /** Đơn gốc của nhóm "gọi thêm" (QD-011). Chỉ dùng cho đơn không gắn bàn. */
     parentOrderId?: string | null;
+    /** Bàn GỌI của đơn có bàn (P23): bàn phụ của nhóm thì khác bàn của phiên. */
+    tableId?: string | null;
     /**
      * Khóa idempotent do CLIENT sinh (0034). Gửi lại cùng khóa ⇒ trả về đúng đơn cũ như một lần
      * THÀNH CÔNG, không đẻ đơn thứ hai. Bỏ trống = giữ nguyên hành vi cũ (luôn tạo đơn mới).
@@ -237,6 +239,7 @@ export async function insertOrderGraph(
       customer_contact: args.customerContact,
       note: args.note,
       parent_order_id: args.parentOrderId ?? null,
+      table_id: args.tableId ?? null,
       idempotency_key: idemKey,
     })
     .select("id")
@@ -398,6 +401,7 @@ export async function createQrOrder(input: CreateOrderInput): Promise<CreateOrde
     note,
     customerContact,
     built: validated.built,
+    tableId: table.id,
     idempotencyKey: input.idempotencyKey,
   });
 }
@@ -455,6 +459,7 @@ export async function createStaffOrder(input: CreateStaffOrderInput): Promise<Cr
     note,
     customerContact: null,
     built: validated.built,
+    tableId,
     idempotencyKey: input.idempotencyKey,
   });
 }

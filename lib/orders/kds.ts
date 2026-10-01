@@ -6,7 +6,8 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { parseSettings } from "@/lib/tenant/settings";
-import { orderPlaceLabel } from "./place-label";
+import { orderPlaceLabel, kitchenTableName, type GroupTableRef } from "./place-label";
+import { loadGroupRefs } from "./table-group";
 import type { OrderStatus, OrderItemStatus, OrderChannel, OrderSource } from "./types";
 
 export type KdsItem = {
@@ -37,7 +38,7 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
     supabase
       .from("orders")
       .select(
-        "id, kitchen_no, status, channel, source, confirmed_at, table_sessions(tables(name)), order_items(id, name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
+        "id, kitchen_no, status, channel, source, confirmed_at, table_session_id, table_id, table_sessions(table_id, tables(name)), order_items(id, name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
       )
       .eq("tenant_id", tenantId)
       .in("status", ["confirmed", "preparing", "ready"])
@@ -45,6 +46,10 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
     supabase.from("tenants").select("settings").eq("id", tenantId).maybeSingle(),
   ]);
   const serviceMode = parseSettings(tenant?.settings).service_mode;
+  // Nhóm bàn (P23): vé ghi "B3 (nhóm B1)" theo bàn gọi. Chỉ tra bàn khi có đơn gắn bàn.
+  const groupRefs = (orders ?? []).some((o) => o.table_session_id)
+    ? await loadGroupRefs(supabase, tenantId)
+    : new Map<string, GroupTableRef>();
 
   const tickets: KdsTicket[] = [];
   for (const o of orders ?? []) {
@@ -66,8 +71,16 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
     if (items.length === 0) continue; // order ready nhưng mọi món đã phục vụ → không hiện vé
 
     // table_sessions embed → tables(name)
-    const ts = o.table_sessions as { tables?: { name?: string } } | null;
-    const tableName = ts?.tables?.name ?? "—";
+    const ts = o.table_sessions as { table_id?: string; tables?: { name?: string } } | null;
+    const groupName = o.table_session_id
+      ? kitchenTableName({
+          sessionId: o.table_session_id as string,
+          mainTableId: ts?.table_id ?? null,
+          orderTableId: (o.table_id as string | null) ?? null,
+          tables: groupRefs,
+        })
+      : null;
+    const tableName = groupName ?? ts?.tables?.name ?? "—";
 
     tickets.push({
       orderId: o.id,
@@ -78,7 +91,7 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
       tableName,
       place: orderPlaceLabel({
         serviceMode,
-        tableName: ts?.tables?.name ?? null,
+        tableName: groupName ?? ts?.tables?.name ?? null,
         channel: (o.channel as OrderChannel) ?? "dine_in",
         source: o.source as OrderSource,
       }),

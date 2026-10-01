@@ -24,7 +24,8 @@ export type BanChup = {
   luc: string;
   khu: { id: string; ten: string }[];
   ban: { id: string; ten: string; khuId: string | null; trangThai: string }[];
-  phien: { banId: string; moLuc: string; soHd: number | null; tongHd: number | null; don: DonChup[] }[];
+  /** `banPhu` = bàn ghép vào phiên (P23). Bản chụp cũ không có khóa này ⇒ đọc như rỗng. */
+  phien: { banId: string; banPhu?: string[]; moLuc: string; soHd: number | null; tongHd: number | null; don: DonChup[] }[];
   /** Đơn không bàn (mang về / tại quầy / online). KHÔNG có tên, SĐT khách — số đơn đủ để giao món. */
   khongBan: { soDon: number | null; kenh: string; trangThai: string; luc: string; tong: number; mon: MonChup[] }[];
   thucDon: { nhom: string; mon: { ten: string; gia: number; con: boolean }[] }[];
@@ -48,6 +49,7 @@ export function taoBanChup(slug: string, s: PosSnapshot, menu: CustomerMenu | nu
     ban: s.tables.map((t) => ({ id: t.id, ten: t.name, khuId: t.area_id, trangThai: t.status })),
     phien: s.sessions.map((p) => ({
       banId: p.tableId,
+      banPhu: [...p.memberTableIds],
       moLuc: p.opened_at,
       soHd: p.openBill?.bill_no ?? null,
       tongHd: p.openBill?.total ?? null,

@@ -167,7 +167,8 @@ test("1–3: gọi món có ghi chú → bếp nhận → gọi thêm gom một 
   // (3) hủy một món đã gửi, bắt buộc lý do (chủ quán không cần PIN). Đơn hủy hết món thì POS ẩn hẳn đơn đó
   // khỏi panel — không có chữ "Đã hủy" nào để tìm; kiểm bằng số đơn giảm đi một.
   const donTruocHuy = await page.getByText(/Đơn #\d+/).count();
-  await page.getByRole("button", { name: /^Hủy$/ }).last().click();
+  // Đơn mới nhất nằm trên cùng panel ⇒ nút "Hủy" đầu tiên là món vừa gửi.
+  await page.getByRole("button", { name: /^Hủy$/ }).first().click();
   const hopHuy = page.getByRole("dialog").filter({ hasText: /Hủy món/ });
   await expect(hopHuy).toBeVisible();
   await khongTran(page, "hộp hủy món");

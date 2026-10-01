@@ -56,5 +56,8 @@ export async function donBan(tenantId: string, tenBan: string[]) {
       .update({ status: "closed", closed_at: new Date().toISOString() })
       .in("id", phienIds);
   }
-  await admin.from("tables").update({ status: "available" }).in("id", banIds);
+  // Ghép bàn (P23): gỡ trỏ nhóm của chính các bàn này và của bàn phụ đang trỏ vào phiên vừa đóng.
+  await admin.from("tables").update({ status: "available", group_session_id: null }).in("id", banIds);
+  if (phienIds.length)
+    await admin.from("tables").update({ status: "available", group_session_id: null }).in("group_session_id", phienIds);
 }

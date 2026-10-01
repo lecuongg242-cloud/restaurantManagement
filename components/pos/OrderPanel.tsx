@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Drawer } from "vaul";
 import { useLaDienThoai } from "@/components/pos/use-la-dien-thoai";
 import { useRouter } from "next/navigation";
-import { X, Loader2, ShoppingBag, Receipt } from "lucide-react";
+import { X, Loader2, ShoppingBag, Receipt, Link2 } from "lucide-react";
 import type { CustomerMenuItem } from "@/lib/orders/customer-menu";
-import type { PosTable, PosSession } from "@/lib/orders/pos";
+import type { PosArea, PosPending, PosTable, PosSession } from "@/lib/orders/pos";
 import type { CartLine, OrderItemStatus } from "@/lib/orders/types";
 import { formatVnd, unitPrice } from "@/lib/orders/cart";
 import { closeSession } from "@/app/r/[slug]/pos/actions";
@@ -15,6 +15,7 @@ import { QtyStepper } from "@/components/customer/QtyStepper";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 import { TicketPrintButtons } from "./TicketPrintButtons";
+import { GroupTablesDialog } from "./GroupTablesDialog";
 import { gioVn } from "@/lib/time/vn";
 
 /**
@@ -43,6 +44,10 @@ export function OrderPanel({
   onClose,
   phoneCartOpen,
   onPhoneCartOpenChange,
+  areas,
+  tables,
+  sessions,
+  pending,
 }: {
   slug: string;
   table: PosTable;
@@ -69,6 +74,11 @@ export function OrderPanel({
   /** Điện thoại: ngăn "Giỏ hàng" (bật từ thanh giỏ ở tab Thực đơn) đang mở không. */
   phoneCartOpen?: boolean;
   onPhoneCartOpenChange?: (open: boolean) => void;
+  /** Ảnh chụp POS cho hộp "Ghép bàn" (P23). */
+  areas: PosArea[];
+  tables: PosTable[];
+  sessions: PosSession[];
+  pending: PosPending[];
 }) {
   const router = useRouter();
   const dienThoai = useLaDienThoai();
@@ -80,15 +90,24 @@ export function OrderPanel({
   } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [groupOpen, setGroupOpen] = useState(false);
+
+  // Nhóm bàn (P23): bàn chính = bàn của phiên; chạm bàn phụ vẫn mở đơn chung (chốt #2). Bàn thường: không đổi gì.
+  const tableName = (id: string | null | undefined) => tables.find((t) => t.id === id)?.name ?? "—";
+  const mainTable = session ? tables.find((t) => t.id === session.tableId) ?? table : table;
+  const groupSize = session ? session.memberTableIds.length + 1 : 1;
+  const isGroup = groupSize > 1;
 
   // Escape đóng panel (trừ khi dialog hủy đang mở — vaul tự xử lý Escape của nó).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !cancelItem) onClose();
+      if (e.key !== "Escape") return;
+      if (groupOpen) setGroupOpen(false);
+      else if (!cancelItem) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cancelItem, onClose]);
+  }, [cancelItem, groupOpen, onClose]);
 
   const allItems = (session?.orders ?? []).flatMap((o) => o.items);
   const activeItems = allItems.filter((i) => i.status !== "cancelled");
@@ -155,26 +174,30 @@ export function OrderPanel({
    * trên điện thoại (chủ dự án: xem món đã chọn ngay ở thực đơn; tab Đơn chỉ còn món đã gửi + tính tiền).
    */
   const cartCard = (
-          <div className="mt-lg rounded-lg border border-primary/40 bg-cream-soft p-md">
+          <div className="rounded-lg border border-primary/40 bg-cream-soft p-md">
             <p className="flex items-center gap-xs text-sm font-medium text-ink">
-              <ShoppingBag className="h-4 w-4 text-primary" /> Đang thêm ({cart.length})
+              <ShoppingBag className="h-4 w-4 text-primary" />{" "}
+              {isGroup ? `Đang thêm cho ${table.name} (${cart.length})` : `Đang thêm (${cart.length})`}
             </p>
             <ul className="mt-sm flex flex-col gap-sm">
               {cart.map((l) => {
                 const it = itemMap.get(l.itemId);
                 if (!it) return null;
                 const names = cartOptionNames(it, l.optionIds);
+                const gia = unitPrice(it, l.optionIds);
                 return (
                   <li key={l.lineId}>
-                    <div className="flex items-center justify-between gap-sm">
-                      <div className="min-w-0">
+                    {/* Màn hẹp (ngăn Giỏ hàng trên điện thoại): cụm SL · tiền · Sửa/Xoá tự xuống hàng dưới tên. */}
+                    <div className="flex flex-wrap items-center gap-x-sm gap-y-xs">
+                      <div className="min-w-[4.5rem] flex-1">
                         <p className="text-sm text-ink">{it.name}</p>
                         {names.length > 0 && (
                           <p className="text-xs text-steel">{names.join(" · ")}</p>
                         )}
                       </div>
-                      <div className="flex shrink-0 items-center gap-sm">
+                      <div className="ml-auto flex shrink-0 items-center gap-xs sm:gap-sm">
                         <QtyStepper value={l.qty} onChange={(v) => onCartQty(l.lineId, v)} />
+                        <ThanhTien qty={l.qty} unit={gia} gon />
                         {it.groups.length > 0 && (
                           <button
                             type="button"
@@ -234,14 +257,24 @@ export function OrderPanel({
   return (
     <div className="flex h-full min-h-0 flex-col bg-canvas">
       <div className="flex items-center justify-between border-b border-hairline-soft px-lg py-md">
-        <div>
+        <div className="min-w-0">
           <h2 className="font-display text-xl text-ink">Bàn {table.name}</h2>
           {session && (
             <p className="text-xs text-steel">
+              {isGroup && `Nhóm ${mainTable.name} · ${groupSize} bàn · `}
               Mở lúc{" "}
               {gioVn(session.opened_at)}
             </p>
           )}
+        </div>
+        <div className="ml-auto mr-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => setGroupOpen(true)}
+            className="inline-flex h-9 items-center gap-xxs whitespace-nowrap rounded-md border border-hairline-strong px-sm text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 max-lg:h-11"
+          >
+            <Link2 className="h-3.5 w-3.5" /> {isGroup ? `Nhóm ${groupSize} bàn` : "Ghép bàn"}
+          </button>
         </div>
         <button
           type="button"
@@ -268,15 +301,21 @@ export function OrderPanel({
             Hóa đơn đã chia đều — gỡ chia ở khối hóa đơn trước khi hủy hoặc thêm món.
           </p>
         )}
+        {/* Giỏ đang thêm nằm TRÊN món đã gọi (chủ dự án 01/10/2026) — đang thao tác thì phải thấy ngay,
+            không bị đẩy xuống cuối khi bàn có nhiều đơn. Điện thoại: nằm trong ngăn "Giỏ hàng" (bật từ
+            tab Thực đơn), không ở đây. */}
+        {cart.length > 0 && <div className="mb-lg max-sm:hidden">{cartCard}</div>}
         {/* Món đã gọi — nhóm theo order, mỗi order in phiếu bếp riêng */}
         {session && session.orders.length > 0 ? (
           <div className="flex flex-col gap-lg">
-            {session.orders.map((order) => (
+            {/* Đơn mới nhất lên trên (chủ dự án 01/10/2026; KiotViet có tùy chọn món mới ở đầu đơn). */}
+            {[...session.orders].reverse().map((order) => (
               <div key={order.id}>
                 <div className="flex items-start justify-between gap-sm">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-ink">
                       Đơn {order.kitchen_no != null ? `#${order.kitchen_no}` : `#${order.id.slice(-6).toUpperCase()}`}
+                      {isGroup && ` · ${tableName(order.table_id ?? session.tableId)}`}
                       <span className="ml-xs text-xs font-normal text-steel">
                         {gioVn(order.created_at)}
                         {order.source === "qr" ? " · QR" : " · POS"}
@@ -298,14 +337,15 @@ export function OrderPanel({
                 </div>
                 <ul className="mt-xs flex flex-col divide-y divide-hairline-soft">
                   {order.items.map((it) => (
-                    <li key={it.id} className="flex items-start justify-between gap-md py-sm">
-                      <div className="min-w-0">
+                    <li key={it.id} className="flex items-start gap-sm py-sm">
+                      {/* Tên · SL · Thành tiền (như CUKCUK / KiotViet — chủ dự án chốt 01/10/2026, thay "1× Tên"). */}
+                      <div className="min-w-0 flex-1">
                         <p
                           className={
                             "text-sm text-ink " + (it.status === "cancelled" ? "line-through opacity-60" : "")
                           }
                         >
-                          {it.qty}× {it.name}
+                          {it.name}
                         </p>
                         {it.modifiers.length > 0 && (
                           <p className="text-xs text-steel">{it.modifiers.join(" · ")}</p>
@@ -315,7 +355,16 @@ export function OrderPanel({
                           <p className="text-xs text-status-late">Đã hủy · {it.cancel_reason}</p>
                         )}
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-xs">
+                      <span
+                        className={
+                          "w-7 shrink-0 text-center text-sm font-medium tabular-nums text-ink " +
+                          (it.status === "cancelled" ? "line-through opacity-60" : "")
+                        }
+                      >
+                        {it.qty}
+                      </span>
+                      <ThanhTien qty={it.qty} unit={it.unit_price} cancelled={it.status === "cancelled"} />
+                      <div className="flex w-12 shrink-0 flex-col items-end gap-xs">
                         {/* Chỉ đánh dấu món đã thu; món đang chờ để trống (POS lo tính tiền, không theo dõi bếp). */}
                         {it.status === "served" && <ItemStatusBadge status={it.status} />}
                         {it.status !== "served" && it.status !== "cancelled" && !splitEvenly && (
@@ -344,16 +393,13 @@ export function OrderPanel({
             {session ? "Phiên chưa có món." : "Bàn trống. Chạm món ở thực đơn để mở phiên."}
           </p>
         )}
-
-        {/* Giỏ đang thêm — điện thoại: nằm trong ngăn "Giỏ hàng" (bật từ tab Thực đơn), không ở đây. */}
-        {cart.length > 0 && <div className="max-sm:hidden">{cartCard}</div>}
       </div>
 
       {/* Footer: tạm tính + đóng phiên */}
       <div className="border-t border-hairline-soft px-lg py-md">
         {session && activeItems.length > 0 && (
           <div className="mb-sm flex items-center justify-between text-sm">
-            <span className="text-steel">Tạm tính</span>
+            <span className="text-steel">{isGroup ? "Tạm tính (cả nhóm)" : "Tạm tính"}</span>
             <span className="font-semibold tabular-nums text-ink">{formatVnd(sessionTotal)}</span>
           </div>
         )}
@@ -428,6 +474,18 @@ export function OrderPanel({
         </Drawer.Portal>
       </Drawer.Root>
 
+      {groupOpen && (
+        <GroupTablesDialog
+          slug={slug}
+          mainTable={mainTable}
+          areas={areas}
+          tables={tables}
+          sessions={sessions}
+          pending={pending}
+          onClose={() => setGroupOpen(false)}
+        />
+      )}
+
       <CancelItemDialog
         slug={slug}
         item={cancelItem}
@@ -456,6 +514,31 @@ export function OrderPanel({
           }
         }}
       />
+    </div>
+  );
+}
+
+/** Cột thành tiền của một dòng món; SL ≥ 2 thì kèm đơn giá nhỏ bên dưới để đối chiếu. */
+function ThanhTien({
+  qty,
+  unit,
+  cancelled = false,
+  gon = false,
+}: {
+  qty: number;
+  unit: number;
+  cancelled?: boolean;
+  /** Khối giỏ: co theo chữ (không giữ cột cố định) để vừa ngăn Giỏ hàng 360px. */
+  gon?: boolean;
+}) {
+  return (
+    <div
+      className={
+        (gon ? "min-w-[4.5rem] " : "w-[5.5rem] ") + "shrink-0 text-right " + (cancelled ? "line-through opacity-60" : "")
+      }
+    >
+      <p className="text-sm font-medium tabular-nums text-ink">{formatVnd(unit * qty)}</p>
+      {qty > 1 && <p className="text-[11px] tabular-nums text-steel">{formatVnd(unit)}/món</p>}
     </div>
   );
 }

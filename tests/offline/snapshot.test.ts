@@ -9,7 +9,10 @@ import type { CustomerMenu } from "@/lib/orders/customer-menu";
  */
 const SNAP = {
   areas: [{ id: "a1", name: "Tầng 1" }],
-  tables: [{ id: "t1", name: "Bàn 1", area_id: "a1", status: "occupied", seats: 4 }],
+  tables: [
+    { id: "t1", name: "Bàn 1", area_id: "a1", status: "occupied", seats: 4, groupSessionId: null },
+    { id: "t2", name: "Bàn 2", area_id: "a1", status: "occupied", seats: 4, groupSessionId: "s1" },
+  ],
   pending: [],
   unprinted: [],
   reservations: [{ id: "r1", tableId: "t1", reservedAt: "2026-09-28T05:00:00Z", timeLabel: "12:00", customerName: "Chị Hoa", partySize: 4 }],
@@ -18,6 +21,7 @@ const SNAP = {
     {
       id: "s1",
       tableId: "t1",
+      memberTableIds: ["t2"],
       opened_at: "2026-09-28T04:00:00Z",
       openBill: { id: "b1", bill_no: 12, total: 150000, splitCount: null },
       orders: [
@@ -30,6 +34,7 @@ const SNAP = {
           customer_contact: { name: "Anh Nam", phone: "0912345678" },
           created_at: "2026-09-28T04:01:00Z",
           table_session_id: "s1",
+          table_id: null,
           items: [
             { id: "i1", name: "Phở bò", qty: 2, note: "ít hành", status: "confirmed", unit_price: 50000, modifiers: ["Thêm thịt"], cancel_reason: null },
             { id: "i2", name: "Trà đá", qty: 1, note: null, status: "cancelled", unit_price: 5000, modifiers: [], cancel_reason: "khách đổi" },
@@ -86,7 +91,7 @@ describe("taoBanChup", () => {
         "v", "slug", "tenQuan", "luc",
         "khu", "khu[].id", "khu[].ten",
         "ban", "ban[].id", "ban[].ten", "ban[].khuId", "ban[].trangThai",
-        "phien", "phien[].banId", "phien[].moLuc", "phien[].soHd", "phien[].tongHd",
+        "phien", "phien[].banId", "phien[].banPhu", "phien[].moLuc", "phien[].soHd", "phien[].tongHd",
         "phien[].don", "phien[].don[].soDon", "phien[].don[].trangThai", "phien[].don[].luc",
         "phien[].don[].mon", "phien[].don[].mon[].ten", "phien[].don[].mon[].sl", "phien[].don[].mon[].tuyChon",
         "phien[].don[].mon[].ghiChu", "phien[].don[].mon[].huy",
@@ -107,7 +112,7 @@ describe("taoBanChup", () => {
   });
 
   it("giữ đủ để xem: bàn, đơn đang mở, món hủy đánh dấu, tổng hóa đơn, thực đơn", () => {
-    expect(b.phien[0]).toMatchObject({ banId: "t1", soHd: 12, tongHd: 150000 });
+    expect(b.phien[0]).toMatchObject({ banId: "t1", banPhu: ["t2"], soHd: 12, tongHd: 150000 });
     expect(b.phien[0].don[0].mon).toEqual([
       { ten: "Phở bò", sl: 2, tuyChon: ["Thêm thịt"], ghiChu: "ít hành", huy: false },
       { ten: "Trà đá", sl: 1, tuyChon: [], ghiChu: null, huy: true },

@@ -291,6 +291,12 @@ Còn lại (29/09/2026): áp 0075, deploy, chọn nơi đặt bản phát hành,
 Tách từ P20 (29/09/2026): chuyển hàng giữa chi nhánh / bếp trung tâm · thu ngân chi tiền trong ca (kèm module ca) · trả hàng
 nhập · đặt hàng nhập (PO) riêng · nhiều tài khoản ngân hàng. Khung phạm vi `30-KeHoach/P22/00-TongQuan.md`; phụ thuộc P20.
 
+## P23 — Ghép bàn cho khách đoàn (CODE XONG 23-01, 01/10/2026 — chưa commit/deploy)
+
+Chủ dự án hỏi 01/10/2026 (đoàn 20 người, 5 bàn, menu giống nhau, từng bàn gọi lẻ). Chốt QD-029: ghép bàn khi mở như KiotViet / Sapo,
+một phiên nhiều bàn, đơn ghi bàn gọi, một hóa đơn "Bàn B1 +4". Yêu cầu TABLE-03..06; plan `30-KeHoach/P23/23-01-PLAN.md`;
+giao diện đã chốt ở `30-KeHoach/P23/00-TongQuan.md`.
+
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
 |---|---|

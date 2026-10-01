@@ -8,6 +8,7 @@ import { canAccess } from "@/lib/auth/rbac";
 import { canTransition } from "@/lib/orders/status";
 import { broadcastOrderStatus, broadcastOrderStatuses } from "@/lib/orders/broadcast";
 import { createStaffOrder, createStaffTakeawayOrder, nextKitchenNo } from "@/lib/orders/create-order";
+import { findOpenSessionForTable, releaseGroupTables } from "@/lib/orders/table-group";
 import {
   createStaffReservation,
   decideReservation,
@@ -314,12 +315,58 @@ export async function closeSession(slug: string, sessionId: string): Promise<Act
     .eq("tenant_id", auth.tenantId);
   if (error) return { ok: false, error: "Đóng phiên thất bại." };
 
-  await supabase
-    .from("tables")
-    .update({ status: "available" })
-    .eq("id", sess.table_id)
-    .eq("tenant_id", auth.tenantId);
+  await Promise.all([
+    supabase
+      .from("tables")
+      .update({ status: "available" })
+      .eq("id", sess.table_id)
+      .eq("tenant_id", auth.tenantId),
+    releaseGroupTables(supabase, auth.tenantId, sessionId),
+  ]);
 
+  revalidatePath(`/r/${slug}/pos`);
+  return { ok: true };
+}
+
+/**
+ * Ghép bàn / bỏ ghép (P23, TABLE-03, TABLE-06). `tableIds` = TOÀN BỘ bàn phụ mong muốn của nhóm có bàn chính
+ * `mainTableId` (bỏ một bàn khỏi danh sách = bỏ ghép bàn đó). Mọi kiểm tra + ghi nằm trong RPC `set_table_group`
+ * (một giao dịch, khóa dòng bàn) — ở đây chỉ dịch lý do từ chối ra câu chỉ đúng bàn.
+ */
+export async function setTableGroupAction(
+  slug: string,
+  mainTableId: string,
+  tableIds: string[]
+): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_table_group", {
+    p_tenant: auth.tenantId,
+    p_main: mainTableId,
+    p_tables: tableIds,
+    p_actor: auth.staffId,
+  });
+  if (error || !data) return { ok: false, error: "Không ghép được bàn. Vui lòng thử lại." };
+  const res = data as {
+    ok: boolean;
+    code?: string;
+    tables?: { name: string; reason: string; group?: string; count?: number }[];
+  };
+  if (!res.ok) {
+    if (res.code === "rejected" && res.tables?.length) {
+      const why = res.tables.map((t) => {
+        if (t.reason === "other_group") return `${t.name} đang ở nhóm ${t.group ?? "khác"}`;
+        if (t.reason === "has_bill") return `${t.name} đang có hóa đơn`;
+        if (t.reason === "main_split") return `${t.name} có món mà hóa đơn nhóm đã chia đều — gỡ chia trước`;
+        if (t.reason === "unpaid") return `${t.name} còn ${t.count ?? 0} món chưa thu — tách bill theo đơn và thu trước`;
+        return t.name;
+      });
+      return { ok: false, error: `Chưa ghép được: ${why.join("; ")}. Tải lại để chọn lại.` };
+    }
+    if (res.code === "main_is_member") return { ok: false, error: "Bàn này đang là bàn phụ của nhóm khác." };
+    return { ok: false, error: "Không tìm thấy bàn." };
+  }
   revalidatePath(`/r/${slug}/pos`);
   return { ok: true };
 }
@@ -686,17 +733,12 @@ export async function createStaffOrderAction(
   // Chốt chặn chia đều — TRƯỚC khi tạo đơn (xem SPLIT_EVENLY_ADD_ERROR). Bàn chưa có phiên mở thì
   // chưa thể có hóa đơn nào, khỏi kiểm. Query hỏng (kể cả PGRST116 khi bàn lỡ có >1 phiên 'open' —
   // trái D3) thì DỪNG: không đọc được trạng thái hóa đơn là không được phép thêm món.
+  // Bàn phụ của một nhóm (P23) dùng phiên của nhóm — tra qua đúng hàm mà `openOrJoinSession` dùng.
   const supabase = await createClient();
-  const { data: openSession, error: sessErr } = await supabase
-    .from("table_sessions")
-    .select("id")
-    .eq("tenant_id", auth.tenantId)
-    .eq("table_id", tableId)
-    .eq("status", "open")
-    .maybeSingle();
-  if (sessErr) return { ok: false, error: SPLIT_CHECK_FAILED_ERROR };
-  if (openSession) {
-    const guard = await evenSplitBlocksEdit(supabase, auth.tenantId, openSession.id as string, []);
+  const openSession = await findOpenSessionForTable(supabase, auth.tenantId, tableId);
+  if ("error" in openSession) return { ok: false, error: SPLIT_CHECK_FAILED_ERROR };
+  if (openSession.id) {
+    const guard = await evenSplitBlocksEdit(supabase, auth.tenantId, openSession.id, []);
     if ("error" in guard) return { ok: false, error: guard.error };
     if (guard.blocked) return { ok: false, error: SPLIT_EVENLY_ADD_ERROR };
   }

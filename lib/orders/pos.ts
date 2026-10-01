@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { timed } from "@/lib/observability/log";
 import { listTakeawayOrders, type OnlineOrderView } from "./online";
 import { getPendingCalls, type PosCall } from "./staff-calls";
+import { kitchenTableName } from "./place-label";
 import type { OrderStatus, OrderItemStatus } from "./types";
 
 export type PosTable = {
@@ -16,6 +17,8 @@ export type PosTable = {
   area_id: string | null;
   status: "available" | "occupied" | "reserved" | "cleaning";
   seats: number;
+  /** Bàn PHỤ của một nhóm (P23): id phiên mà bàn được ghép vào. Bàn chính và bàn thường = null. */
+  groupSessionId: string | null;
 };
 
 export type PosArea = { id: string; name: string };
@@ -42,6 +45,8 @@ export type PosOrder = {
   customer_contact: CustomerContact;
   created_at: string;
   table_session_id: string | null;
+  /** Bàn GỌI (P23). Null = đơn cũ / gọi từ bàn chính. */
+  table_id: string | null;
   items: PosItem[];
 };
 
@@ -56,7 +61,10 @@ export type PosPending = {
 
 export type PosSession = {
   id: string;
+  /** Bàn CHÍNH của phiên. */
   tableId: string;
+  /** Bàn phụ đang ghép vào phiên (P23), theo thứ tự sơ đồ bàn. Rỗng = phiên một bàn như cũ. */
+  memberTableIds: string[];
   opened_at: string;
   orders: PosOrder[];
   /** `splitCount != null` = hóa đơn đang chia đều → không hủy món được (BILL-06). */
@@ -154,7 +162,7 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
         .order("sort_order", { ascending: true }),
       supabase
         .from("tables")
-        .select("id, name, area_id, status, seats, sort_order")
+        .select("id, name, area_id, status, seats, sort_order, group_session_id")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true }),
       supabase
@@ -165,7 +173,7 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
       supabase
         .from("orders")
         .select(
-          "id, kitchen_no, status, source, note, customer_contact, created_at, table_session_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, cancel_reason, created_at, order_item_modifiers(name_snapshot))"
+          "id, kitchen_no, status, source, note, customer_contact, created_at, table_session_id, table_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, cancel_reason, created_at, order_item_modifiers(name_snapshot))"
         )
         .eq("tenant_id", tenantId)
         .in("status", ACTIVE_STATUSES)
@@ -199,7 +207,22 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
       getPendingCalls(tenantId),
     ]);
 
-  const tableById = new Map((tables ?? []).map((t) => [t.id, t]));
+  // Nhãn bàn của đơn trong nhóm (P23): "B3 (nhóm B1)" theo bàn gọi — cùng hàm với phiếu bếp / màn bếp.
+  const groupRefs = new Map(
+    (tables ?? []).map((t) => [
+      t.id as string,
+      { id: t.id as string, name: t.name as string, group_session_id: (t.group_session_id as string | null) ?? null },
+    ])
+  );
+  const orderTableName = (sessionId: string | null, orderTableId: string | null) => {
+    const sess = sessionId ? sessionById.get(sessionId) : null;
+    return kitchenTableName({
+      sessionId,
+      mainTableId: sess?.table_id ?? null,
+      orderTableId,
+      tables: groupRefs,
+    });
+  };
   const sessionById = new Map((sessions ?? []).map((s) => [s.id, s]));
   // Một phiên đã chia đều có nhiều bill 'open' cùng lúc (vỏ + N con). Panel chỉ hiện được MỘT, và
   // phải là VỎ: nó mới mang `split_count` để biết bàn đang chia (khóa nút hủy món — BILL-06), còn
@@ -228,6 +251,7 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     customer_contact: (o.customer_contact as CustomerContact) ?? null,
     created_at: o.created_at,
     table_session_id: o.table_session_id,
+    table_id: (o.table_id as string | null) ?? null,
     items: mapItems((o.order_items as unknown[]) ?? []),
   }));
 
@@ -236,11 +260,10 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     .filter((o) => o.status === "pending_confirm")
     .map((o) => {
       const sess = o.table_session_id ? sessionById.get(o.table_session_id) : null;
-      const tbl = sess ? tableById.get(sess.table_id) : null;
       return {
         id: o.id,
-        tableId: sess?.table_id ?? null,
-        tableName: tbl?.name ?? "—",
+        tableId: sess ? (o.table_id ?? sess.table_id) : null,
+        tableName: orderTableName(o.table_session_id, o.table_id) ?? "—",
         customer_contact: o.customer_contact,
         created_at: o.created_at,
         items: o.items,
@@ -267,12 +290,11 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     )
     .map((o) => {
       const sess = sessionById.get(o.table_session_id as string);
-      const tbl = sess ? tableById.get(sess.table_id) : null;
       return {
         id: o.id,
         kitchenNo: o.kitchen_no,
-        tableId: sess?.table_id ?? "",
-        tableName: tbl?.name ?? "—",
+        tableId: sess ? (o.table_id ?? sess.table_id) : "",
+        tableName: orderTableName(o.table_session_id, o.table_id) ?? "—",
         created_at: o.created_at,
         itemCount: o.items
           .filter((i) => i.status !== "cancelled")
@@ -296,6 +318,8 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     return {
       id: s.id,
       tableId: s.table_id,
+      // `tables` đã sắp theo sort_order ⇒ bàn phụ ra đúng thứ tự sơ đồ.
+      memberTableIds: (tables ?? []).filter((t) => t.group_session_id === s.id).map((t) => t.id as string),
       opened_at: s.opened_at,
       orders: ordersBySession.get(s.id) ?? [],
       openBill: b
@@ -326,6 +350,7 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
       area_id: t.area_id,
       status: t.status as PosTable["status"],
       seats: t.seats,
+      groupSessionId: (t.group_session_id as string | null) ?? null,
     })),
     pending,
     unprinted,

@@ -9,6 +9,7 @@ import { orderPlaceLabel } from "@/lib/orders/place-label";
 import type { OrderChannel, OrderSource } from "@/lib/orders/types";
 import type { CustomerTicketView } from "./adapter";
 import { urlAnh } from "@/lib/storage/public-url";
+import { sessionGroupName } from "@/lib/orders/table-group";
 
 export async function buildCustomerTicket(
   orderId: string,
@@ -19,7 +20,7 @@ export async function buildCustomerTicket(
   const { data: order } = await supabase
     .from("orders")
     .select(
-      "id, kitchen_no, created_at, channel, source, customer_contact, tenant_id, table_sessions(tables(name)), order_items(name_snapshot, unit_price_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
+      "id, kitchen_no, created_at, channel, source, customer_contact, tenant_id, table_session_id, table_sessions(tables(name)), order_items(name_snapshot, unit_price_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
     )
     .eq("id", orderId)
     .eq("tenant_id", tenantId)
@@ -33,7 +34,13 @@ export async function buildCustomerTicket(
     .maybeSingle();
 
   const ts = order.table_sessions as { tables?: { name?: string } } | null;
-  const tableName = ts?.tables?.name ?? null;
+  // Nhóm bàn (P23): phiếu khách ghi kiểu hóa đơn — "B1 +4" (QD-029 D4).
+  const tableName =
+    (order.table_session_id
+      ? await sessionGroupName(supabase, tenantId, order.table_session_id as string)
+      : null) ??
+    ts?.tables?.name ??
+    null;
   const place = orderPlaceLabel({
     serviceMode: parseSettings(tenant?.settings).service_mode,
     tableName,

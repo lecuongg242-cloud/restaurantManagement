@@ -21,6 +21,7 @@ import {
 } from "./session-bill";
 import { broadcastOrderStatus, broadcastOrderStatuses } from "@/lib/orders/broadcast";
 import { groupOrderIds } from "@/lib/orders/order-group";
+import { releaseGroupTables } from "@/lib/orders/table-group";
 import { normalizeIdempotencyKey } from "@/lib/idempotency";
 import type { BillView, BillLineView, DiscountType } from "./types";
 
@@ -474,6 +475,7 @@ async function closeSessionIfSettled(client: SupabaseClient, tenantId: string, s
   await Promise.all([
     client.from("table_sessions").update({ status: "closed", closed_at: now }).eq("id", sessionId).eq("tenant_id", tenantId),
     client.from("tables").update({ status: "available" }).eq("id", sess.table_id).eq("tenant_id", tenantId),
+    releaseGroupTables(client, tenantId, sessionId),
   ]);
 }
 
