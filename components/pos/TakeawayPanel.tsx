@@ -23,6 +23,7 @@ import { actionSignature } from "@/lib/idempotency";
 import { CancelItemDialog, type CancelStaff } from "./CancelItemDialog";
 import { TicketPrintButtons } from "./TicketPrintButtons";
 import { TakeawayHistory } from "./TakeawayHistory";
+import { ThanhTien } from "./OrderPanel";
 import { gioVn } from "@/lib/time/vn";
 import {
   createTakeawayOrderAction,
@@ -56,21 +57,18 @@ function OrderLines({
   return (
     <ul className="mt-sm flex flex-col divide-y divide-hairline-soft">
       {order.items.map((it) => (
-        <li key={it.id} className="flex items-start justify-between gap-md py-xs">
-          <div className="min-w-0">
-            <p className="text-sm text-ink">
-              {it.qty}× {it.name}
-            </p>
+        <li key={it.id} className="flex items-start gap-sm py-xs">
+          {/* Tên · SL · Thành tiền — cùng bố cục panel bàn (chủ dự án chốt 01/10/2026, thay "1× Tên"). */}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-ink">{it.name}</p>
             {it.modifiers.length > 0 && (
               <p className="text-xs text-steel">{it.modifiers.join(" · ")}</p>
             )}
             {it.note && <p className="text-xs italic text-stone">“{it.note}”</p>}
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-xs">
-            {/* Tiền là số nhân viên đọc để báo khách — chữ đậm màu chính, không xám. */}
-            <span className="text-sm font-medium tabular-nums text-ink">
-              {formatVnd(it.unitPrice * it.qty)}
-            </span>
+          <span className="w-7 shrink-0 text-center text-sm font-medium tabular-nums text-ink">{it.qty}</span>
+          <ThanhTien qty={it.qty} unit={it.unitPrice} />
+          <div className="flex w-12 shrink-0 flex-col items-end gap-xs">
             <button
               type="button"
               onClick={() => onCancelItem({ id: it.id, name: it.name, variant: "item" })}
@@ -347,15 +345,17 @@ export function TakeawayPanel({
                 const names = optionNames(it, l.optionIds);
                 return (
                   <li key={l.lineId} className="border-b border-hairline-soft pb-sm last:border-b-0">
-                    {/* items-center: tên món nằm giữa dòng với nút +/−, không dính mép trên. */}
-                    <div className="flex items-center justify-between gap-sm">
-                      <div className="min-w-0">
+                    {/* items-center: tên món nằm giữa dòng với nút +/−, không dính mép trên.
+                        Panel hẹp: cụm SL · tiền · Sửa/Xoá tự xuống hàng dưới tên (như giỏ panel bàn). */}
+                    <div className="flex flex-wrap items-center gap-x-sm gap-y-xs">
+                      <div className="min-w-[4.5rem] flex-1">
                         {/* Tên món to hơn phần còn lại: nhân viên liếc qua là soát được món đã gõ. */}
                         <p className="text-base font-medium text-ink">{it.name}</p>
                         {names.length > 0 && <p className="text-xs text-steel">{names.join(" · ")}</p>}
                       </div>
-                      <div className="flex shrink-0 items-center gap-sm">
+                      <div className="ml-auto flex shrink-0 items-center gap-xs sm:gap-sm">
                         <QtyStepper value={l.qty} onChange={(v) => onCartQty(l.lineId, v)} />
+                        <ThanhTien qty={l.qty} unit={unitPrice(it, l.optionIds)} gon />
                         {it.groups.length > 0 && (
                           <button
                             type="button"

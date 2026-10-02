@@ -18,6 +18,7 @@ import {
 } from "@/lib/orders/cancel-label";
 import type { HistoryStatusFilter } from "@/lib/orders/history-filter";
 import { usePrintAdapter } from "@/lib/print/print-mode";
+import { ThanhTien } from "./OrderPanel";
 import { listTakeawayHistoryAction } from "@/app/r/[slug]/pos/actions";
 import { cn } from "@/lib/utils";
 
@@ -113,11 +114,10 @@ function HistoryLines({
               })
             : null;
         return (
-          <li key={it.id} className="flex items-start justify-between gap-md py-xs">
-            <div className="min-w-0">
-              <p className={cancelled ? "text-sm text-stone line-through" : "text-sm text-ink"}>
-                {it.qty}× {it.name}
-              </p>
+          <li key={it.id} className="flex items-start gap-sm py-xs">
+            {/* Tên · SL · Thành tiền — cùng bố cục panel bàn (chủ dự án chốt 01/10/2026). */}
+            <div className="min-w-0 flex-1">
+              <p className={cancelled ? "text-sm text-stone line-through" : "text-sm text-ink"}>{it.name}</p>
               {it.modifiers.length > 0 && (
                 <p className="text-xs text-steel">{it.modifiers.join(" · ")}</p>
               )}
@@ -127,12 +127,13 @@ function HistoryLines({
             <span
               className={
                 cancelled
-                  ? "shrink-0 text-sm tabular-nums text-stone line-through"
-                  : "shrink-0 text-sm tabular-nums text-steel"
+                  ? "w-7 shrink-0 text-center text-sm tabular-nums text-stone line-through"
+                  : "w-7 shrink-0 text-center text-sm font-medium tabular-nums text-ink"
               }
             >
-              {formatVnd(it.unitPrice * it.qty)}
+              {it.qty}
             </span>
+            <ThanhTien qty={it.qty} unit={it.unitPrice} cancelled={cancelled} />
           </li>
         );
       })}

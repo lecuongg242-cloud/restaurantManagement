@@ -519,7 +519,7 @@ export function OrderPanel({
 }
 
 /** Cột thành tiền của một dòng món; SL ≥ 2 thì kèm đơn giá nhỏ bên dưới để đối chiếu. */
-function ThanhTien({
+export function ThanhTien({
   qty,
   unit,
   cancelled = false,
