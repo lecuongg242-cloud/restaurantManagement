@@ -1,23 +1,32 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock } from "lucide-react";
+import { Check, Clock, Undo2 } from "lucide-react";
 import type { KdsTicket as KdsTicketType } from "@/lib/orders/kds";
 import { cn } from "@/lib/utils";
 
-const LATE_SECONDS = 10 * 60; // >10 phút chưa phục vụ → TRỄ
+const LATE_SECONDS = 10 * 60; // >10 phút chưa xong → TRỄ
 
 /**
- * kds-ticket (§4.3) — VÉ BẾP CHỈ ĐỂ XEM: bàn (Fraunces lớn), đồng hồ đếm lên từ confirmed_at,
- * danh sách món SL×tên + tùy chọn thụt lề + ghi chú nổi bật. KHÔNG nút thao tác (bếp không chạm —
- * QĐ 22/07). Badge delta giây (đo ORDER-04) ở góc: xanh nếu ≤3s. Vé để lâu → viền + nhãn TRỄ.
+ * kds-ticket (§4.3) — bàn (Fraunces lớn), đồng hồ đếm lên từ confirmed_at, danh sách món SL×tên + tùy chọn thụt lề + ghi chú
+ * nổi bật. P27 (ORDER-04, QD-032): bếp báo xong như KiotViet "Chờ chế biến" / "Đã xong – Chờ cung ứng":
+ *  - `todo`: mỗi món nút "Xong", cuối vé "Xong cả vé"; vé để lâu → viền + nhãn TRỄ. Badge delta giây (đo ORDER-04) ở góc.
+ *  - `done`: món bếp đã xong chờ phục vụ mang ra — viền xanh, mỗi món nút "Trả lại" (bấm nhầm).
  */
 export function KdsTicket({
   ticket,
   delta,
+  mode = "todo",
+  busy = false,
+  onReady,
+  onUndo,
 }: {
   ticket: KdsTicketType;
   delta: number | undefined;
+  mode?: "todo" | "done";
+  busy?: boolean;
+  onReady?: (itemIds: string[]) => void;
+  onUndo?: (itemId: string) => void;
 }) {
   const [nowMs, setNowMs] = useState<number | null>(null);
 
@@ -31,24 +40,28 @@ export function KdsTicket({
   const elapsed = nowMs && confirmedMs ? Math.max(0, Math.floor((nowMs - confirmedMs) / 1000)) : 0;
   const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
-  const late = elapsed > LATE_SECONDS;
+  const late = mode === "todo" && elapsed > LATE_SECONDS;
+  const done = mode === "done";
+
+  const nut =
+    "inline-flex min-h-11 shrink-0 items-center gap-xxs rounded-md px-md text-sm font-semibold disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary";
 
   return (
     <div
       className={cn(
         "rounded-lg border-2 bg-canvas p-md shadow-card",
-        late ? "border-status-late" : "border-hairline"
+        done ? "border-status-ready" : late ? "border-status-late" : "border-hairline"
       )}
     >
       <div className="flex items-start justify-between gap-sm">
         <div className="flex items-baseline gap-sm">
           {ticket.kitchenNo != null && (
-            <span className="font-display text-3xl font-semibold leading-none text-primary">
+            <span className={cn("font-display font-semibold leading-none text-primary", done ? "text-2xl" : "text-3xl")}>
               #{ticket.kitchenNo}
             </span>
           )}
           {ticket.channel === "dine_in" ? (
-            <span className="font-display text-2xl leading-none text-ink">{ticket.place}</span>
+            <span className={cn("font-display leading-none text-ink", done ? "text-xl" : "text-2xl")}>{ticket.place}</span>
           ) : (
             // Nhãn do server tính (place-label.ts) — quán chế độ quầy hiện "Tại quán", không phải
             // "Mang về"; chỉ đơn khách tự đặt online mới là mang về/giao.
@@ -69,7 +82,7 @@ export function KdsTicket({
             <Clock className="h-4 w-4" aria-hidden />
             {mm}:{ss}
           </span>
-          {delta !== undefined && (
+          {!done && delta !== undefined && (
             <span
               className={cn(
                 "rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums",
@@ -91,21 +104,63 @@ export function KdsTicket({
 
       <ul className="mt-sm flex flex-col gap-sm">
         {ticket.items.map((it) => (
-          <li key={it.id} className="border-t border-hairline-soft pt-sm first:border-t-0 first:pt-0">
-            <p className="text-lg font-semibold leading-snug text-ink">
-              {it.qty}× {it.name}
-            </p>
-            {it.modifiers.length > 0 && (
-              <p className="pl-md text-base text-slate">+ {it.modifiers.join(", ")}</p>
-            )}
-            {it.note && (
-              <p className="mt-xxs rounded bg-cream px-xs py-xxs text-base font-medium text-ink">
-                ✎ {it.note}
+          <li
+            key={it.id}
+            className="flex items-start gap-sm border-t border-hairline-soft pt-sm first:border-t-0 first:pt-0"
+          >
+            <div className="min-w-0 flex-1">
+              <p className={cn("font-semibold leading-snug text-ink", done ? "text-base" : "text-lg")}>
+                {it.qty}× {it.name}
               </p>
-            )}
+              {it.modifiers.length > 0 && (
+                <p className={cn("pl-md text-slate", done ? "text-sm" : "text-base")}>+ {it.modifiers.join(", ")}</p>
+              )}
+              {it.note && (
+                <p className="mt-xxs rounded bg-cream px-xs py-xxs text-base font-medium text-ink">
+                  ✎ {it.note}
+                </p>
+              )}
+            </div>
+            {done
+              ? onUndo && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onUndo(it.id)}
+                    aria-label={`Trả lại ${it.name}`}
+                    className={cn(nut, "border border-hairline-strong text-steel hover:bg-surface")}
+                  >
+                    <Undo2 className="h-4 w-4" aria-hidden />
+                    Trả lại
+                  </button>
+                )
+              : onReady && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onReady([it.id])}
+                    aria-label={`Xong ${it.name}`}
+                    className={cn(nut, "border border-status-ready text-status-ready hover:bg-status-ready-bg")}
+                  >
+                    <Check className="h-4 w-4" aria-hidden />
+                    Xong
+                  </button>
+                )}
           </li>
         ))}
       </ul>
+
+      {!done && onReady && ticket.items.length > 1 && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onReady(ticket.items.map((i) => i.id))}
+          className={cn(nut, "mt-sm w-full justify-center bg-status-ready text-canvas hover:opacity-90")}
+        >
+          <Check className="h-4 w-4" aria-hidden />
+          Xong cả vé
+        </button>
+      )}
     </div>
   );
 }

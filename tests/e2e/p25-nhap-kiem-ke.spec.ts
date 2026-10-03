@@ -85,7 +85,7 @@ test("B: sổ 10 kg, đếm 82 kg → lệch +72 kg, +5.040.000₫, 'Lệch lớ
     await dangNhap(page);
     await page.goto(`/r/${SLUG}/admin/inventory/count`, { waitUntil: "networkidle" });
 
-    const o = page.getByRole("textbox", { name: `Thực tế ${ten} (kg)` });
+    const o = page.getByRole("textbox", { name: `Thực tế ${ten}`, exact: true });
     const dong = page.locator("li").filter({ has: o });
     await expect(dong).toContainText("10 kg");
 

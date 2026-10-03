@@ -75,7 +75,8 @@ async function addIngredient(
   if (o.price) await form.getByPlaceholder("280.000").fill(o.price);
   if (o.batch) await form.locator('input[name="batch_output_qty"]').fill(o.batch);
   await form.getByRole("button", { name: "Thêm nguyên liệu", exact: true }).click();
-  await expect(page.getByText(o.name, { exact: true })).toBeVisible();
+  // Tên chính của thẻ nguyên liệu (ô chọn công thức của bán thành phẩm cũng chứa tên mọi nguyên liệu).
+  await expect(page.locator("span.font-medium").getByText(o.name, { exact: true })).toBeVisible();
 }
 
 test("khai nguyên liệu + định lượng → thấy giá vốn/phần (INV-01, INV-02)", async ({ page }) => {
@@ -84,7 +85,15 @@ test("khai nguyên liệu + định lượng → thấy giá vốn/phần (INV-0
   await expect(page.getByText("280.000₫ / kg")).toBeVisible();
 
   await page.goto(`${BASE}/recipes`);
-  const card = page.locator("li").filter({ has: page.locator("summary") }).first();
+  // Món CHƯA khai định lượng — món đã có định lượng (dữ liệu kho demo P26) sẽ bị ghi đè dòng đầu rồi bị dọn mất.
+  const tenMon = await page
+    .locator("li")
+    .filter({ has: page.locator("summary", { hasText: "Chưa khai định lượng" }) })
+    .first()
+    .locator("summary span.font-medium")
+    .first()
+    .evaluate((el) => el.firstChild?.textContent?.trim() ?? "");
+  const card = page.locator("li").filter({ has: page.locator("summary span.font-medium", { hasText: tenMon }) }).first();
   await card.locator("summary").click();
   await card.getByRole("combobox").first().selectOption({ label: `${TAG} Bò` });
   await card.getByRole("textbox").first().fill("100");
@@ -148,9 +157,13 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
   // tenant demo dùng chung (pho-viet đã bị đổi sang "table" → nút thêm món khóa, cùng kiểu lỗi 522963b).
   const modeCu = await getServiceMode(SLUG);
 
-  // Món demo KHÔNG có nhóm tùy chọn → bấm là vào giỏ ngay.
+  // Món demo KHÔNG có nhóm tùy chọn (bấm là vào giỏ) và CHƯA có định lượng. Định lượng mới áp cho cả đơn của ngày chưa chốt
+  // (QD-017 D1) — dữ liệu kho demo P26 có đơn trưa nay, nên nhập đủ cho số đã bán hôm nay CỘNG 5 phần → vẫn phải ra "còn ~5".
+  // (Không tạo món riêng: thực đơn POS qua unstable_cache, món chèn thẳng DB không hiện.)
   const { data: links } = await db.from("menu_item_modifier_groups").select("item_id").eq("tenant_id", tenant);
   const withGroups = new Set((links ?? []).map((l) => l.item_id));
+  const { data: rl } = await db.from("recipe_lines").select("menu_item_id").eq("tenant_id", tenant).not("menu_item_id", "is", null);
+  const withRecipe = new Set((rl ?? []).map((r) => r.menu_item_id));
   const { data: items } = await db
     .from("menu_items")
     .select("id, name")
@@ -158,8 +171,19 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     .eq("active", true)
     .eq("is_available", true)
     .order("sort_order");
-  const item = (items ?? []).find((i) => !withGroups.has(i.id))!;
-  expect(item, "cần một món demo không có tùy chọn").toBeTruthy();
+  const homNay = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10) + "T00:00:00+07:00";
+  const { data: sold } = await db
+    .from("order_items")
+    .select("menu_item_id, qty, status, orders!inner(confirmed_at)")
+    .eq("tenant_id", tenant)
+    .neq("status", "cancelled")
+    .gte("orders.confirmed_at", new Date(homNay).toISOString());
+  const soldQty = (id: string) => (sold ?? []).filter((r) => r.menu_item_id === id).reduce((a, r) => a + Number(r.qty), 0);
+  const item = (items ?? [])
+    .filter((i) => !withGroups.has(i.id) && !withRecipe.has(i.id))
+    .sort((a, b) => soldQty(a.id) - soldQty(b.id))[0];
+  expect(item, "cần một món demo không có tùy chọn, chưa có định lượng").toBeTruthy();
+  const daBan = soldQty(item.id);
 
   const ingName = `${TAG} Bò POS`;
   const { data: ing } = await db
@@ -177,12 +201,12 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     await page.goto(`/r/${SLUG}/admin/nhap-hang/moi`);
     await page.getByRole("button", { name: "+ Thêm nguyên liệu khác" }).click();
     await page.getByRole("combobox", { name: "Nguyên liệu" }).last().selectOption({ label: ingName });
-    await page.getByRole("textbox", { name: /Số lượng/ }).last().fill("1");
+    await page.getByRole("textbox", { name: /Số lượng/ }).last().fill(String((daBan + 5) * 0.2).replace(".", ","));
     // P20: mỗi lần "Hoàn thành" là một phiếu nhập; không NCC, không giá → dòng sổ như nhập buổi sáng cũ.
     await page.getByRole("button", { name: "Hoàn thành" }).click();
     await expect(page.getByText(/Đã nhập hàng — phiếu PN\d{6}/)).toBeVisible();
     const { data: se } = await db.from("stock_entries").select("qty, purchase_receipt_id").eq("ingredient_id", ing!.id);
-    expect(se!.map((r) => Number(r.qty))).toEqual([1000]);
+    expect(se!.map((r) => Number(r.qty))).toEqual([(daBan + 5) * 200]);
     receiptIds.push(se![0].purchase_receipt_id as string);
 
     const card = () => page.locator("li").filter({ has: page.getByRole("button", { name: `Thêm ${item.name}` }) });
@@ -226,10 +250,11 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     await setServiceMode(SLUG, modeCu);
   }
 
-  // Hồi quy INV-10: hết dữ liệu sổ → POS không còn nhãn nào
+  // Hồi quy INV-10: hết dữ liệu sổ của món → món không còn nhãn (quán demo có kho thật P26 nên món khác vẫn có thể có nhãn)
   await page.reload();
-  await expect(page.getByText("Có thể đã hết — hãy hỏi bếp")).toHaveCount(0);
-  await expect(page.getByText(/^còn ~\d+$/)).toHaveCount(0);
+  const theMon = page.locator("li").filter({ has: page.getByRole("button", { name: `Thêm ${item.name}` }) });
+  await expect(theMon.getByText("Có thể đã hết — hãy hỏi bếp")).toHaveCount(0);
+  await expect(theMon.getByText(/^còn ~\d+$/)).toHaveCount(0);
 });
 
 test("kiểm kê lệch 200 g + phiếu hủy có lý do (INV-08)", async ({ page }) => {

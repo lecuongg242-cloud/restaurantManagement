@@ -9,7 +9,8 @@ import { unitCost } from "@/lib/inventory/cost";
 import { businessDate } from "@/lib/inventory/day";
 import { gioVn } from "@/lib/time/vn";
 import { BASE_UNIT_LABEL, type Ingredient } from "@/lib/inventory/types";
-import { recordWaste } from "../actions";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
+import { cancelWaste, recordWaste } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -92,12 +93,12 @@ export default async function CountPage({ params }: { params: Promise<{ slug: st
                 id: i.id,
                 name: i.name,
                 unit: unitOf(i),
-                theoretical: Math.round(((theo.get(i.id) ?? 0) / factorOf(i)) * 1000) / 1000,
+                // Đơn vị nhập khác đơn vị trừ kho (thùng ≠ chai) → dòng có ô chọn đơn vị đếm (P26, như KiotViet).
+                baseUnit: factorOf(i) !== 1 ? BASE_UNIT_LABEL[i.base_unit] : null,
+                factor: factorOf(i),
+                theoreticalBase: theo.get(i.id) ?? 0,
                 // Giá trị lệch theo giá vốn hiện tại (KiotViet: "giá vốn tại thời điểm tạo phiếu kiểm kho").
-                unitPrice: (() => {
-                  const c = unitCost(i.id, ctx).cost;
-                  return c === null ? null : c * factorOf(i);
-                })(),
+                unitPriceBase: unitCost(i.id, ctx).cost,
               }))}
             />
           )}
@@ -145,7 +146,10 @@ export default async function CountPage({ params }: { params: Promise<{ slug: st
         </form>
 
         {(wasteToday.data ?? []).length > 0 && (
-          <ul className="mt-md divide-y divide-hairline-soft text-sm">
+          <h3 className="mt-lg text-sm font-medium text-ink">Phiếu hủy hôm nay</h3>
+        )}
+        {(wasteToday.data ?? []).length > 0 && (
+          <ul className="mt-xs divide-y divide-hairline-soft text-sm" data-phieu-huy>
             {(wasteToday.data ?? []).map((w) => {
               const ing = byId.get(w.ingredient_id as string);
               return (
@@ -154,7 +158,20 @@ export default async function CountPage({ params }: { params: Promise<{ slug: st
                     {gioVn(w.created_at as string)} · {ing?.name ?? "?"} · {REASON_LABEL[w.reason as string]}
                     {w.note ? ` — ${w.note}` : ""}
                   </span>
-                  <span className="tabular-nums text-status-late">{ing ? inPurchase(ing, -Number(w.qty)) : ""}</span>
+                  <span className="flex items-center gap-sm">
+                    <span className="tabular-nums text-status-late">{ing ? inPurchase(ing, -Number(w.qty)) : ""}</span>
+                    {/* Ghi nhầm thì Hủy (như KiotViet "Xuất hủy → Hủy": cộng lại tồn kho) rồi ghi lại phiếu đúng. */}
+                    <form action={cancelWaste}>
+                      <input type="hidden" name="slug" value={slug} />
+                      <input type="hidden" name="id" value={w.id as string} />
+                      <ConfirmSubmit
+                        message={`Hủy phiếu hủy ${ing?.name ?? ""} ${ing ? inPurchase(ing, -Number(w.qty)) : ""}? Tồn kho được cộng lại.`}
+                        className="inline-flex min-h-11 items-center rounded-md px-sm text-sm text-status-late hover:bg-surface sm:min-h-9"
+                      >
+                        Hủy
+                      </ConfirmSubmit>
+                    </form>
+                  </span>
                 </li>
               );
             })}

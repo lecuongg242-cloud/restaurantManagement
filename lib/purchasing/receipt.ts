@@ -26,6 +26,15 @@ export function receiptTotals(lines: ReceiptLineInput[], discount: number): { su
   return { subtotal, total: subtotal - discount };
 }
 
+/**
+ * Phiếu tạm được lưu lúc "trả đủ" (tiền trả = cần trả > 0). Mở lại sửa số lượng / giá thì tiền trả phải chạy theo cần trả
+ * mới như phiếu mới — giữ số cũ là ghi nợ NCC phần chênh mà người dùng không hề chọn.
+ */
+export function draftPaysInFull(draft: { lines: ReceiptLineInput[]; discount: number; pay_now: number }): boolean {
+  const { total } = receiptTotals(draft.lines, draft.discount);
+  return total > 0 && draft.pay_now === total;
+}
+
 /** Lỗi đọc được cho người dùng, hoặc null. Cùng luật với hàm SQL. */
 export function validateReceipt(input: {
   lineCount: number;

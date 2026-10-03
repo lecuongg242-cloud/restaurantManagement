@@ -28,6 +28,7 @@ import { resolveGroupRoot, groupOrderIds, groupIsPaid } from "@/lib/orders/order
 import { isHistoryStatusFilter, type HistoryStatusFilter } from "@/lib/orders/history-filter";
 import { verifyPinForRoles } from "@/lib/auth/pin-gate";
 import { resolveStaffCall } from "@/lib/orders/staff-calls";
+import { setItemsDelivered } from "@/lib/orders/kitchen-progress";
 import {
   openBillForSession,
   openBillForOrder,
@@ -163,6 +164,17 @@ export async function resolveCallAction(slug: string, callId: string): Promise<A
   const res = await resolveStaffCall(auth.tenantId, callId, auth.staffId);
   if ("error" in res) return { ok: false, error: res.error };
   revalidatePath(`/r/${slug}/pos`);
+  return { ok: true };
+}
+
+/** "Mang ra" (P27, QD-032): món bếp đã xong → đã mang ra; món rời màn bếp. Không đụng 'served' (= đã thu tiền). */
+export async function markItemsDeliveredAction(slug: string, itemIds: string[]): Promise<ActionResult> {
+  const auth = await authorizePos(slug);
+  if ("error" in auth) return { ok: false, error: auth.error };
+  const res = await setItemsDelivered(await createClient(), auth.tenantId, itemIds.slice(0, 200), auth.staffId);
+  if (!res.ok) return { ok: false, error: res.error };
+  revalidatePath(`/r/${slug}/pos`);
+  revalidatePath(`/r/${slug}/kds`);
   return { ok: true };
 }
 
@@ -910,6 +922,8 @@ export async function cancelOrderItem(
   if (!item) return { ok: false, error: "Không tìm thấy món." };
   if (item.status === "served" || item.status === "cancelled")
     return { ok: false, error: "Món đã phục vụ hoặc đã hủy, không thể hủy." };
+  // Bếp đã làm xong (KDS "Xong") → không hủy được (chủ dự án 03/10/2026). Bếp bấm "Trả lại" thì món về chờ làm, hủy lại được.
+  if (item.status === "ready") return { ok: false, error: "Bếp đã làm xong món này, không thể hủy." };
 
   // Chốt chặn chia đều — ngay trước lệnh ghi đầu tiên (xem SPLIT_EVENLY_CANCEL_ERROR).
   // Chỉ đơn CÓ phiên bàn mới dính: mang về/giao không chia đều. Đọc phiên bằng một truy vấn riêng

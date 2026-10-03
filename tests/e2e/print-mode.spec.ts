@@ -41,7 +41,7 @@ for (const q of QUAN) {
   test(`${q.slug} ở chế độ ${q.mode} → POS ${q.mode === "bridge" ? "CÓ" : "KHÔNG có"} chip cầu in`, async ({ page }) => {
     await vaoPos(page, q.slug, q.email);
     // Chờ POS dựng xong (thanh công cụ có nút tìm món) rồi mới khẳng định chip có/không.
-    await expect(page.getByLabel("Tìm món")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByLabel("Tìm món").or(page.getByRole("tab", { name: "Sơ đồ bàn" })).first()).toBeVisible({ timeout: 30_000 });
     if (q.mode === "bridge") {
       await expect(chipCauIn(page)).toBeVisible({ timeout: 15_000 });
     } else {

@@ -46,6 +46,10 @@ export function BatchForm({
   }
   const unit = target ? BASE_UNIT_LABEL[target.base_unit] : "";
   const nameOf = (x: string) => ingredients.find((i) => i.id === x)?.name ?? "?";
+  const unitOf = (x: string) => {
+    const i = ingredients.find((y) => y.id === x);
+    return i ? BASE_UNIT_LABEL[i.base_unit] : "";
+  };
 
   return (
     <form action={recordBatch} className="flex flex-col gap-sm">
@@ -90,7 +94,7 @@ export function BatchForm({
       {plan && (
         <div className="rounded-md bg-surface p-sm text-sm text-slate">
           <p>
-            Trừ: {plan.consume.map((c) => `${nameOf(c.ingredient_id)} ${fmt(c.qty)}`).join(" · ")}
+            Trừ: {plan.consume.map((c) => `${nameOf(c.ingredient_id)} ${fmt(c.qty)} ${unitOf(c.ingredient_id)}`).join(" · ")}
           </p>
           <p className="mt-xxs">
             Công thức {fmt(plan.expectedQty)} {unit}

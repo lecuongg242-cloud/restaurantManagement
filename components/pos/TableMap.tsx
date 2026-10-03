@@ -1,17 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarClock, Clock, Link2, ShoppingBag } from "lucide-react";
+import { Banknote, BellRing, CalendarClock, Clock, ConciergeBell, Hand, Link2, Printer, ShoppingBag } from "lucide-react";
 import { formatVnd } from "@/lib/orders/cart";
 import { thoiGianNgoi } from "@/lib/time/vn";
 import { cn } from "@/lib/utils";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import type { PosArea, PosTable, PosSession, PosReservation } from "@/lib/orders/pos";
+import { matchesTableFilter, needsAttention, type TableFilter, type TableFlags } from "@/lib/orders/table-flags";
 
 /**
  * TableMap (§4.2, §2.2) — tab khu vực + lưới table-tile màu theo status. Tile hiện tên bàn + TẠM TÍNH + thời gian
  * khách ngồi (như Sapo / CUKCUK; chủ dự án chốt 01/10/2026 — thay chấm đỏ đếm món). Touch ≥44px. Màu: available viền / occupied cream /
  * reserved viền primary / cleaning xám.
+ *
+ * P27: tab khu MỘT hàng cuộn ngang (ORDER-22); hàng lọc "Tất cả · Đang phục vụ · Trống · Cần xử lý" kèm số; thẻ bàn có dấu
+ * chờ duyệt / chưa in / gọi / món xong chờ mang ra, thẻ cần xử lý viền đỏ (ORDER-24 — như KiotViet chuông trên ô bàn).
  */
+const FILTERS: { id: TableFilter; name: string }[] = [
+  { id: "all", name: "Tất cả" },
+  { id: "busy", name: "Đang phục vụ" },
+  { id: "free", name: "Trống" },
+  { id: "attention", name: "Cần xử lý" },
+  { id: "pay", name: "Chờ thanh toán" },
+];
 const STATUS_CLASS: Record<PosTable["status"], string> = {
   available: "border-hairline bg-canvas text-ink",
   occupied: "border-beige-deep bg-cream text-ink",
@@ -36,6 +48,7 @@ export function TableMap({
   takeawayActive = false,
   takeawayCount = 0,
   onSelectTakeaway,
+  flags,
 }: {
   areas: PosArea[];
   tables: PosTable[];
@@ -46,9 +59,12 @@ export function TableMap({
   takeawayActive?: boolean;
   takeawayCount?: number;
   onSelectTakeaway?: () => void;
+  /** Dấu "cần xử lý" theo bàn (lib/orders/table-flags). Không truyền = không dấu, không hàng lọc. */
+  flags?: Map<string, TableFlags>;
 }) {
   const tabs = [{ id: "all", name: "Tất cả" }, ...areas, { id: "none", name: "Chưa xếp khu" }];
   const [activeTab, setActiveTab] = useState("all");
+  const [filter, setFilter] = useState<TableFilter>("all");
 
   // Đồng hồ cho "thời gian ngồi" — nhịp 30 giây là đủ cho số phút.
   const [now, setNow] = useState(() => Date.now());
@@ -92,30 +108,65 @@ export function TableMap({
     return { next: list[0], more: list.length - 1 };
   };
 
-  const visible = tables.filter((t) => {
+  const inArea = tables.filter((t) => {
     if (activeTab === "all") return true;
     if (activeTab === "none") return t.area_id === null;
     return t.area_id === activeTab;
   });
+  const visible = inArea.filter((t) => matchesTableFilter(t, flags?.get(t.id), filter));
+  const countOf = (f: TableFilter) => inArea.filter((t) => matchesTableFilter(t, flags?.get(t.id), f)).length;
+  const chip =
+    "inline-flex min-h-[44px] shrink-0 items-center gap-xxs whitespace-nowrap rounded-full px-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
 
   return (
     <div>
-      <div className="flex flex-wrap gap-xs">
+      {/* Một hàng cuộn ngang — 5–6 khu không gấp thành nhiều hàng ăn chỗ của sơ đồ bàn. */}
+      <ScrollRow role="group" aria-label="Khu vực" className="-mx-md gap-xs px-md">
         {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setActiveTab(t.id)}
             aria-pressed={activeTab === t.id}
-            className={cn(
-              "inline-flex min-h-[44px] items-center rounded-full px-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-              activeTab === t.id ? "bg-ink text-on-dark" : "bg-canvas text-steel hover:bg-cream"
-            )}
+            className={cn(chip, activeTab === t.id ? "bg-cream-deeper text-primary-deep ring-1 ring-inset ring-primary/50" : "bg-canvas text-steel hover:bg-cream")}
           >
             {t.name}
           </button>
         ))}
-      </div>
+      </ScrollRow>
+
+      {flags && (
+        <ScrollRow role="group" aria-label="Lọc trạng thái bàn" className="-mx-md mt-xs gap-xs px-md">
+          {FILTERS.map((f) => {
+            const n = countOf(f.id);
+            const on = filter === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFilter(f.id)}
+                aria-pressed={on}
+                className={cn(
+                  chip,
+                  "min-h-9 border text-[13px]",
+                  on
+                    ? f.id === "attention"
+                      ? "border-status-late bg-status-late text-status-late-fg"
+                      : "border-primary bg-cream text-primary-deep"
+                    : f.id === "attention" && n > 0
+                      ? "border-status-late/50 bg-canvas text-status-late"
+                      : f.id === "pay" && n > 0
+                        ? "border-status-ready/60 bg-canvas text-status-ready"
+                        : "border-hairline bg-canvas text-steel hover:bg-cream"
+                )}
+              >
+                {f.name}
+                <span className="tabular-nums opacity-80">{n}</span>
+              </button>
+            );
+          })}
+        </ScrollRow>
+      )}
 
       {onSelectTakeaway && (
         <button
@@ -143,12 +194,14 @@ export function TableMap({
         </button>
       )}
 
-      <div className={cn("grid grid-cols-2 gap-sm", onSelectTakeaway ? "mt-sm" : "mt-lg")}>
+      <div className={cn("grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-sm", onSelectTakeaway ? "mt-sm" : "mt-lg")}>
         {visible.map((t) => {
           const phien = sessionByMain.get(t.id);
           const selected = t.id === selectedTableId;
           const resv = pickReservation(t.id);
           const groupLabel = groupLabelByTable.get(t.id);
+          const f = flags?.get(t.id);
+          const canXuLy = needsAttention(f);
           return (
             <button
               key={t.id}
@@ -158,6 +211,7 @@ export function TableMap({
               className={cn(
                 "flex min-h-[88px] flex-col items-start justify-between rounded-lg border-2 p-md text-left transition-[background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                 STATUS_CLASS[t.status],
+                canXuLy && "border-status-late",
                 selected && "ring-2 ring-primary ring-offset-2"
               )}
             >
@@ -172,7 +226,7 @@ export function TableMap({
               <div className="flex w-full flex-col items-start gap-xxs">
                 <span className="text-xs opacity-80">{STATUS_LABEL[t.status]}</span>
                 {phien && (
-                  <span className="inline-flex items-center gap-xxs text-[11px] font-medium tabular-nums opacity-80">
+                  <span data-thoi-gian className="inline-flex items-center gap-xxs text-[11px] font-medium tabular-nums opacity-80">
                     <Clock className="h-3 w-3 shrink-0" aria-hidden />
                     <span suppressHydrationWarning>{thoiGianNgoi(phien.openedAt, now)}</span>
                   </span>
@@ -181,6 +235,40 @@ export function TableMap({
                   <span className="inline-flex max-w-full items-center gap-xxs text-[11px] font-medium text-ink">
                     <Link2 className="h-3 w-3 shrink-0" aria-hidden />
                     <span className="truncate">{groupLabel}</span>
+                  </span>
+                )}
+                {f && canXuLy && (
+                  <span className="flex flex-wrap items-center gap-xxs" data-dau-ban>
+                    {f.pending > 0 && (
+                      <Dau cls="bg-primary text-primary-fg" title={`${f.pending} đơn chờ duyệt`}>
+                        <BellRing className="h-3 w-3" aria-hidden />
+                        {f.pending}
+                      </Dau>
+                    )}
+                    {f.unprinted > 0 && (
+                      <Dau cls="bg-status-late text-status-late-fg" title={`${f.unprinted} đơn chưa in phiếu bếp`}>
+                        <Printer className="h-3 w-3" aria-hidden />
+                        {f.unprinted}
+                      </Dau>
+                    )}
+                    {f.calls > 0 && (
+                      <Dau cls="bg-cream-deeper text-ink" title="Đang gọi nhân viên">
+                        <Hand className="h-3 w-3" aria-hidden />
+                        {f.calls}
+                      </Dau>
+                    )}
+                    {f.payment > 0 && (
+                      <Dau cls="bg-status-ready-bg text-status-ready ring-1 ring-status-ready" title="Chờ thanh toán">
+                        <Banknote className="h-3 w-3" aria-hidden />
+                        TT
+                      </Dau>
+                    )}
+                    {f.ready > 0 && (
+                      <Dau cls="bg-status-ready text-canvas" title={`${f.ready} món bếp đã xong, chờ mang ra`}>
+                        <ConciergeBell className="h-3 w-3" aria-hidden />
+                        {f.ready}
+                      </Dau>
+                    )}
                   </span>
                 )}
                 {resv && (
@@ -201,5 +289,18 @@ export function TableMap({
         )}
       </div>
     </div>
+  );
+}
+
+/** Dấu nhỏ có số trên thẻ bàn; chữ đầy đủ ở title + aria-label cho trình đọc màn hình. */
+function Dau({ cls, title, children }: { cls: string; title: string; children: React.ReactNode }) {
+  return (
+    <span
+      title={title}
+      aria-label={title}
+      className={cn("inline-flex items-center gap-[2px] rounded px-1 py-px text-[11px] font-bold tabular-nums", cls)}
+    >
+      {children}
+    </span>
   );
 }

@@ -15,7 +15,16 @@ const SELECT =
  * Thêm/sửa một nguyên liệu. Giá nhập theo ĐƠN VỊ NHẬP ("280.000 / kg") vì người ở quán nghĩ vậy;
  * server đổi về đồng / đơn vị gốc. Bán thành phẩm không có giá tay — giá suy từ công thức mẻ.
  */
-export function IngredientForm({ slug, ingredient }: { slug: string; ingredient?: Ingredient }) {
+export function IngredientForm({
+  slug,
+  ingredient,
+  openingAllowed = !ingredient,
+}: {
+  slug: string;
+  ingredient?: Ingredient;
+  /** Nguyên liệu chưa có phát sinh kho nào → khai được "Tồn hiện có" (P26). Thêm mới luôn được. */
+  openingAllowed?: boolean;
+}) {
   const [kind, setKind] = useState(ingredient?.kind ?? "purchased");
   const [baseUnit, setBaseUnit] = useState(ingredient?.base_unit ?? "g");
   const [purchaseUnit, setPurchaseUnit] = useState(ingredient?.purchase_unit ?? "");
@@ -129,6 +138,20 @@ export function IngredientForm({ slug, ingredient }: { slug: string; ingredient?
             defaultValue={ingredient?.batch_output_qty ? String(ingredient.batch_output_qty).replace(".", ",") : ""}
             placeholder="40000"
           />
+        </label>
+      )}
+
+      {openingAllowed && (
+        <label className="flex flex-col gap-xxs text-sm text-slate sm:col-span-2" data-ton-dau>
+          Tồn hiện có (không bắt buộc)
+          <span className="flex items-center gap-xs">
+            <Input name="opening_qty" inputMode="decimal" placeholder="0" className="max-w-40" />
+            <span className="text-steel">{kind === "purchased" && purchaseUnit.trim() ? purchaseUnit.trim() : unitWord}</span>
+          </span>
+          <span className="text-xs text-steel">
+            Hàng đang có sẵn trong kho lúc bắt đầu dùng (như &quot;Tồn kho ban đầu&quot;). Chỉ khai một lần, trước khi nhập /
+            xuất; không tính vào hao hụt. Sau đó tồn lệch thì kiểm kê.
+          </span>
         </label>
       )}
 

@@ -12,6 +12,7 @@ import { businessDate } from "@/lib/inventory/day";
 import { planBatch } from "@/lib/inventory/batch";
 import { loadInventory, costContext } from "@/lib/inventory/data";
 import { checkRecipeChange, MAX_DEPTH } from "@/lib/inventory/recipe-graph";
+import { countToBase, parseCount, type CountUnit } from "@/lib/inventory/count";
 import type { BaseUnit, IngredientKind } from "@/lib/inventory/types";
 
 // Định lượng KHÔNG đổi thực đơn khách → không gọi revalidateMenu (cache PERF-02 giữ nguyên).
@@ -82,6 +83,58 @@ function readPrice(fd: FormData, factor: number): number | null {
   return unitCostFromPurchase(parseInt(raw, 10), factor);
 }
 
+/** Ghi chú của dòng sổ tồn đầu kỳ — để màn và báo cáo nhận ra (không phải phiếu nhập NCC). */
+const OPENING_NOTE = "Tồn đầu kỳ";
+
+/** Đọc ô "Tồn hiện có" (đơn vị nhập nếu có). Trống / 0 = không khai. */
+function readOpening(fd: FormData): number | null | "invalid" {
+  const p = parseCount(String(fd.get("opening_qty") ?? ""));
+  if (!p) return null;
+  if (!p.ok) return "invalid";
+  return p.value > 0 ? p.value : null;
+}
+
+/**
+ * Tồn đầu kỳ (P26, như Sapo "Số lượng ban đầu" / CUKCUK "Nhập số dư ban đầu"): hàng có sẵn lúc bắt đầu dùng kho. Ghi một dòng
+ * `receipt` không gắn phiếu nhập, ngày hôm nay — vào tồn như hàng nhập, KHÔNG vào hao hụt hay "% dùng được" (khác kiểm kê:
+ * kiểm kê lần đầu từ sổ 0 bị tính là "dư không giải thích"). Chỉ khi nguyên liệu chưa có dòng sổ nào.
+ */
+async function recordOpening(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tenantId: string,
+  ingredientId: string,
+  qty: number,
+  factor: number,
+  unitCost: number | null,
+  createdBy: string
+): Promise<string | null> {
+  // Khóa ngoại bỏ qua RLS: kiểm nguyên liệu thuộc quán này trước khi ghi (bài học record_batch).
+  const { data: own } = await supabase
+    .from("ingredients")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("id", ingredientId)
+    .maybeSingle();
+  if (!own) return "Không tìm thấy nguyên liệu.";
+  const { count } = await supabase
+    .from("stock_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("ingredient_id", ingredientId);
+  if ((count ?? 0) > 0) return "Nguyên liệu đã có nhập / xuất — tồn hiện có chỉ khai một lần lúc bắt đầu. Tồn lệch thì kiểm kê.";
+  const { error } = await supabase.from("stock_entries").insert({
+    tenant_id: tenantId,
+    business_date: businessDate(),
+    ingredient_id: ingredientId,
+    kind: "receipt",
+    qty: qty3(toBaseQty(qty, factor)),
+    unit_cost: unitCost,
+    note: OPENING_NOTE,
+    created_by: createdBy,
+  });
+  return error ? error.message : null;
+}
+
 export async function createIngredient(fd: FormData) {
   const slug = String(fd.get("slug") ?? "");
   const session = await requireInventoryManager(slug);
@@ -91,21 +144,36 @@ export async function createIngredient(fd: FormData) {
     return;
   }
   const price = fields.kind === "purchased" ? readPrice(fd, fields.purchase_factor) : null;
+  const opening = readOpening(fd);
+  if (opening === "invalid") {
+    await setFlash("error", "Tồn hiện có phải là số không âm.");
+    return;
+  }
 
   const supabase = await createClient();
-  const { error } = await supabase.from("ingredients").insert({
-    tenant_id: session.tenant.id,
-    ...fields,
-    ...(price !== null ? { last_unit_cost: price, last_cost_at: new Date().toISOString() } : {}),
-  });
+  const { data: created, error } = await supabase
+    .from("ingredients")
+    .insert({
+      tenant_id: session.tenant.id,
+      ...fields,
+      ...(price !== null ? { last_unit_cost: price, last_cost_at: new Date().toISOString() } : {}),
+    })
+    .select("id")
+    .single();
+  const openErr =
+    !error && created && opening !== null
+      ? await recordOpening(supabase, session.tenant.id, created.id as string, opening, fields.purchase_factor, price, session.membershipId)
+      : null;
   revalidatePath(invPath(slug), "layout");
   await setFlash(
-    error ? "error" : "ok",
+    error || openErr ? "error" : "ok",
     error
       ? error.code === "23505"
         ? `Đã có nguyên liệu tên "${fields.name}".`
         : error.message
-      : `Đã thêm "${fields.name}".`
+      : openErr
+        ? `Đã thêm "${fields.name}" nhưng chưa ghi được tồn hiện có: ${openErr}`
+        : `Đã thêm "${fields.name}"${opening !== null ? " kèm tồn hiện có" : ""}.`
   );
 }
 
@@ -134,6 +202,11 @@ export async function updateIngredient(fd: FormData) {
     }
   }
 
+  const opening = readOpening(fd);
+  if (opening === "invalid") {
+    await setFlash("error", "Tồn hiện có phải là số không âm.");
+    return;
+  }
   const { error } = await supabase
     .from("ingredients")
     .update({
@@ -143,14 +216,18 @@ export async function updateIngredient(fd: FormData) {
     })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
+  const openErr =
+    !error && opening !== null
+      ? await recordOpening(supabase, session.tenant.id, id, opening, fields.purchase_factor, price, session.membershipId)
+      : null;
   revalidatePath(invPath(slug), "layout");
   await setFlash(
-    error ? "error" : "ok",
+    error || openErr ? "error" : "ok",
     error
       ? error.code === "23505"
         ? `Đã có nguyên liệu tên "${fields.name}".`
         : error.message
-      : `Đã lưu "${fields.name}".`
+      : openErr ?? `Đã lưu "${fields.name}"${opening !== null ? " kèm tồn hiện có" : ""}.`
   );
 }
 
@@ -462,7 +539,7 @@ export async function recordCounts(fd: FormData) {
   const session = await requireInventoryManager(slug);
   const tenantId = session.tenant.id;
 
-  let parsed: { ingredient_id: string; counted: string }[];
+  let parsed: { ingredient_id: string; counted: string; unit?: CountUnit }[];
   try {
     parsed = JSON.parse(String(fd.get("rows") ?? "[]"));
     if (!Array.isArray(parsed)) throw new Error();
@@ -488,16 +565,16 @@ export async function recordCounts(fd: FormData) {
   const day = businessDate();
   const entries: Record<string, unknown>[] = [];
   for (const r of parsed) {
-    const raw = String(r.counted ?? "").trim();
-    if (!raw) continue; // không đếm nguyên liệu này
+    const p = parseCount(String(r.counted ?? ""));
+    if (!p) continue; // không đếm nguyên liệu này
     const ing = ingById.get(r.ingredient_id);
     if (!ing || !ing.must_count) continue;
-    const counted = raw === "0" ? 0 : parseQty(raw);
-    if (counted === null) {
+    if (!p.ok) {
       await setFlash("error", `Số đếm của "${ing.name}" không hợp lệ.`);
       return;
     }
-    const countedBase = toBaseQty(counted, Number(ing.purchase_factor ?? 1));
+    // Đếm theo đơn vị nhập (thùng, kg) hoặc đơn vị trừ kho (chai, g) — người đếm chọn trên dòng (P26).
+    const countedBase = countToBase(p.value, r.unit === "base" ? "base" : "purchase", Number(ing.purchase_factor ?? 1));
     const diff = Math.round((countedBase - (theoretical.get(ing.id as string) ?? 0)) * 1000) / 1000;
     entries.push({
       tenant_id: tenantId,
@@ -565,4 +642,73 @@ export async function recordWaste(fd: FormData) {
   });
   revalidatePath(invPath(slug), "layout");
   await setFlash(error ? "error" : "ok", error ? error.message : `Đã ghi hủy ${ing.name}.`);
+}
+
+/**
+ * Ngày kho đã có bản chốt → không xóa dòng sổ của ngày đó nữa (bản chốt bất biến, QD-017 D7). Màn chỉ hiện phiếu HÔM NAY
+ * nên thường chưa chốt; kiểm lại ở server phòng mở trang từ hôm qua rồi bấm sau nửa đêm.
+ */
+async function dayClosed(supabase: Awaited<ReturnType<typeof createClient>>, tenantId: string, day: string) {
+  const { count } = await supabase
+    .from("daily_closes")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .gte("business_date", day);
+  return (count ?? 0) > 0;
+}
+
+/**
+ * "Hủy" phiếu xuất hủy ghi nhầm (P26, như KiotViet "Xuất hủy → Hủy": cộng lại tồn kho). Xóa dòng sổ của ngày chưa chốt —
+ * cùng cách hủy phiếu nhập khi ngày kho chưa chốt (QD-027 D5).
+ */
+export async function cancelWaste(fd: FormData) {
+  const slug = String(fd.get("slug") ?? "");
+  const session = await requireInventoryManager(slug);
+  const tenantId = session.tenant.id;
+  const supabase = await createClient();
+  const { data: row } = await supabase
+    .from("stock_entries")
+    .select("id, business_date, kind")
+    .eq("tenant_id", tenantId)
+    .eq("id", String(fd.get("id") ?? ""))
+    .maybeSingle();
+  if (!row || row.kind !== "waste") {
+    await setFlash("error", "Không tìm thấy phiếu hủy.");
+    return;
+  }
+  if (await dayClosed(supabase, tenantId, row.business_date as string)) {
+    await setFlash("error", "Ngày này đã chốt sổ — không hủy được phiếu nữa. Sai lệch sẽ hiện ở lần kiểm kê sau.");
+    return;
+  }
+  const { error } = await supabase.from("stock_entries").delete().eq("tenant_id", tenantId).eq("id", row.id);
+  revalidatePath(invPath(slug), "layout");
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã hủy phiếu hủy — tồn kho được cộng lại.");
+}
+
+/**
+ * "Hủy" mẻ chế biến ghi nhầm (P26, như KiotViet "Sản xuất → Hủy": trả lại nguyên liệu, trừ bán thành phẩm). Xóa mẻ → dòng
+ * sổ batch_in / batch_out đi theo (on delete cascade), hụt mẻ cũng mất vì tính từ production_batches.
+ */
+export async function cancelBatch(fd: FormData) {
+  const slug = String(fd.get("slug") ?? "");
+  const session = await requireInventoryManager(slug);
+  const tenantId = session.tenant.id;
+  const supabase = await createClient();
+  const { data: batch } = await supabase
+    .from("production_batches")
+    .select("id, business_date")
+    .eq("tenant_id", tenantId)
+    .eq("id", String(fd.get("id") ?? ""))
+    .maybeSingle();
+  if (!batch) {
+    await setFlash("error", "Không tìm thấy mẻ chế biến.");
+    return;
+  }
+  if (await dayClosed(supabase, tenantId, batch.business_date as string)) {
+    await setFlash("error", "Ngày này đã chốt sổ — không hủy được mẻ nữa.");
+    return;
+  }
+  const { error } = await supabase.from("production_batches").delete().eq("tenant_id", tenantId).eq("id", batch.id);
+  revalidatePath(invPath(slug), "layout");
+  await setFlash(error ? "error" : "ok", error ? error.message : "Đã hủy mẻ — nguyên liệu được trả lại, bán thành phẩm bị trừ.");
 }

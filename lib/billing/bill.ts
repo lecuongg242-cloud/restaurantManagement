@@ -471,6 +471,20 @@ async function closeSessionIfSettled(client: SupabaseClient, tenantId: string, s
   if (!statuses.every((s) => s === "served")) return;
 
   const now = new Date().toISOString();
+  // Hàng chờ thanh toán (P27 ORDER-26): khách đã trả đủ → lượt "Gọi thanh toán" của bàn chính + bàn phụ tự đánh dấu đã xử lý.
+  // Làm TRƯỚC khi gỡ nhóm (releaseGroupTables xóa group_session_id của bàn phụ).
+  const { data: banPhu } = await client
+    .from("tables")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("group_session_id", sessionId);
+  await client
+    .from("staff_calls")
+    .update({ status: "resolved", resolved_at: now })
+    .eq("tenant_id", tenantId)
+    .eq("status", "pending")
+    .in("table_id", [sess.table_id as string, ...((banPhu ?? []).map((t) => t.id as string))])
+    .ilike("note", "%thanh toán%");
   // Đóng phiên và trả bàn về trống là hai bản ghi độc lập — không việc gì phải chờ nhau.
   await Promise.all([
     client.from("table_sessions").update({ status: "closed", closed_at: now }).eq("id", sessionId).eq("tenant_id", tenantId),

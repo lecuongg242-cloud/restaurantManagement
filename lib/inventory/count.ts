@@ -1,3 +1,5 @@
+import { parseQty, toBaseQty } from "./units";
+
 /**
  * Lệch kiểm kê (INV-11, P25). Số đếm luôn là số đúng — không chặn đếm dư hay đếm thiếu (như KiotViet "Kiểm kho"), nhưng
  * người đếm phải THẤY lệch bao nhiêu trước khi ghi, và lệch lớn thì phải xác nhận (gõ 82 thay vì 8,2).
@@ -42,4 +44,24 @@ export function countSummary(lines: CountLine[]): CountSummary {
     else side.value += Math.round(diff * l.unitPrice);
   }
   return s;
+}
+
+/**
+ * Ô "Thực tế" (P26). Trống = chưa đếm (null). "0" = đếm hết hàng. Gõ sai (số âm, chữ) = KHÔNG hợp lệ — dùng chung cho form
+ * và server, để màn hình không coi là "chưa đếm" trong khi server từ chối cả phiếu.
+ */
+export function parseCount(raw: string): { ok: true; value: number } | { ok: false } | null {
+  const s = raw.trim();
+  if (!s) return null;
+  if (s === "0") return { ok: true, value: 0 };
+  const n = parseQty(s);
+  return n === null ? { ok: false } : { ok: true, value: n };
+}
+
+/** Đơn vị người đếm chọn trên dòng: đơn vị nhập (thùng, kg) hoặc đơn vị trừ kho (chai, g) — như KiotViet. */
+export type CountUnit = "purchase" | "base";
+
+/** Số đếm → đơn vị gốc. Đếm thẳng theo đơn vị trừ kho thì không nhân, nên 69 chai không thành 69,12. */
+export function countToBase(value: number, unit: CountUnit, factor: number): number {
+  return unit === "base" ? value : toBaseQty(value, factor);
 }

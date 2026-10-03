@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Ban, Plus, Search, UtensilsCrossed } from "lucide-react";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
@@ -9,6 +9,7 @@ import { normalizeVi as norm } from "@/lib/menu/search";
 import { ModifierSheet, type PendingLine } from "@/components/customer/ModifierSheet";
 import { AvailabilityToggle } from "@/components/menu/AvailabilityToggle";
 import { cn } from "@/lib/utils";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import { PortionBadge } from "./PortionBadge";
 
 /**
@@ -18,6 +19,9 @@ import { PortionBadge } from "./PortionBadge";
  *
  * MENU-04: món HẾT vẫn hiện (mờ, không thêm được) kèm switch Còn/Hết để nhân viên báo hết ngay
  * tại POS — không phải vào khu quản trị (QD-010 §5).
+ *
+ * P27 (ORDER-21): thanh TAB NHÓM MÓN NGANG dưới ô tìm (như KiotViet / Sapo theo nhóm hàng) — bấm tab chỉ hiện nhóm đó, "Tất cả"
+ * như cũ. Đang gõ tìm thì tìm trong mọi nhóm (tab mờ đi). Quán 100+ món không phải cuộn qua mọi nhóm.
  */
 
 export function MenuPanel({
@@ -43,6 +47,16 @@ export function MenuPanel({
   const [activeItem, setActiveItem] = useState<CustomerMenuItem | null>(null);
   const [modifierOpen, setModifierOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeCat, setActiveCat] = useState<string>("all");
+  const listRef = useRef<HTMLDivElement>(null);
+  const cats = menu?.categories.filter((c) => c.items.length > 0) ?? [];
+  // Nhóm đang chọn bị xóa / hết món (menu realtime đổi) → về "Tất cả", không để màn trống.
+  const cat = activeCat !== "all" && cats.some((c) => c.id === activeCat) ? activeCat : "all";
+  const searching = !!query.trim();
+  const chonNhom = (id: string) => {
+    setActiveCat(id);
+    listRef.current?.scrollTo({ top: 0 });
+  };
 
   const tap = (it: CustomerMenuItem) => {
     if (!canAdd || !it.is_available) return;
@@ -63,12 +77,15 @@ export function MenuPanel({
     if (!menu) return [];
     const q = norm(query.trim());
     return menu.categories
-      .map((cat) => ({
-        ...cat,
-        items: cat.items.filter((i) => !q || norm(i.name).includes(q)),
+      .filter((c) => q || cat === "all" || c.id === cat)
+      .map((c) => ({
+        ...c,
+        items: c.items.filter((i) => !q || norm(i.name).includes(q)),
       }))
-      .filter((cat) => cat.items.length > 0);
-  }, [menu, query]);
+      .filter((c) => c.items.length > 0);
+  }, [menu, query, cat]);
+  // Một nhóm (không tìm) thì bỏ tiêu đề nhóm — tab đang sáng đã nói nhóm nào.
+  const showHeaders = searching || cat === "all";
 
   const noResult = !!query.trim() && filtered.length === 0;
 
@@ -91,9 +108,32 @@ export function MenuPanel({
             className="h-10 w-full rounded-md border border-hairline pl-8 pr-md text-base text-ink outline-none lg:text-sm focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
+        {cats.length > 1 && (
+          // Một hàng cuộn ngang (vuốt trên điện thoại). Đang tìm: tab mờ — kết quả lấy từ mọi nhóm.
+          <ScrollRow
+            role="group"
+            aria-label="Nhóm món"
+            className={cn("-mx-md mt-sm gap-xs px-md", searching && "opacity-50")}
+          >
+            {[{ id: "all", name: "Tất cả" }, ...cats].map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => chonNhom(c.id)}
+                aria-pressed={!searching && cat === c.id}
+                className={cn(
+                  "inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  !searching && cat === c.id ? "bg-cream-deeper text-primary-deep ring-1 ring-inset ring-primary/50" : "bg-surface text-steel hover:bg-cream"
+                )}
+              >
+                {c.name}
+              </button>
+            ))}
+          </ScrollRow>
+        )}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-md py-sm">
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-md py-sm">
         {!menu || menu.categories.length === 0 ? (
           <p className="py-xl text-center text-sm text-steel">Chưa có món.</p>
         ) : noResult ? (
@@ -103,9 +143,11 @@ export function MenuPanel({
             <section key={cat.id} className="mb-lg">
               {/* -top-sm = bù đúng padding trên (py-sm) của vùng cuộn: sticky tính từ mép TRONG padding, để
                   top-0 thì tiêu đề dính cách mép 12px và thẻ món lọt qua khe đó khi cuộn. */}
-              <h3 className="sticky -top-sm z-10 -mx-md mb-xs bg-canvas px-md py-xs font-display text-sm text-steel">
-                {cat.name}
-              </h3>
+              {showHeaders && (
+                <h3 className="sticky -top-sm z-10 -mx-md mb-xs bg-canvas px-md py-xs font-display text-sm text-steel">
+                  {cat.name}
+                </h3>
+              )}
               {/* auto-fill theo bề ngang THẬT của cột menu, không theo bề ngang cửa sổ: breakpoint
                   md/xl đo viewport nên màn rộng vẫn ép 4 cột vào cột hẹp → thẻ ~130px, tên món bị
                   bóp về 0 và nút tròn bị cắt. Mỗi thẻ cần ≥160px cho ảnh+nút+padding. */}

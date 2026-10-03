@@ -84,8 +84,10 @@ test("ORDER-15: gõ đơn từ điện thoại ở 360px → ORDER-16: POS quầ
   const counter = await ctx.newPage();
   await counter.setViewportSize({ width: 1366, height: 768 });
   await counter.goto(`/r/${SLUG}/pos`);
+  // P27 (ORDER-23): băng "Đơn cần in phiếu" gom thành nút "Cần in phiếu N" trên thanh trên cùng → bấm mở danh sách.
+  await counter.getByRole("button", { name: /^Cần in \d+$/ }).click({ timeout: 30000 });
   await expect(counter.getByText(/Đơn cần in phiếu \(\d+\)/)).toBeVisible({ timeout: 30000 });
-  await expect(counter.locator("button", { hasText: new RegExp(`^Bàn ${BAN}`) }).first()).toBeVisible();
+  await expect(counter.getByRole("dialog").locator("button", { hasText: new RegExp(`Bàn ${BAN}\\b`) }).first()).toBeVisible();
   await counter.screenshot({ path: `${SHOTS}/order16-banner-can-in.png` });
 
   await ctx.close();

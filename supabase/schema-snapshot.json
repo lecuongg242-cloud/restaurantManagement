@@ -333,7 +333,9 @@
    "prepared_at timestamp with time zone null",
    "created_at timestamp with time zone not null now()",
    "cancelled_at timestamp with time zone null",
-   "category_name text null"
+   "category_name text null",
+   "delivered_at timestamp with time zone null",
+   "delivered_by uuid null"
   ],
   "orders": [
    "id uuid not null gen_random_uuid()",

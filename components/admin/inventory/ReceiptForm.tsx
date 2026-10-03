@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { BASE_UNIT_LABEL, type BaseUnit } from "@/lib/inventory/types";
 import { formatVnd } from "@/lib/orders/cart";
-import { lineAmount, receiptTotals } from "@/lib/purchasing/receipt";
+import { draftPaysInFull, lineAmount, receiptTotals } from "@/lib/purchasing/receipt";
 import { recordReceipts } from "@/app/r/[slug]/admin/(protected)/inventory/actions";
 
 export type ReceiptIngredient = {
@@ -73,8 +73,8 @@ export function ReceiptForm({
   const [nextKey, setNextKey] = useState(rows.length);
   const [supplierId, setSupplierId] = useState(draft?.supplier_id ?? "");
   const [discount, setDiscount] = useState(draft?.discount ?? 0);
-  // Tiền trả mặc định = cần trả (trả đủ) cho tới khi người dùng tự sửa.
-  const [payTouched, setPayTouched] = useState(!!draft);
+  // Tiền trả mặc định = cần trả (trả đủ) cho tới khi người dùng tự sửa. Phiếu tạm lưu lúc trả đủ thì vẫn chạy theo cần trả.
+  const [payTouched, setPayTouched] = useState(!!draft && !draftPaysInFull(draft));
   const [payNow, setPayNow] = useState(draft?.pay_now ?? 0);
   const [fund, setFund] = useState<"cash" | "bank">(draft?.pay_fund ?? "cash");
   // "Chưa trả (ghi nợ)" — như CUKCUK "Ghi nợ nhà cung cấp" / "Thanh toán ngay": nói rõ thay vì bắt xóa số tiền về 0.

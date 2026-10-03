@@ -20,7 +20,8 @@ export const ORDER_FLOW: Record<OrderStatus, OrderStatus[]> = {
 export const ITEM_FLOW: Record<OrderItemStatus, OrderItemStatus[]> = {
   queued: ["preparing", "ready", "served", "cancelled"],
   preparing: ["ready", "served", "cancelled"],
-  ready: ["served", "cancelled"],
+  // ready → queued: bếp bấm "Trả lại" khi bấm nhầm "Xong" (P27, QD-032).
+  ready: ["queued", "served", "cancelled"],
   served: [],
   cancelled: [],
 };
@@ -31,6 +32,18 @@ export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
 
 export function canTransitionItem(from: OrderItemStatus, to: OrderItemStatus): boolean {
   return ITEM_FLOW[from]?.includes(to) ?? false;
+}
+
+/**
+ * Trạng thái ĐƠN tại bàn tính lại sau khi bếp bấm "Xong" / "Trả lại" (QD-032 D4). Bỏ món hủy. Mọi món còn lại đã xong (hoặc đã
+ * thu) → `ready`; có món đang làm / đã xong → `preparing`; chưa món nào → `confirmed`. Không còn món nào → null (giữ nguyên).
+ */
+export function orderStatusFromItems(items: { status: string }[]): "confirmed" | "preparing" | "ready" | null {
+  const live = items.filter((i) => i.status !== "cancelled");
+  if (live.length === 0) return null;
+  if (live.every((i) => i.status === "ready" || i.status === "served")) return "ready";
+  if (live.some((i) => i.status === "preparing" || i.status === "ready" || i.status === "served")) return "preparing";
+  return "confirmed";
 }
 
 /** Trạng thái kết thúc (khách dừng theo dõi realtime; không transition tiếp). */

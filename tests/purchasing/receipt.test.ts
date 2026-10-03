@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lineAmount, purchaseErrorMessage, qty3, receiptTotals, validateReceipt } from "@/lib/purchasing/receipt";
+import { draftPaysInFull, lineAmount, purchaseErrorMessage, qty3, receiptTotals, validateReceipt } from "@/lib/purchasing/receipt";
 
 describe("lineAmount — khớp round() của Postgres tới từng đồng", () => {
   it("số tròn", () => {
@@ -28,6 +28,23 @@ describe("receiptTotals", () => {
       subtotal: 560_000,
       total: 504_000,
     });
+  });
+});
+
+describe("draftPaysInFull — mở lại phiếu tạm: tiền trả có tự chạy theo Cần trả không", () => {
+  const lines = [{ qty: 1, unit_price: 360_000 }];
+  it("lưu tạm lúc trả đủ → vẫn trả đủ khi sửa số lượng (không ghi nợ ngoài ý muốn)", () => {
+    expect(draftPaysInFull({ lines, discount: 0, pay_now: 360_000 })).toBe(true);
+  });
+  it("có giảm giá: trả đủ = tổng − giảm", () => {
+    expect(draftPaysInFull({ lines, discount: 10_000, pay_now: 350_000 })).toBe(true);
+  });
+  it("lưu tạm lúc trả một phần → giữ đúng số người dùng đã gõ", () => {
+    expect(draftPaysInFull({ lines, discount: 0, pay_now: 100_000 })).toBe(false);
+  });
+  it("chưa trả (ghi nợ) hoặc phiếu không giá → không phải trả đủ", () => {
+    expect(draftPaysInFull({ lines, discount: 0, pay_now: 0 })).toBe(false);
+    expect(draftPaysInFull({ lines: [{ qty: 2, unit_price: null }], discount: 0, pay_now: 0 })).toBe(false);
   });
 });
 

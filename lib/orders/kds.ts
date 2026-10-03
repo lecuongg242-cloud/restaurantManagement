@@ -1,6 +1,6 @@
 /**
  * Truy vấn KDS (03-03). Phiên RLS của nhân viên bếp/trạm (server client). Nguồn vé =
- * orders.status ∈ (confirmed, preparing, ready) + items chưa served/cancelled, gom theo order,
+ * orders.status ∈ (confirmed, preparing, ready) + items chưa served/cancelled, chưa mang ra (QD-032), gom theo order,
  * sort theo confirmed_at tăng dần. confirmed_at (0008) là mốc đo ≤3s (ORDER-04).
  */
 import "server-only";
@@ -38,7 +38,7 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
     supabase
       .from("orders")
       .select(
-        "id, kitchen_no, status, channel, source, confirmed_at, table_session_id, table_id, table_sessions(table_id, tables(name)), order_items(id, name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
+        "id, kitchen_no, status, channel, source, confirmed_at, table_session_id, table_id, table_sessions(table_id, tables(name)), order_items(id, name_snapshot, qty, note, status, created_at, delivered_at, order_item_modifiers(name_snapshot))"
       )
       .eq("tenant_id", tenantId)
       .in("status", ["confirmed", "preparing", "ready"])
@@ -53,9 +53,9 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
 
   const tickets: KdsTicket[] = [];
   for (const o of orders ?? []) {
-    // Chỉ món đang cần bếp (bỏ served/cancelled).
+    // Chỉ món đang cần bếp: bỏ served/cancelled và món phục vụ đã mang ra (P27 — vé rời bếp khi mang ra, QD-032).
     const items: KdsItem[] = ((o.order_items as Record<string, unknown>[]) ?? [])
-      .filter((it) => it.status !== "served" && it.status !== "cancelled")
+      .filter((it) => it.status !== "served" && it.status !== "cancelled" && !it.delivered_at)
       .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
       .map((it) => ({
         id: it.id as string,

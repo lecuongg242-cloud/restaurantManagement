@@ -113,11 +113,11 @@ test("P3 chuỗi order đầu-cuối + realtime", async ({ browser }) => {
   await test.step("2. Đăng nhập POS + KDS (owner)", async () => {
     await loginStaff(pos, "pos");
     await loginStaff(kds, "kds");
-    await expect(pos.getByRole("button", { name: /chờ duyệt/i })).toBeVisible();
+    await expect(pos.getByRole("button", { name: /^Order chờ duyệt/ })).toBeVisible();
   });
 
   await test.step("3. POS duyệt → KDS nhận vé REALTIME (không reload)", async () => {
-    await pos.getByRole("button", { name: /chờ duyệt/i }).click();
+    await pos.getByRole("button", { name: /^Order chờ duyệt/ }).click();
     // Neo vào ĐÚNG đơn vừa gửi: drawer có thể đang liệt kê nhiều đơn chờ khác.
     const pendingRow = pos.locator(`li[data-order-id="${orderId}"]`);
     await expect(pendingRow).toBeVisible({ timeout: 20000 });
@@ -145,12 +145,12 @@ test("P3 chuỗi order đầu-cuối + realtime", async ({ browser }) => {
     console.log(`  [realtime] Khách đổi 'Đã xác nhận' sau ~${Date.now() - t0}ms (không reload)`);
   });
 
-  await test.step("5. KDS chỉ để XEM (không nút thao tác)", async () => {
+  await test.step("5. KDS: vé ở cột Chờ chế biến, mỗi món có nút Xong (P27 ORDER-04, QD-032 — trước là chỉ để xem)", async () => {
     await expect(kdsTicket()).toBeVisible();
     await expect(kdsTicket().getByText(itemName)).toBeVisible();
+    await expect(kdsTicket().getByRole("button", { name: `Xong ${itemName}` })).toBeVisible();
     await expect(kds.getByRole("button", { name: "Bắt đầu" })).toHaveCount(0);
-    await expect(kds.getByRole("button", { name: "Xong", exact: true })).toHaveCount(0);
-    await kds.screenshot({ path: `${SHOTS}/02-kds-readonly.png`, fullPage: true });
+    await kds.screenshot({ path: `${SHOTS}/02-kds-cho-che-bien.png`, fullPage: true });
   });
 
   await test.step("6. POS: đơn hiện trong phiên bàn; khách vẫn dừng ở 'Đã xác nhận'", async () => {
@@ -182,7 +182,7 @@ test("P3 chuỗi order đầu-cuối + realtime", async ({ browser }) => {
  * Kế hoạch P3 §5 C5/C6 và §6 D3/D4 mô tả nhân viên bấm "Đã phục vụ" từng món trên POS rồi
  * "Đóng phiên". Nút đó KHÔNG còn: P4 (dòng tiền) đổi nghĩa `order_items.status = 'served'`
  * thành **"đã thu"** do `payBill` đánh dấu, và phiên bàn TỰ đóng khi thu hết
- * (xem components/pos/OrderPanel.tsx — nhãn 'Đã thu', `canClose`).
+ * (xem components/pos/OrderPanel.tsx — nhãn 'Đã thanh toán' (P27; trước là 'Đã thu'), `canClose`).
  * → Muốn kiểm "vé tự ẩn khỏi KDS" (ORDER-04/D4) thì phải đi qua luồng thanh toán P4
  *   (PaymentDialog), không phải bấm phục vụ. Chưa viết vì cần chốt: e2e P3 có bao luôn
  *   thanh toán, hay tách sang spec P4 riêng?

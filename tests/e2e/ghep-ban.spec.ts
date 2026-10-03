@@ -90,11 +90,19 @@ test.describe("máy tính 1280×800", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
   const soDo = (page: Page) => page.locator("aside").filter({ has: page.getByRole("button", { name: /^Bán mang về/ }) }).first();
+  const moSoDo = async (page: Page) => {
+    const tab = page.getByRole("tab", { name: "Sơ đồ bàn" });
+    if (await tab.isVisible()) await tab.click();
+  };
   const chonBan = async (page: Page, ten: string) => {
+    await moSoDo(page);
     await soDo(page).getByRole("button", { name: new RegExp(`^${ten}\\b`) }).click();
     await expect(page.getByRole("heading", { name: `Bàn ${ten}` })).toBeVisible();
   };
   const goiMon = async (page: Page, panel: Locator) => {
+    // Máy ≥ 1024px: thực đơn ở tab "Thực đơn" (P27 ORDER-25) — có thể đang mở "Sơ đồ bàn" sau khi kiểm thẻ bàn.
+    const tabMon = page.getByRole("tab", { name: /Thực đơn/ });
+    if (await tabMon.isVisible()) await tabMon.click();
     await page.getByRole("button", { name: /^Thêm / }).first().click();
     const themVaoGio = page.getByRole("button", { name: /Thêm vào giỏ/ });
     const gui = panel.getByRole("button", { name: /^Xác nhận thêm \d+ món/ });
@@ -121,6 +129,7 @@ test.describe("máy tính 1280×800", () => {
     await expect(page.getByRole("dialog", { name: "Ghép bàn" })).toBeHidden({ timeout: 15_000 });
     await expect(panel.getByText(/Nhóm V1 · 5 bàn · Mở lúc/)).toBeVisible({ timeout: 15_000 });
     await expect(panel.getByRole("button", { name: "Nhóm 5 bàn" })).toBeVisible();
+    await moSoDo(page);
     await expect(soDo(page).getByRole("button", { name: /^V2\b/ })).toContainText("Nhóm V1");
     await expect(soDo(page).getByRole("button", { name: /^V1\b/ })).toContainText("Nhóm V1 · 5 bàn");
     const db = await banDb();
@@ -129,7 +138,9 @@ test.describe("máy tính 1280×800", () => {
     // #2 Gọi chung trên V1 → chip "Đơn cần in phiếu" ghi nhóm.
     await goiMon(page, panel);
     await expect(panel.getByText(/Đơn #\d+ · V1/)).toBeVisible();
-    await expect(page.getByRole("button", { name: /Bàn V1 \(nhóm V1\)/ }).first()).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: /^Cần in \d+$/ }).click({ timeout: 15_000 });
+    await expect(page.getByRole("dialog").getByRole("button", { name: /Bàn V1 \(nhóm V1\)/ }).first()).toBeVisible({ timeout: 15_000 });
+    await page.keyboard.press("Escape");
 
     // Chạm bàn phụ V2 → cùng đơn, cùng tạm tính cả nhóm.
     const tamTinh = await panel.getByText("Tạm tính (cả nhóm)").locator("..").innerText();
@@ -164,6 +175,7 @@ test.describe("máy tính 1280×800", () => {
     await hop.getByRole("checkbox", { name: /^B2\b/ }).click();
     await hop.getByRole("button", { name: "Xác nhận (4 bàn)" }).click();
     await expect(hop).toBeHidden({ timeout: 15_000 });
+    await moSoDo(page);
     await expect(soDo(page).getByRole("button", { name: /^B2\b/ })).toContainText("Trống", { timeout: 15_000 });
     await expect(soDo(page).getByRole("button", { name: /^B2\b/ })).not.toContainText("Nhóm");
 

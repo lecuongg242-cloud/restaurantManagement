@@ -135,8 +135,14 @@ test.describe("máy ngủ dậy / có mạng lại", () => {
     await vaoPos(page);
     // Theo dõi đúng lượt gọi CỦA TEST (ghi chú riêng): quán demo có thể còn lượt gọi khác (DB dùng chung —
     // vd bàn RLS-MATRIX-A của bộ test RLS), nên "không có băng Bàn đang gọi" là giả định sai.
+    const soGoi = async () =>
+      ((await admin.from("staff_calls").select("note").eq("tenant_id", t!.id).eq("status", "pending")).data ?? []).filter(
+        (c) => !/^(gọi\s+)?thanh toán/i.test((c.note ?? "").trim())
+      ).length;
+    const truoc = await soGoi();
+    const nutGoi = (n: number) => page.getByRole("button", { name: `Bàn gọi ${n}` });
     const cuaToi = page.getByText("e2e-thuc-day");
-    await expect(cuaToi).toHaveCount(0);
+    if (truoc > 0) await expect(nutGoi(truoc)).toBeVisible();
 
     const { data: goi } = await admin
       .from("staff_calls")
@@ -146,10 +152,13 @@ test.describe("máy ngủ dậy / có mạng lại", () => {
     try {
       // Đối chứng: realtime đã bị cắt thật — thay đổi KHÔNG tự tới.
       await page.waitForTimeout(2_000);
-      await expect(cuaToi).toHaveCount(0);
+      await expect(nutGoi(truoc + 1)).toHaveCount(0);
 
       await page.evaluate(() => window.dispatchEvent(new Event("online")));
-      await expect(cuaToi).toBeVisible({ timeout: 5_000 });
+      await expect(nutGoi(truoc + 1)).toBeVisible({ timeout: 5_000 });
+      await nutGoi(truoc + 1).click();
+      await expect(cuaToi).toBeVisible();
+      await page.keyboard.press("Escape");
     } finally {
       await admin.from("staff_calls").delete().eq("id", goi!.id);
     }

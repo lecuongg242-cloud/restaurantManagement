@@ -36,7 +36,7 @@ async function vaoPos(page: Page) {
   await page.fill('input[name="password"]', OWNER.pass);
   await Promise.all([page.waitForLoadState("networkidle"), page.click('button[type="submit"]')]);
   await page.goto(`/r/${SLUG}/pos`, { waitUntil: "networkidle" });
-  await expect(page.getByLabel("Tìm món")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByLabel("Tìm món").or(page.getByRole("tab", { name: "Sơ đồ bàn" })).first()).toBeVisible({ timeout: 30_000 });
 }
 
 const KHO = [
@@ -50,21 +50,21 @@ for (const { w, h } of KHO) {
 
     test("chưa chọn bàn", async ({ page }) => {
       await vaoPos(page);
-      await expect(page).toHaveScreenshot(`pos-trong-${w}.png`, { fullPage: false });
+      await expect(page).toHaveScreenshot(`pos-trong-${w}.png`, { fullPage: false, mask: [page.locator("[data-thoi-gian]")] });
     });
 
     test("đã chọn bàn B2", async ({ page }) => {
       await vaoPos(page);
       await page.getByRole("button", { name: /^B2\b/ }).click();
       await page.waitForTimeout(500);
-      await expect(page).toHaveScreenshot(`pos-ban-b2-${w}.png`, { fullPage: false });
+      await expect(page).toHaveScreenshot(`pos-ban-b2-${w}.png`, { fullPage: false, mask: [page.locator("[data-thoi-gian]")] });
     });
 
     test("bán mang về", async ({ page }) => {
       await vaoPos(page);
       await page.getByRole("button", { name: /^Bán mang về/ }).click();
       await page.waitForTimeout(500);
-      await expect(page).toHaveScreenshot(`pos-mang-ve-${w}.png`, { fullPage: false });
+      await expect(page).toHaveScreenshot(`pos-mang-ve-${w}.png`, { fullPage: false, mask: [page.locator("[data-thoi-gian]")] });
     });
   });
 }

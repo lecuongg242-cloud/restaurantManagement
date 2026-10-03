@@ -4,18 +4,26 @@ import { useState } from "react";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { formatVnd } from "@/lib/orders/cart";
-import { parseQty } from "@/lib/inventory/units";
-import { countDiff, countSummary, isBigDiff } from "@/lib/inventory/count";
+import { countDiff, countSummary, isBigDiff, parseCount, type CountUnit } from "@/lib/inventory/count";
 import { recordCounts } from "@/app/r/[slug]/admin/(protected)/inventory/actions";
 
-/** Một nguyên liệu cần kiểm. `theoretical` và `unitPrice` theo ĐƠN VỊ NHẬP (kg, đ/kg); giá null = chưa có giá. */
-export type CountRow = { id: string; name: string; unit: string; theoretical: number; unitPrice: number | null };
+/**
+ * Một nguyên liệu cần kiểm. Tồn sổ và giá theo ĐƠN VỊ GỐC (g, chai; đ/g); giá null = chưa có giá. `unit` = đơn vị nhập (mặc
+ * định trên dòng); `baseUnit` có khi đơn vị nhập khác đơn vị trừ kho (thùng ≠ chai) → dòng có ô chọn đơn vị (P26, như KiotViet).
+ */
+export type CountRow = {
+  id: string;
+  name: string;
+  unit: string;
+  baseUnit: string | null;
+  factor: number;
+  theoreticalBase: number;
+  unitPriceBase: number | null;
+};
 
 const fmt = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : fmt(n));
 const signedVnd = (n: number) => (n > 0 ? `+${formatVnd(n)}` : n < 0 ? `−${formatVnd(-n)}` : formatVnd(0));
-/** "0" là đếm hết hàng — hợp lệ; còn lại như ô số lượng khác. Trống / sai = chưa đếm. */
-const readCount = (raw: string) => (raw.trim() === "0" ? 0 : parseQty(raw));
 
 /**
  * Kiểm kê (INV-08, P25 INV-11) — cột theo KiotViet "Kiểm kho": Tồn kho · Thực tế · SL lệch · Giá trị lệch, cuối phiếu có
@@ -24,18 +32,39 @@ const readCount = (raw: string) => (raw.trim() === "0" ? 0 : parseQty(raw));
  */
 export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
   const [counted, setCounted] = useState<Record<string, string>>({});
+  const [units, setUnits] = useState<Record<string, CountUnit>>({});
 
+  /** Tồn sổ, giá, chữ đơn vị theo đơn vị đang chọn trên dòng. */
+  const view = (r: CountRow) => {
+    const u: CountUnit = r.baseUnit && units[r.id] === "base" ? "base" : "purchase";
+    const f = u === "base" ? 1 : r.factor;
+    return {
+      u,
+      unit: u === "base" ? r.baseUnit! : r.unit,
+      theoretical: Math.round((r.theoreticalBase / f) * 1000) / 1000,
+      unitPrice: r.unitPriceBase === null ? null : r.unitPriceBase * f,
+    };
+  };
+  const invalid = rows.filter((r) => parseCount(counted[r.id] ?? "")?.ok === false);
   const lines = rows.flatMap((r) => {
-    const c = readCount(counted[r.id] ?? "");
-    if (c === null) return [];
-    const diff = countDiff(r.theoretical, c);
-    return [{ row: r, counted: c, diff, big: isBigDiff(r.theoretical, c), value: r.unitPrice === null ? null : Math.round(diff * r.unitPrice) }];
+    const p = parseCount(counted[r.id] ?? "");
+    if (!p || !p.ok) return [];
+    const v = view(r);
+    const diff = countDiff(v.theoretical, p.value);
+    return [{
+      row: { ...r, ...v }, counted: p.value, diff, big: isBigDiff(v.theoretical, p.value),
+      value: v.unitPrice === null ? null : Math.round(diff * v.unitPrice),
+    }];
   });
   const byId = new Map(lines.map((l) => [l.row.id, l]));
   const sum = countSummary(lines.map((l) => ({ theoretical: l.row.theoretical, counted: l.counted, unitPrice: l.row.unitPrice })));
   const big = lines.filter((l) => l.big);
 
   const confirmBig = (e: React.FormEvent<HTMLFormElement>) => {
+    if (invalid.length > 0) {
+      e.preventDefault();
+      return;
+    }
     if (big.length === 0) return;
     const list = big
       .map((l) => `• ${l.row.name}: tồn kho ${fmt(l.row.theoretical)} ${l.row.unit}, thực tế ${fmt(l.counted)} ${l.row.unit} (lệch ${signed(l.diff)} ${l.row.unit})`)
@@ -49,7 +78,7 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
       <input
         type="hidden"
         name="rows"
-        value={JSON.stringify(rows.map((r) => ({ ingredient_id: r.id, counted: counted[r.id] ?? "" })))}
+        value={JSON.stringify(rows.map((r) => ({ ingredient_id: r.id, counted: counted[r.id] ?? "", unit: view(r).u })))}
       />
       <div className="rounded-lg border border-hairline-soft">
         <div className="hidden grid-cols-[1fr_8rem_10rem_7rem_8rem] gap-sm border-b border-hairline-soft px-md py-xs text-xs font-medium text-steel sm:grid">
@@ -62,7 +91,9 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
         <ul className="divide-y divide-hairline-soft">
           {rows.map((r) => {
             const l = byId.get(r.id);
-            const tone = !l || l.diff === 0 ? "text-slate" : l.diff > 0 ? "text-status-ready" : "text-status-late";
+            const v = view(r);
+            const bad = invalid.includes(r);
+            const tone = bad ? "text-status-late" : !l || l.diff === 0 ? "text-slate" : l.diff > 0 ? "text-status-ready" : "text-status-late";
             return (
               <li
                 key={r.id}
@@ -75,28 +106,43 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
                     <span className="ml-xs whitespace-nowrap rounded bg-status-new px-xs text-xs text-status-new-fg">Lệch lớn</span>
                   )}
                   <span className="block text-xs text-steel sm:hidden">
-                    Tồn kho: {fmt(r.theoretical)} {r.unit}
+                    Tồn kho: {fmt(v.theoretical)} {v.unit}
                   </span>
                 </span>
                 <span className="hidden text-right text-sm tabular-nums text-slate sm:block">
-                  {fmt(r.theoretical)} {r.unit}
+                  {fmt(v.theoretical)} {v.unit}
                 </span>
                 <span className="flex items-center justify-end gap-xs">
                   <Input
-                    aria-label={`Thực tế ${r.name} (${r.unit})`}
+                    aria-label={`Thực tế ${r.name}`}
+                    aria-invalid={bad || undefined}
                     inputMode="decimal"
                     value={counted[r.id] ?? ""}
                     onChange={(e) => setCounted((c) => ({ ...c, [r.id]: e.target.value }))}
                     placeholder="Thực tế"
                     className="w-24 text-right tabular-nums"
                   />
-                  <span className="w-10 text-sm text-steel">{r.unit}</span>
+                  {r.baseUnit ? (
+                    <select
+                      aria-label={`Đơn vị đếm ${r.name}`}
+                      value={v.u}
+                      onChange={(e) => setUnits((u) => ({ ...u, [r.id]: e.target.value as CountUnit }))}
+                      className="h-11 w-16 rounded-md border border-hairline-strong bg-canvas px-xxs text-sm text-ink sm:h-9"
+                    >
+                      <option value="purchase">{r.unit}</option>
+                      <option value="base">{r.baseUnit}</option>
+                    </select>
+                  ) : (
+                    <span className="w-16 text-sm text-steel">{r.unit}</span>
+                  )}
                 </span>
                 <span className={`col-span-2 text-right text-xs tabular-nums sm:col-span-1 sm:text-sm ${tone}`} aria-label={`SL lệch ${r.name}`}>
-                  {l ? (
+                  {bad ? (
+                    "Số không hợp lệ"
+                  ) : l ? (
                     <>
                       <span className="sm:hidden">Lệch </span>
-                      {signed(l.diff)} {r.unit}
+                      {signed(l.diff)} {v.unit}
                       {l.value !== null && <span className="sm:hidden"> · {signedVnd(l.value)}</span>}
                     </>
                   ) : (
@@ -133,7 +179,13 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-sm">
-        {big.length > 0 && <span className="text-sm text-status-new-fg">{big.length} dòng lệch lớn — kiểm tra lại số đếm.</span>}
+        {invalid.length > 0 ? (
+          <span className="text-sm text-status-late" role="alert">
+            Số đếm không hợp lệ: {invalid.map((r) => r.name).join(", ")} — sửa hoặc xóa trống ô đó.
+          </span>
+        ) : (
+          big.length > 0 && <span className="text-sm text-status-new-fg">{big.length} dòng lệch lớn — kiểm tra lại số đếm.</span>
+        )}
         <SubmitButton size="sm" className="h-11 sm:h-9" pendingLabel="Đang ghi…">
           Hoàn thành
         </SubmitButton>

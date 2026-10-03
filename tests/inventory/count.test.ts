@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { countDiff, isBigDiff, countSummary } from "@/lib/inventory/count";
+import { countDiff, isBigDiff, countSummary, parseCount, countToBase } from "@/lib/inventory/count";
 
 describe("lệch kiểm kê (INV-11)", () => {
   it("lệch = thực tế − tồn sổ, giữ 3 chữ số lẻ", () => {
@@ -52,5 +52,27 @@ describe("tổng kiểm kê (INV-11)", () => {
     const s = countSummary([{ theoretical: 1, counted: 3, unitPrice: null }]);
     expect(s.up).toEqual({ count: 1, value: 0 });
     expect(s.unpriced).toBe(1);
+  });
+});
+
+describe("ô Thực tế (P26 P2, P4)", () => {
+  it("trống = chưa đếm; '0' = đếm hết hàng; '8,2' và '8.2' đọc được", () => {
+    expect(parseCount("")).toBeNull();
+    expect(parseCount("  ")).toBeNull();
+    expect(parseCount("0")).toEqual({ ok: true, value: 0 });
+    expect(parseCount("8,2")).toEqual({ ok: true, value: 8.2 });
+    expect(parseCount("8.2")).toEqual({ ok: true, value: 8.2 });
+  });
+
+  it("số âm, chữ, nhiều dấu phẩy = KHÔNG hợp lệ (không lặng lẽ coi là chưa đếm)", () => {
+    expect(parseCount("-0,3")).toEqual({ ok: false });
+    expect(parseCount("abc")).toEqual({ ok: false });
+    expect(parseCount("1,2,3")).toEqual({ ok: false });
+  });
+
+  it("đếm theo đơn vị nhập nhân hệ số; theo đơn vị trừ kho giữ nguyên — 69 chai không thành 69,12", () => {
+    expect(countToBase(2.88, "purchase", 24)).toBeCloseTo(69.12, 6);
+    expect(countToBase(69, "base", 24)).toBe(69);
+    expect(countToBase(8.2, "purchase", 1000)).toBe(8200);
   });
 });

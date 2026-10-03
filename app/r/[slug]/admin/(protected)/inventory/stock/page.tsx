@@ -3,8 +3,12 @@ import { getSessionMembership } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { Card } from "@/components/ui/card";
 import { BatchForm } from "@/components/admin/inventory/BatchForm";
+import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { loadInventory } from "@/lib/inventory/data";
-import { qtyLabel } from "@/lib/inventory/types";
+import { businessDate } from "@/lib/inventory/day";
+import { BASE_UNIT_LABEL, qtyLabel } from "@/lib/inventory/types";
+import { gioVn } from "@/lib/time/vn";
+import { cancelBatch } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +24,15 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const tenantId = session.tenant.id;
   const supabase = await createClient();
 
-  const [data, onHand] = await Promise.all([
+  const [data, onHand, batchesToday] = await Promise.all([
     loadInventory(supabase, tenantId),
     supabase.rpc("inventory_on_hand", { p_tenant: tenantId }),
+    supabase
+      .from("production_batches")
+      .select("id, ingredient_id, batch_count, expected_qty, actual_qty, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("business_date", businessDate())
+      .order("created_at", { ascending: false }),
   ]);
 
   if (data.ingredients.length === 0) {
@@ -70,6 +80,37 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
         <div className="mt-md">
           <BatchForm slug={slug} ingredients={data.ingredients} recipes={Object.fromEntries(data.byParent)} />
         </div>
+        {(batchesToday.data ?? []).length > 0 && (
+          <>
+            <h3 className="mt-lg text-sm font-medium text-ink">Mẻ hôm nay</h3>
+            {/* Ghi nhầm thì Hủy (như KiotViet "Sản xuất → Hủy": trả lại nguyên liệu, trừ bán thành phẩm) rồi ghi lại. */}
+            <ul className="mt-xs divide-y divide-hairline-soft text-sm" data-me-hom-nay>
+              {(batchesToday.data ?? []).map((b) => {
+                const ing = ingById.get(b.ingredient_id as string);
+                const unit = ing ? BASE_UNIT_LABEL[ing.base_unit] : "";
+                const fmt = (n: number) => Number(n).toLocaleString("vi-VN", { maximumFractionDigits: 3 });
+                return (
+                  <li key={b.id as string} className="flex flex-wrap items-center justify-between gap-sm py-xs">
+                    <span className="text-ink">
+                      {gioVn(b.created_at as string)} · {fmt(b.batch_count)} mẻ {ing?.name ?? "?"} · thực {fmt(b.actual_qty)} {unit}
+                      <span className="text-steel"> (công thức {fmt(b.expected_qty)} {unit})</span>
+                    </span>
+                    <form action={cancelBatch}>
+                      <input type="hidden" name="slug" value={slug} />
+                      <input type="hidden" name="id" value={b.id as string} />
+                      <ConfirmSubmit
+                        message={`Hủy mẻ ${ing?.name ?? ""} (${fmt(b.actual_qty)} ${unit})? Nguyên liệu được trả lại, bán thành phẩm bị trừ.`}
+                        className="inline-flex min-h-11 items-center rounded-md px-sm text-sm text-status-late hover:bg-surface sm:min-h-9"
+                      >
+                        Hủy
+                      </ConfirmSubmit>
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
       </Card>
     </div>
   );

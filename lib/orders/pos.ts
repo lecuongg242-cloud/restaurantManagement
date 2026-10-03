@@ -32,6 +32,8 @@ export type PosItem = {
   unit_price: number;
   modifiers: string[];
   cancel_reason: string | null;
+  /** Phục vụ đã bấm "Mang ra" (P27, QD-032) — khác 'served' (= đã thu tiền). */
+  delivered: boolean;
 };
 
 export type CustomerContact = { name?: string; phone?: string | null } | null;
@@ -68,7 +70,15 @@ export type PosSession = {
   opened_at: string;
   orders: PosOrder[];
   /** `splitCount != null` = hóa đơn đang chia đều → không hủy món được (BILL-06). */
-  openBill: { id: string; bill_no: number | null; total: number; splitCount: number | null } | null;
+  openBill: {
+    id: string;
+    bill_no: number | null;
+    total: number;
+    splitCount: number | null;
+    created_at: string | null;
+    /** order_item_id đã lên hóa đơn (open|paid) của phiên — món ngoài danh sách là khách gọi thêm sau "Tính tiền" (ORDER-26). */
+    billedItemIds: string[];
+  } | null;
 };
 
 /** Đặt bàn hôm nay đã xác nhận + gán bàn — hiện trên thẻ bàn để nhân viên biết. */
@@ -123,10 +133,11 @@ function mapItems(rows: unknown[]): PosItem[] {
         (m) => m.name_snapshot
       ),
       cancel_reason: (r.cancel_reason as string) ?? null,
+      delivered: !!r.delivered_at,
       created_at: r.created_at as string,
     }))
     .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
-    .map(({ id, name, qty, note, status, unit_price, modifiers, cancel_reason }) => ({
+    .map(({ id, name, qty, note, status, unit_price, modifiers, cancel_reason, delivered }) => ({
       id,
       name,
       qty,
@@ -135,6 +146,7 @@ function mapItems(rows: unknown[]): PosItem[] {
       unit_price,
       modifiers,
       cancel_reason,
+      delivered,
     }));
 }
 
@@ -173,14 +185,14 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
       supabase
         .from("orders")
         .select(
-          "id, kitchen_no, status, source, note, customer_contact, created_at, table_session_id, table_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, cancel_reason, created_at, order_item_modifiers(name_snapshot))"
+          "id, kitchen_no, status, source, note, customer_contact, created_at, table_session_id, table_id, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, cancel_reason, created_at, delivered_at, order_item_modifiers(name_snapshot))"
         )
         .eq("tenant_id", tenantId)
         .in("status", ACTIVE_STATUSES)
         .order("created_at", { ascending: true }),
       supabase
         .from("bills")
-        .select("id, bill_no, total, table_session_id, split_count")
+        .select("id, bill_no, total, table_session_id, split_count, created_at")
         .eq("tenant_id", tenantId)
         .eq("status", "open")
         // Phiên có thể có nhiều bill 'open' (tách bill, hoặc vỏ + con chia đều) mà panel chỉ hiện
@@ -233,6 +245,7 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     total: number;
     table_session_id: string | null;
     split_count: number | null;
+    created_at: string | null;
   };
   const openBillBySession = new Map<string, OpenBillRow>();
   for (const b of (openBills ?? []) as OpenBillRow[]) {
@@ -240,6 +253,22 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
     const prev = openBillBySession.get(b.table_session_id);
     if (prev == null || (b.split_count != null && prev.split_count == null))
       openBillBySession.set(b.table_session_id, b);
+  }
+  // Món đã lên hóa đơn của các phiên đang có hóa đơn mở — cùng quy tắc "đã phân bổ" với openBillForSession. Đọc hỏng thì
+  // chỉ mất dấu "+N món gọi thêm" ở hàng chờ, không ảnh hưởng tiền (mở hóa đơn vẫn tự thêm món).
+  const billedBySession = new Map<string, string[]>();
+  if (openBillBySession.size > 0) {
+    const { data: billed } = await supabase
+      .from("bill_items")
+      .select("order_item_id, bills!inner(table_session_id, status)")
+      .eq("tenant_id", tenantId)
+      .in("bills.table_session_id", [...openBillBySession.keys()])
+      .in("bills.status", ["open", "paid"]);
+    for (const r of (billed ?? []) as unknown as { order_item_id: string; bills: { table_session_id: string } }[]) {
+      const arr = billedBySession.get(r.bills.table_session_id) ?? [];
+      arr.push(r.order_item_id);
+      billedBySession.set(r.bills.table_session_id, arr);
+    }
   }
 
   const allOrders: PosOrder[] = (orders ?? []).map((o) => ({
@@ -328,6 +357,8 @@ async function readPosSnapshot(tenantId: string): Promise<PosSnapshot> {
             bill_no: b.bill_no ?? null,
             total: b.total,
             splitCount: b.split_count ?? null,
+            created_at: b.created_at ?? null,
+            billedItemIds: billedBySession.get(s.id) ?? [],
           }
         : null,
     };

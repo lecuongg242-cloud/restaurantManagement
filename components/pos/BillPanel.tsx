@@ -182,15 +182,17 @@ export function BillPanel({
               )}
               <ul className="flex flex-col divide-y divide-hairline-soft">
                 {selected.lines.map((l) => (
-                  <li key={l.billItemId} className="flex items-start justify-between gap-md py-sm">
-                    <div className="min-w-0">
-                      <p className="text-sm text-ink">
-                        {l.qty}× {l.name}
-                      </p>
+                  <li key={l.billItemId} className="flex items-start gap-sm py-sm">
+                    {/* Tên · SL · Thành tiền — cùng bố cục panel bàn (chủ dự án 03/10/2026, thay "2× Tên"). */}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-ink">{l.name}</p>
                       {l.modifiers.length > 0 && <p className="text-xs text-steel">{l.modifiers.join(" · ")}</p>}
-                      <p className="text-xs text-steel tabular-nums">{formatVnd(l.unitPrice)}/phần</p>
                     </div>
-                    <span className="shrink-0 text-sm font-medium tabular-nums text-ink">{formatVnd(l.amount)}</span>
+                    <span className="w-7 shrink-0 text-center text-sm font-medium tabular-nums text-ink">{l.qty}</span>
+                    <div className="w-[5.5rem] shrink-0 text-right">
+                      <p className="text-sm font-medium tabular-nums text-ink">{formatVnd(l.amount)}</p>
+                      {l.qty > 1 && <p className="text-[11px] tabular-nums text-steel">{formatVnd(l.unitPrice)}/món</p>}
+                    </div>
                   </li>
                 ))}
               </ul>
