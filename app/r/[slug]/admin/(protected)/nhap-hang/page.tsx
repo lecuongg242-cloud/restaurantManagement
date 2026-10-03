@@ -52,8 +52,7 @@ export default async function ReceiptListPage({
   return (
     <div className="flex flex-col gap-md">
       <header>
-        <h1 className="font-display text-2xl text-ink">Nhập hàng</h1>
-        <p className="mt-xxs text-sm text-steel">
+        <p className="text-sm text-steel">
           Phiếu nhập hàng từ nhà cung cấp hoặc mua chợ. Nhập buổi sáng: bấm &quot;+ Nhập hàng&quot; → &quot;Lấy hàng lần trước&quot;.
         </p>
       </header>

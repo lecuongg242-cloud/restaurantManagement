@@ -82,7 +82,7 @@ export default async function NewPurchasePage({ params }: { params: Promise<{ sl
         <Link href={`/r/${slug}/admin/nhap-hang`} className="text-sm text-primary">
           ‹ Nhập hàng
         </Link>
-        <h1 className="mt-xxs font-display text-2xl text-ink">Lập phiếu nhập</h1>
+        <h2 className="mt-xxs font-display text-xl text-ink">Lập phiếu nhập</h2>
         <p className="mt-xxs text-sm text-steel">
           Nhà cung cấp, giá không bắt buộc. Mỗi lần Hoàn thành là một phiếu nhập; nhập nhiều lần trong ngày sẽ cộng dồn.
         </p>

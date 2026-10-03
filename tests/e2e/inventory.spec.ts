@@ -57,32 +57,33 @@ async function addIngredient(
   page: import("@playwright/test").Page,
   o: { name: string; kind?: "prepared"; unit?: "g" | "ml"; purchaseUnit?: string; factor?: string; price?: string; batch?: string }
 ) {
-  const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Thêm nguyên liệu", exact: true }) });
+  // P29: "+ Thêm nguyên liệu" mở hộp thoại.
+  await page.getByRole("button", { name: "+ Thêm nguyên liệu" }).click();
+  const form = page.getByRole("dialog", { name: "Thêm nguyên liệu" });
   await form.locator('input[name="name"]').fill(o.name);
-  if (o.kind) await form.locator('select[name="kind"]').selectOption(o.kind);
+  if (o.kind) await form.getByLabel("Quán tự nấu").check();
   if (o.unit) await form.locator('select[name="base_unit"]').selectOption(o.unit);
   if (o.purchaseUnit) {
     await form.locator('input[name="purchase_unit"]').fill(o.purchaseUnit);
     // Đơn vị quen (kg, lít…) → hệ số tự tính, không có ô gõ; đơn vị riêng (vỉ, bao…) → gõ tay.
     const tuTinh = form.locator("[data-he-so-tu-tinh]");
     if (await tuTinh.count()) {
-      await expect(tuTinh).toContainText(`= ${Number(o.factor).toLocaleString("vi-VN")} `);
-      await expect(tuTinh).toContainText("tự tính");
+      await expect(tuTinh).toContainText(`${Number(o.factor).toLocaleString("vi-VN")} `);
     } else {
       await form.locator('input[name="purchase_factor"]').fill(o.factor!);
     }
   }
   if (o.price) await form.getByPlaceholder("280.000").fill(o.price);
   if (o.batch) await form.locator('input[name="batch_output_qty"]').fill(o.batch);
-  await form.getByRole("button", { name: "Thêm nguyên liệu", exact: true }).click();
-  // Tên chính của thẻ nguyên liệu (ô chọn công thức của bán thành phẩm cũng chứa tên mọi nguyên liệu).
-  await expect(page.locator("span.font-medium").getByText(o.name, { exact: true })).toBeVisible();
+  await form.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(form).toBeHidden();
+  await expect(page.locator("[data-bang-nguyen-lieu]").getByRole("button", { name: o.name, exact: true })).toBeVisible();
 }
 
 test("khai nguyên liệu + định lượng → thấy giá vốn/phần (INV-01, INV-02)", async ({ page }) => {
   await page.goto(BASE);
   await addIngredient(page, { name: `${TAG} Bò`, purchaseUnit: "kg", factor: "1000", price: "280000" });
-  await expect(page.getByText("280.000₫ / kg")).toBeVisible();
+  await expect(page.locator("[data-bang-nguyen-lieu]").getByText("280.000₫ / kg")).toBeVisible();
 
   await page.goto(`${BASE}/recipes`);
   // Món CHƯA khai định lượng — món đã có định lượng (dữ liệu kho demo P26) sẽ bị ghi đè dòng đầu rồi bị dọn mất.
@@ -112,18 +113,26 @@ test("công thức vòng bị chặn, không lưu (INV-03)", async ({ page }) =>
   await addIngredient(page, { name: `${TAG} X`, kind: "prepared", unit: "ml", batch: "1000" });
   await addIngredient(page, { name: `${TAG} Y`, kind: "prepared", unit: "ml", batch: "1000" });
 
-  const cardOf = (name: string) =>
-    page.locator("li").filter({ has: page.getByText(name, { exact: true }) });
+  // P29: dòng bán thành phẩm → nút "Công thức mẻ" → hộp thoại công thức.
+  const cardOf = async (name: string) => {
+    await page
+      .locator("[data-bang-nguyen-lieu] tr")
+      .filter({ has: page.getByRole("button", { name, exact: true }) })
+      .getByRole("button", { name: /^Công thức mẻ/ })
+      .click();
+    return page.getByRole("dialog", { name: new RegExp(`Công thức 1 mẻ ${name}`) });
+  };
 
   // X dùng Y
-  const x = cardOf(`${TAG} X`);
+  const x = await cardOf(`${TAG} X`);
   await x.getByRole("combobox").first().selectOption({ label: `${TAG} Y (bán thành phẩm)` });
   await x.getByRole("textbox").last().fill("10");
   await x.getByRole("button", { name: "Lưu định lượng" }).click();
   await expect(page.getByText("Đã lưu định lượng.")).toBeVisible();
+  await x.getByRole("button", { name: "Đóng" }).click();
 
   // Y dùng X → vòng
-  const y = cardOf(`${TAG} Y`);
+  const y = await cardOf(`${TAG} Y`);
   await y.getByRole("combobox").first().selectOption({ label: `${TAG} X (bán thành phẩm)` });
   await y.getByRole("textbox").last().fill("10");
   await y.getByRole("button", { name: "Lưu định lượng" }).click();

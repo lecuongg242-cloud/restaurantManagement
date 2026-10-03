@@ -135,19 +135,22 @@ async function recordOpening(
   return error ? error.message : null;
 }
 
-export async function createIngredient(fd: FormData) {
+/** Kết quả cho hộp thoại thêm / sửa (P29): lỗi thì giữ hộp thoại và hiện câu lỗi; thông báo góc màn vẫn như cũ. */
+export type IngredientResult = { ok: boolean; error?: string };
+
+export async function createIngredient(fd: FormData): Promise<IngredientResult> {
   const slug = String(fd.get("slug") ?? "");
   const session = await requireInventoryManager(slug);
   const fields = readIngredient(fd);
   if (typeof fields === "string") {
     await setFlash("error", fields);
-    return;
+    return { ok: false, error: fields };
   }
   const price = fields.kind === "purchased" ? readPrice(fd, fields.purchase_factor) : null;
   const opening = readOpening(fd);
   if (opening === "invalid") {
-    await setFlash("error", "Tồn hiện có phải là số không âm.");
-    return;
+    await setFlash("error", "Tồn kho ban đầu phải là số không âm.");
+    return { ok: false, error: "Tồn kho ban đầu phải là số không âm." };
   }
 
   const supabase = await createClient();
@@ -165,26 +168,26 @@ export async function createIngredient(fd: FormData) {
       ? await recordOpening(supabase, session.tenant.id, created.id as string, opening, fields.purchase_factor, price, session.membershipId)
       : null;
   revalidatePath(invPath(slug), "layout");
-  await setFlash(
-    error || openErr ? "error" : "ok",
-    error
-      ? error.code === "23505"
-        ? `Đã có nguyên liệu tên "${fields.name}".`
-        : error.message
-      : openErr
-        ? `Đã thêm "${fields.name}" nhưng chưa ghi được tồn hiện có: ${openErr}`
-        : `Đã thêm "${fields.name}"${opening !== null ? " kèm tồn hiện có" : ""}.`
-  );
+  const msg = error
+    ? error.code === "23505"
+      ? `Đã có nguyên liệu tên "${fields.name}".`
+      : error.message
+    : openErr
+      ? `Đã thêm "${fields.name}" nhưng chưa ghi được tồn kho ban đầu: ${openErr}`
+      : `Đã thêm "${fields.name}"${opening !== null ? " kèm tồn kho ban đầu" : ""}.`;
+  await setFlash(error || openErr ? "error" : "ok", msg);
+  // Đã tạo được nguyên liệu mà chỉ hỏng tồn đầu → coi như xong (đóng hộp thoại), thông báo góc màn báo phần hỏng.
+  return error ? { ok: false, error: msg } : { ok: true };
 }
 
-export async function updateIngredient(fd: FormData) {
+export async function updateIngredient(fd: FormData): Promise<IngredientResult> {
   const slug = String(fd.get("slug") ?? "");
   const session = await requireInventoryManager(slug);
   const id = String(fd.get("id") ?? "");
   const fields = readIngredient(fd);
   if (typeof fields === "string") {
     await setFlash("error", fields);
-    return;
+    return { ok: false, error: fields };
   }
   const price = fields.kind === "purchased" ? readPrice(fd, fields.purchase_factor) : null;
 
@@ -197,15 +200,16 @@ export async function updateIngredient(fd: FormData) {
       .eq("tenant_id", session.tenant.id)
       .eq("parent_ingredient_id", id);
     if ((count ?? 0) > 0) {
-      await setFlash("error", "Nguyên liệu này đang có công thức mẻ — xóa công thức trước khi đổi sang loại mua vào.");
-      return;
+      const msg = "Nguyên liệu này đang có công thức mẻ — xóa công thức trước khi đổi sang loại mua vào.";
+      await setFlash("error", msg);
+      return { ok: false, error: msg };
     }
   }
 
   const opening = readOpening(fd);
   if (opening === "invalid") {
-    await setFlash("error", "Tồn hiện có phải là số không âm.");
-    return;
+    await setFlash("error", "Tồn kho ban đầu phải là số không âm.");
+    return { ok: false, error: "Tồn kho ban đầu phải là số không âm." };
   }
   const { error } = await supabase
     .from("ingredients")
@@ -221,18 +225,17 @@ export async function updateIngredient(fd: FormData) {
       ? await recordOpening(supabase, session.tenant.id, id, opening, fields.purchase_factor, price, session.membershipId)
       : null;
   revalidatePath(invPath(slug), "layout");
-  await setFlash(
-    error || openErr ? "error" : "ok",
-    error
-      ? error.code === "23505"
-        ? `Đã có nguyên liệu tên "${fields.name}".`
-        : error.message
-      : openErr ?? `Đã lưu "${fields.name}"${opening !== null ? " kèm tồn hiện có" : ""}.`
-  );
+  const msg = error
+    ? error.code === "23505"
+      ? `Đã có nguyên liệu tên "${fields.name}".`
+      : error.message
+    : openErr ?? `Đã lưu "${fields.name}"${opening !== null ? " kèm tồn kho ban đầu" : ""}.`;
+  await setFlash(error || openErr ? "error" : "ok", msg);
+  return error || openErr ? { ok: false, error: msg } : { ok: true };
 }
 
 /** Ẩn/hiện. Không xóa: dòng định lượng tham chiếu bằng ON DELETE RESTRICT, và sổ kho (10-02) cần tên cũ. */
-export async function setIngredientActive(fd: FormData) {
+export async function setIngredientActive(fd: FormData): Promise<IngredientResult> {
   const slug = String(fd.get("slug") ?? "");
   const session = await requireInventoryManager(slug);
   const id = String(fd.get("id") ?? "");
@@ -246,8 +249,9 @@ export async function setIngredientActive(fd: FormData) {
       .eq("tenant_id", session.tenant.id)
       .eq("ingredient_id", id);
     if ((count ?? 0) > 0) {
-      await setFlash("error", `Nguyên liệu đang dùng trong ${count} dòng định lượng — gỡ khỏi các món trước khi ẩn.`);
-      return;
+      const msg = `Nguyên liệu đang dùng trong ${count} dòng định lượng — gỡ khỏi các món trước khi ẩn.`;
+      await setFlash("error", msg);
+      return { ok: false, error: msg };
     }
   }
   const { error } = await supabase
@@ -257,6 +261,7 @@ export async function setIngredientActive(fd: FormData) {
     .eq("tenant_id", session.tenant.id);
   revalidatePath(invPath(slug), "layout");
   await setFlash(error ? "error" : "ok", error ? error.message : active ? "Đã hiện lại." : "Đã ẩn nguyên liệu.");
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 type OwnerKind = "item" | "option" | "parent";

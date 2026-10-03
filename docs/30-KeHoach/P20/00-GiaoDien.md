@@ -90,6 +90,7 @@ trong danh sách** (tab Thông tin / Lịch sử thanh toán) thay vì sang tran
 | # | Câu hỏi | Chốt | Việc phải làm |
 |---|---|---|---|
 | G1 | Phiếu nhập ở đâu | **Mục menu riêng "Nhập hàng"** (như KiotViet FnB) — danh sách phiếu + "+ Nhập hàng"; tab "Nhập hôm nay" giữ cho nhập nhanh buổi sáng | ☑ 30/09: mục menu "Nhập hàng" (`/nhap-hang`, "+ Nhập hàng" → `/nhap-hang/moi`), bỏ tab "Phiếu nhập" trong Nguyên liệu, đường cũ tự chuyển. **01/10 (P25): bỏ luôn tab "Nhập hôm nay"**, chỉ còn một chỗ nhập ("+ Nhập hàng" + "Lấy hàng lần trước"); tab mới "Tồn kho" — xem `P25/00-TongQuan.md` |
+| G1′ | (P28, 04/10/2026) | **Gom vào mục "Kho hàng"** cùng Nguyên liệu và Nhà cung cấp; "Nhập hàng" thành một tab | ☑ xem `P28/00-TongQuan.md` |
 | G2 | Bấm phiếu nhập | **Sang trang chi tiết** (như hiện nay) | — |
 | G3 | Kết quả kinh doanh | **Giữ khối trong trang Báo cáo** (như hiện nay) | — |
 | G4 | "+ Nhà cung cấp" | **Hộp thoại** (như KiotViet) | ☑ 30/09: hộp thoại "Thêm nhà cung cấp" (Lưu / Bỏ qua; lỗi thì giữ hộp thoại) |

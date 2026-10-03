@@ -396,16 +396,19 @@ test("8. Tồn đầu kỳ: thêm nguyên liệu kèm 'Tồn hiện có' → dò
   const ten = `Nước mắm Phú Quốc ${duoi}`;
   const ten2 = `Ớt tươi ${duoi}`;
   await page.goto(`/r/${SLUG}/admin/inventory`, { waitUntil: "networkidle" });
-  const them = page.locator("form").filter({ has: page.getByRole("button", { name: "Thêm nguyên liệu" }) });
+  // P29: thêm / sửa trong hộp thoại.
+  const them = page.getByRole("dialog", { name: "Thêm nguyên liệu" });
+  const sua = page.getByRole("dialog", { name: "Sửa nguyên liệu" });
+  await page.getByRole("button", { name: "+ Thêm nguyên liệu" }).click();
   await them.locator('input[name="name"]').fill(ten);
   await them.locator('select[name="base_unit"]').selectOption("ml");
   await them.locator('input[name="purchase_unit"]').fill("chai");
   await them.locator('input[name="purchase_factor"]').fill("500");
-  await them.locator("label", { hasText: "Giá gần nhất" }).locator("input:visible").fill("60000");
+  await them.locator("label", { hasText: "Giá vốn" }).locator("input:visible").fill("60000");
   await them.locator('input[name="opening_qty"]').fill("6");
   await expect(them.locator("[data-ton-dau]")).toContainText("chai");
   await page.screenshot({ path: `${ANH}/11a-them-nguyen-lieu-ton-hien-co.png`, fullPage: true });
-  await thongBao(page, `Đã thêm "${ten}" kèm tồn hiện có.`, () => them.getByRole("button", { name: "Thêm nguyên liệu" }).click());
+  await thongBao(page, `Đã thêm "${ten}" kèm tồn kho ban đầu.`, () => them.getByRole("button", { name: "Lưu", exact: true }).click());
   const { data: nm } = await db.from("ingredients").select("id").eq("tenant_id", tenant).eq("name", ten).single();
   try {
     const { data: e } = await db
@@ -418,28 +421,29 @@ test("8. Tồn đầu kỳ: thêm nguyên liệu kèm 'Tồn hiện có' → dò
     await page.goto(`/r/${SLUG}/admin/inventory/stock`, { waitUntil: "networkidle" });
     await expect(page.locator("[data-ton-kho] li").filter({ hasText: ten })).toContainText("6 chai (3.000 ml)");
 
-    // Thẻ nguyên liệu theo TÊN CHÍNH (ô chọn công thức của nước dùng cũng chứa tên mọi nguyên liệu).
-    const the = (t: string) => page.locator("ul > li").filter({ has: page.locator("span.font-medium").getByText(t, { exact: true }) });
-    // Thêm không kèm tồn → form Sửa vẫn có ô "Tồn hiện có" → khai sau → lần sau không còn ô.
+    // Dòng bảng theo tên → hộp thoại Sửa.
+    const moSua = (t: string) => page.locator("[data-bang-nguyen-lieu]").getByRole("button", { name: t, exact: true }).click();
+    // Thêm không kèm tồn → hộp thoại Sửa vẫn có ô "Tồn kho ban đầu" → khai sau → lần sau không còn ô.
     await page.goto(`/r/${SLUG}/admin/inventory`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "+ Thêm nguyên liệu" }).click();
     await them.locator('input[name="name"]').fill(ten2);
     await them.locator('select[name="base_unit"]').selectOption("g");
     await them.locator('input[name="purchase_unit"]').fill("kg");
-    await thongBao(page, `Đã thêm "${ten2}".`, () => them.getByRole("button", { name: "Thêm nguyên liệu" }).click());
-    const card = the(ten2);
-    await card.getByText("Sửa", { exact: true }).click();
-    await card.locator('input[name="opening_qty"]').fill("0,5");
-    await thongBao(page, `Đã lưu "${ten2}" kèm tồn hiện có.`, () => card.getByRole("button", { name: "Lưu" }).click());
+    await thongBao(page, `Đã thêm "${ten2}".`, () => them.getByRole("button", { name: "Lưu", exact: true }).click());
+    await moSua(ten2);
+    await sua.locator('input[name="opening_qty"]').fill("0,5");
+    await thongBao(page, `Đã lưu "${ten2}" kèm tồn kho ban đầu.`, () => sua.getByRole("button", { name: "Lưu", exact: true }).click());
     const { data: ot } = await db.from("ingredients").select("id").eq("tenant_id", tenant).eq("name", ten2).single();
     const { data: e2 } = await db.from("stock_entries").select("qty, note").eq("ingredient_id", ot!.id);
     expect(e2).toEqual([{ qty: 500, note: "Tồn đầu kỳ" }]);
     await page.goto(`/r/${SLUG}/admin/inventory`, { waitUntil: "networkidle" });
-    const card2 = the(ten2);
-    await card2.getByText("Sửa", { exact: true }).click();
-    await expect(card2.locator('input[name="opening_qty"]')).toHaveCount(0);
-    const bo = the("Thịt bò thăn");
-    await bo.getByText("Sửa", { exact: true }).click();
-    await expect(bo.locator('input[name="opening_qty"]')).toHaveCount(0);
+    await moSua(ten2);
+    await expect(sua.locator('input[name="name"]')).toHaveValue(ten2);
+    await expect(sua.locator('input[name="opening_qty"]')).toHaveCount(0);
+    await sua.getByRole("button", { name: "Bỏ qua" }).click();
+    await moSua("Thịt bò thăn");
+    await expect(sua.locator('input[name="name"]')).toHaveValue("Thịt bò thăn");
+    await expect(sua.locator('input[name="opening_qty"]')).toHaveCount(0);
   } finally {
     // Dọn: hai nguyên liệu thử không thuộc kịch bản quán.
     const { data: ids } = await db.from("ingredients").select("id").eq("tenant_id", tenant).in("name", [ten, ten2]);

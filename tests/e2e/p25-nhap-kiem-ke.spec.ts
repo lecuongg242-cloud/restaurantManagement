@@ -50,8 +50,8 @@ test("A: Nguyên liệu có tab Tồn kho thay Nhập hôm nay; đường cũ �
     await dangNhap(page);
 
     await page.goto(`/r/${SLUG}/admin/inventory/stock`, { waitUntil: "networkidle" });
-    const tabs = page.getByRole("navigation", { name: "Khu nguyên liệu" }).getByRole("link");
-    await expect(tabs).toHaveText(["Tồn kho", "Kiểm kê & hủy", "Nguyên liệu", "Định lượng món"]);
+    const tabs = page.getByRole("navigation", { name: "Kho hàng" }).getByRole("link");
+    await expect(tabs).toHaveText(["Tồn kho", "Nhập hàng", "Kiểm kê & hủy", "Nguyên liệu", "Định lượng món", "Nhà cung cấp"]);
     await expect(page.locator("[data-ton-kho]").getByText(`${TAG} Rau`)).toBeVisible();
     await expect(page.getByRole("heading", { name: "Chế biến" })).toBeVisible();
     await page.screenshot({ path: "docs/30-KeHoach/P25/anh/tab-ton-kho.png", fullPage: true });

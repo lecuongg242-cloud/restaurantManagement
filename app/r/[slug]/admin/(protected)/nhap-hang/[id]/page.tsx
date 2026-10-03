@@ -74,10 +74,10 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
           <Link href={base} className="text-sm text-primary">
             ‹ Nhập hàng
           </Link>
-          <h1 className="mt-xxs flex flex-wrap items-center gap-sm font-display text-2xl text-ink">
+          <h2 className="mt-xxs flex flex-wrap items-center gap-sm font-display text-xl text-ink">
             <span className="font-mono">{r.code}</span>
             <ReceiptStatusBadge status={r.status} />
-          </h1>
+          </h2>
           <p className="mt-xxs text-sm text-steel">
             Ngày chứng từ {ngayVn(r.doc_date)}
             {r.stock_date && <> · vào kho {ngayVn(r.stock_date)}</>}

@@ -25,21 +25,43 @@ async function dangNhap(page: Page) {
   ]);
 }
 
-test("G1: menu Nhập hàng → danh sách → + Nhập hàng; đường cũ tự chuyển; Nguyên liệu không còn tab Phiếu nhập", async ({ page }) => {
+test("G1 + PURCH-08 (P28): một mục 'Kho hàng' → Tồn kho; tab Nhập hàng → danh sách → + Nhập hàng (tab cha vẫn sáng); đường cũ tự chuyển", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
   await dangNhap(page);
   await page.goto(`/r/${SLUG}/admin`, { waitUntil: "networkidle" });
-  await page.getByRole("link", { name: "Nhập hàng" }).first().click();
+  // Sidebar: một mục "Kho hàng", không còn ba mục rời.
+  for (const cu of ["Nguyên liệu", "Nhập hàng", "Nhà cung cấp"]) await expect(page.getByRole("link", { name: cu, exact: true })).toHaveCount(0);
+  const kho = page.getByRole("link", { name: "Kho hàng" });
+  await kho.click();
+  await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/admin/inventory/stock$`), { timeout: 90_000 });
+  await expect(page.getByRole("heading", { name: "Kho hàng", level: 1 })).toBeVisible();
+  const tabs = page.getByRole("navigation", { name: "Kho hàng" }).getByRole("link");
+  await expect(tabs).toHaveText(["Tồn kho", "Nhập hàng", "Kiểm kê & hủy", "Nguyên liệu", "Định lượng món", "Nhà cung cấp"]);
+  await expect(tabs.filter({ hasText: "Tồn kho" })).toHaveAttribute("aria-current", "page");
+  await expect(kho).toHaveAttribute("aria-current", "page");
+  await page.screenshot({ path: "docs/30-KeHoach/P28/anh/1-kho-hang-ton-kho-1366.png" });
+
+  await tabs.filter({ hasText: "Nhập hàng" }).click();
   await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/admin/nhap-hang$`), { timeout: 90_000 });
-  await expect(page.getByRole("heading", { name: "Nhập hàng", level: 1 })).toBeVisible();
   await page.getByRole("link", { name: "+ Nhập hàng" }).click();
   await expect(page).toHaveURL(/\/nhap-hang\/moi$/, { timeout: 90_000 });
   await expect(page.getByRole("heading", { name: "Lập phiếu nhập" })).toBeVisible();
+  await expect(tabs.filter({ hasText: "Nhập hàng" })).toHaveAttribute("aria-current", "page");
+  await expect(kho).toHaveAttribute("aria-current", "page");
+
+  await tabs.filter({ hasText: "Nhà cung cấp" }).click();
+  await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/admin/nha-cung-cap$`), { timeout: 90_000 });
+  await expect(kho).toHaveAttribute("aria-current", "page");
+  await page.screenshot({ path: "docs/30-KeHoach/P28/anh/2-kho-hang-nha-cung-cap-1366.png" });
 
   await page.goto(`/r/${SLUG}/admin/inventory/phieu-nhap`);
   await expect(page).toHaveURL(new RegExp(`/r/${SLUG}/admin/nhap-hang$`), { timeout: 90_000 });
 
+  // Điện thoại 390: hàng tab cuộn ngang trong chính nó, trang không tràn.
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/r/${SLUG}/admin/inventory/stock`, { waitUntil: "networkidle" });
-  await expect(page.getByRole("navigation", { name: "Khu nguyên liệu" }).getByRole("link", { name: "Phiếu nhập" })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "docs/30-KeHoach/P28/anh/3-kho-hang-390.png" });
 });
 
 test("G4: + Nhà cung cấp mở hộp thoại; lưu được thì đóng; SĐT trùng thì báo lỗi, hộp thoại vẫn mở", async ({ page }) => {

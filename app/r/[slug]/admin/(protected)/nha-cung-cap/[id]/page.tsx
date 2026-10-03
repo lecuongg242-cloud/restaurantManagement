@@ -53,9 +53,9 @@ export default async function SupplierDetailPage({
           <Link href={base} className="text-sm text-primary">
             ‹ Nhà cung cấp
           </Link>
-          <h1 className="mt-xxs font-display text-2xl text-ink">
+          <h2 className="mt-xxs font-display text-xl text-ink">
             {s.name} <span className="font-mono text-base text-steel">{s.code}</span>
-          </h1>
+          </h2>
           {!s.active && <p className="text-sm text-steel">Đang ngừng hoạt động — không hiện trong ô chọn khi nhập hàng.</p>}
         </div>
         <dl className="flex gap-xl text-sm">

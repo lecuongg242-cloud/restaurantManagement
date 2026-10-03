@@ -33,9 +33,8 @@ export default async function SupplierListPage({
     <div className="flex flex-col gap-lg">
       <header className="flex flex-wrap items-end justify-between gap-md">
         <div>
-          <h1 className="font-display text-2xl text-ink">Nhà cung cấp</h1>
-          <p className="mt-xxs text-sm text-steel">
-            Mối hàng của quán — biết mua của ai bao nhiêu, còn nợ ai bao nhiêu. Nhập hàng ở menu Nhập hàng.
+          <p className="text-sm text-steel">
+            Mối hàng của quán — biết mua của ai bao nhiêu, còn nợ ai bao nhiêu. Nhập hàng ở tab Nhập hàng.
             {tongNo > 0 && <> Tổng nợ cần trả: <span className="font-medium text-ink">{formatVnd(tongNo)}</span>.</>}
           </p>
         </div>
