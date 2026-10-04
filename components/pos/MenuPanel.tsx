@@ -123,7 +123,7 @@ export function MenuPanel({
                 aria-pressed={!searching && cat === c.id}
                 className={cn(
                   "inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-full px-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  !searching && cat === c.id ? "bg-cream-deeper text-primary-deep ring-1 ring-inset ring-primary/50" : "bg-surface text-steel hover:bg-cream"
+                  !searching && cat === c.id ? "bg-cream-deeper text-primary-deep ring-1 ring-inset ring-primary/50" : "bg-surface text-ink hover:bg-cream"
                 )}
               >
                 {c.name}
@@ -144,7 +144,7 @@ export function MenuPanel({
               {/* -top-sm = bù đúng padding trên (py-sm) của vùng cuộn: sticky tính từ mép TRONG padding, để
                   top-0 thì tiêu đề dính cách mép 12px và thẻ món lọt qua khe đó khi cuộn. */}
               {showHeaders && (
-                <h3 className="sticky -top-sm z-10 -mx-md mb-xs bg-canvas px-md py-xs font-display text-sm text-steel">
+                <h3 className="sticky -top-sm z-10 -mx-md mb-xs bg-canvas px-md py-xs font-display text-base font-semibold text-ink">
                   {cat.name}
                 </h3>
               )}
