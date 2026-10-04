@@ -36,10 +36,10 @@ function build(phienBan, ma) {
     TECHMENU_UPDATE_BASE: `http://localhost:${CONG}`,
     TECHMENU_YEN_GIAY: "10",
   };
-  const r = spawnSync(gradlew, ["assembleDebug", "-q"], { cwd: ANDROID, env, stdio: "inherit", shell: process.platform === "win32" });
+  const r = spawnSync(gradlew, ["assembleThuNganDebug", "-q"], { cwd: ANDROID, env, stdio: "inherit", shell: process.platform === "win32" });
   if (r.status !== 0) throw new Error("build hỏng");
   const dich = path.join(TAM, `TechMenu-ThuNgan-${phienBan}.apk`);
-  fs.copyFileSync(path.join(ANDROID, "app/build/outputs/apk/debug/app-debug.apk"), dich);
+  fs.copyFileSync(path.join(ANDROID, "app/build/outputs/apk/thuNgan/debug/app-thuNgan-debug.apk"), dich);
   return dich;
 }
 

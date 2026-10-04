@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { docManifestAndroid, goiPhatHanhAndroid, TEP_HOP_LE_ANDROID } from "@/lib/android/phat-hanh";
+import { APP_ANDROID, docAppAndroid, docManifestAndroid, goiPhatHanhAndroid, TEP_HOP_LE_ANDROID } from "@/lib/android/phat-hanh";
 
 /**
  * Bản phát hành app Android (P24 24-02, ANDR-01/04). App tự cập nhật theo `android-latest.json` ⇒ dữ liệu lạ tuyệt đối
@@ -67,5 +67,33 @@ describe("goiPhatHanhAndroid — nhãn cố định 'android', không phải 'la
   it("không https ⇒ null", () => {
     process.env.ANDROID_RELEASE_BASE = "http://cdn.example.com/android";
     expect(goiPhatHanhAndroid()).toBeNull();
+  });
+});
+
+/** P30 30-03 (MGR-07): APK thứ hai "TechMenu Quản lý" — cùng nơi phát hành, tệp chỉ mục + tên tệp riêng. */
+describe("app Quản lý (?app=quan-ly)", () => {
+  const QL = { ...HOP_LE, tenTep: "TechMenu-QuanLy-1.0.0.apk", phienBan: "1.0.0", maPhienBan: 1 };
+
+  it("docAppAndroid: chỉ 'quan-ly' là app Quản lý, mọi giá trị khác = Thu ngân (giữ hành vi cũ)", () => {
+    expect(docAppAndroid("quan-ly")).toBe("quan-ly");
+    expect(docAppAndroid(null)).toBe("thu-ngan");
+    expect(docAppAndroid("../x")).toBe("thu-ngan");
+  });
+
+  it("manifest Quản lý chỉ nhận tệp TechMenu-QuanLy-*.apk; manifest Thu ngân không nhận tệp Quản lý", () => {
+    expect(docManifestAndroid(QL, "quan-ly")).toEqual(QL);
+    expect(docManifestAndroid(QL)).toBeNull();
+    expect(docManifestAndroid(HOP_LE, "quan-ly")).toBeNull();
+  });
+
+  it("TEP_HOP_LE_ANDROID nhận tệp chỉ mục + APK Quản lý", () => {
+    expect(TEP_HOP_LE_ANDROID.test("android-quan-ly-latest.json")).toBe(true);
+    expect(TEP_HOP_LE_ANDROID.test("TechMenu-QuanLy-1.2.3.apk")).toBe(true);
+    expect(TEP_HOP_LE_ANDROID.test("TechMenu-QuanLy-1.2.apk")).toBe(false);
+  });
+
+  it("tên tệp chỉ mục theo app", () => {
+    expect(APP_ANDROID["thu-ngan"].chiMuc).toBe("android-latest.json");
+    expect(APP_ANDROID["quan-ly"].chiMuc).toBe("android-quan-ly-latest.json");
   });
 });

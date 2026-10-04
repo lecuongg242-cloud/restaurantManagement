@@ -311,6 +311,16 @@ Chủ dự án 01/10/2026: hai chỗ nhập hàng là thừa, và kiểm kê ghi
 
 Yêu cầu INV-11, INV-12; `30-KeHoach/P25/00-TongQuan.md`.
 
+## P30 — Quản trị trong app Thu ngân + app "TechMenu Quản lý" (CODE XONG 04/10/2026, chưa deploy / phát hành)
+
+Chủ dự án 04/10/2026: mở được quản trị trong app Thu ngân **và** có app riêng cho chủ quán (QD-033). ☰ → "Quản trị" mở
+cửa sổ / màn riêng có phiên đăng nhập riêng; app Quản lý = màn `/quan-ly` 5 tab (Tổng quan · Hóa đơn · Báo cáo · Thực đơn ·
+Thêm), Android APK `vn.techmenu.quanly` + iPhone "Thêm vào MH chính". Kèm vá lỗ `bills_revenue` (0084, đã áp production).
+- **Để sau:** thông báo đẩy về điện thoại chủ (hủy món, tổng kết cuối ngày…) — chủ dự án bỏ qua ở P30 (QD-033 D4);
+  hủy hóa đơn từ xa (B6 chỉ xem).
+
+Yêu cầu DESK-13, ANDR-09, MGR-01..08; `30-KeHoach/P30/00-TongQuan.md`.
+
 ## Rủi ro đã biết & cách xử lý
 | Rủi ro | Xử lý |
 |---|---|

@@ -8,3 +8,5 @@ local.properties
 .idea/
 *.iml
 dist/
+# Bộ nhớ đệm phiên biên dịch của Kotlin 2.x
+.kotlin/

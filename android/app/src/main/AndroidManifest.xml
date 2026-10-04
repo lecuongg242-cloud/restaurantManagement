@@ -1,17 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Phần CHUNG của hai app (P30): mạng, tự cập nhật, tải tệp. Màn hình + quyền riêng của từng app nằm ở
+     src/thuNgan/AndroidManifest.xml (POS, cầu in, Quản trị) và src/quanLy/AndroidManifest.xml (app Quản lý). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Tự cập nhật (24-02): mở màn cài của Android cho tệp APK đã tải + kiểm sha256. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- Cầu in trong app (24-03): dịch vụ chạy nền có thông báo, giữ CPU/Wi-Fi thức, bật lại sau khi khởi động máy. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Xuất Excel từ trang quản trị (P30): Android 8–9 cần quyền này để lưu vào thư mục Tải xuống; Android 10+ không cần. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:allowBackup="false"
@@ -30,31 +27,5 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/duong_dan_cap_nhat" />
         </provider>
-        <service
-            android:name=".CauInDichVu"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Cầu in phiếu bếp và hóa đơn cho máy in LAN của quán (in liên tục khi tắt màn hình)" />
-        </service>
-        <receiver
-            android:name=".KhoiDongMay"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
     </application>
 </manifest>

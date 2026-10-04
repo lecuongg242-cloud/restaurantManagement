@@ -12,7 +12,8 @@ import java.security.MessageDigest
  * kiểm lúc mở app + mỗi giờ; tải xong mới hỏi, và chỉ hỏi khi máy để yên ≥ 5 phút (thu ngân đang bấm dở thì không chen
  * vào). Android không cho cài âm thầm ⇒ luôn có một lần bấm "Cập nhật".
  *
- * Nguồn: `{gốc}/api/android/latest?thongTin=1` → `{ phienBan, maPhienBan, tenTep, kichThuoc, sha256, duongDan }`.
+ * Nguồn: `{gốc}/api/android/latest?thongTin=1&app={thu-ngan|quan-ly}` → `{ phienBan, maPhienBan, tenTep, kichThuoc,
+ * sha256, duongDan }`. Hai APK (P30, QD-033 D6) — mỗi app đọc tệp chỉ mục của mình, chỉ nhận tên tệp có tiền tố của mình.
  * Tệp tải về nằm trong bộ nhớ riêng của app; sai kích thước hoặc sai sha256 ⇒ xóa, lần sau tải lại (không cài tệp hỏng).
  */
 class CapNhat(private val ctx: Context, private val goc: String) {
@@ -34,7 +35,7 @@ class CapNhat(private val ctx: Context, private val goc: String) {
     /** Chạy ở luồng nền. Trả bản mới ĐÃ TẢI XONG + kiểm xong, hoặc null (không có / lỗi — thử lại lần sau). */
     fun kiemVaTai(): BanMoi? {
         val tt = try {
-            JSONObject(doc("$goc/api/android/latest?thongTin=1"))
+            JSONObject(doc("$goc/api/android/latest?thongTin=1&app=${BuildConfig.APP_CAP_NHAT}"))
         } catch (_: Exception) {
             return null
         }
@@ -43,7 +44,7 @@ class CapNhat(private val ctx: Context, private val goc: String) {
         val sha = tt.optString("sha256")
         val co = tt.optLong("kichThuoc")
         val duongDan = tt.optString("duongDan")
-        if (ma <= BuildConfig.VERSION_CODE || !Regex("^TechMenu-ThuNgan-\\d+\\.\\d+\\.\\d+\\.apk$").matches(ten) ||
+        if (ma <= BuildConfig.VERSION_CODE || !Regex("^${Regex.escape(BuildConfig.TIEN_TO_TEP)}-\\d+\\.\\d+\\.\\d+\\.apk$").matches(ten) ||
             !Regex("^[0-9a-f]{64}$").matches(sha) || co <= 0 || !duongDan.startsWith("/api/android/update/")
         ) {
             donTepCu(null)

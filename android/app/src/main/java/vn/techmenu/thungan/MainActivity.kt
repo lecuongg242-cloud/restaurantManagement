@@ -6,9 +6,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.SystemClock
 import android.provider.Settings
 import android.Manifest
 import android.content.pm.PackageManager
@@ -16,7 +13,6 @@ import android.os.Build
 import android.os.PowerManager
 import android.view.WindowManager
 import androidx.core.app.ActivityCompat
-import androidx.core.content.FileProvider
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -62,14 +58,8 @@ class MainActivity : AppCompatActivity() {
     private var kichBanThongTin: ScriptHandler? = null
     private val nen = Executors.newSingleThreadExecutor()
 
-    // Tự cập nhật (24-02): bản mới đã tải xong + lần thao tác cuối + "Để sau" tới lúc nào.
-    private val capNhat by lazy { CapNhat(this, BuildConfig.CAP_NHAT_BASE) }
-    private var banMoi: CapNhat.BanMoi? = null
-    private var lanThaoTacCuoi = SystemClock.elapsedRealtime()
-    private var hoanDen = 0L
-    private var dangHoiCapNhat = false
-    private var choCaiSauKhiCapQuyen = false
-    private val dongHo = Handler(Looper.getMainLooper())
+    // Tự cập nhật (24-02) — phần giao diện dùng chung với app Quản lý (P30).
+    private val tuCapNhat by lazy { TuCapNhat(this, nen, "Đăng nhập và cài đặt máy in được giữ nguyên.") }
 
     private val apiBase = BuildConfig.API_BASE
     private val nguonApi: String = Uri.parse(apiBase).let { "${it.scheme}://${it.authority}" }
@@ -116,7 +106,7 @@ class MainActivity : AppCompatActivity() {
         })
         goc.post { datViTriNut(layViTriNut()) }
         moDau()
-        batTuCapNhat()
+        tuCapNhat.batDau()
         if (cauHinh?.coMayIn == true) {
             CauInDichVu.batDau(this)
             apDungGiuSang()
@@ -125,16 +115,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onUserInteraction() {
         super.onUserInteraction()
-        lanThaoTacCuoi = SystemClock.elapsedRealtime()
+        tuCapNhat.thaoTac()
     }
 
     override fun onResume() {
         super.onResume()
-        // Vừa bật "Cho phép từ nguồn này" trong Cài đặt Android rồi quay lại ⇒ cài luôn, không bắt bấm lại.
-        if (choCaiSauKhiCapQuyen && packageManager.canRequestPackageInstalls()) {
-            choCaiSauKhiCapQuyen = false
-            caiBanMoi()
-        }
+        tuCapNhat.tiepTuc()
     }
 
     override fun onPause() {
@@ -143,7 +129,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        dongHo.removeCallbacksAndMessages(null)
+        tuCapNhat.dung()
         nen.shutdownNow()
         super.onDestroy()
     }
@@ -338,66 +324,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ── Tự cập nhật (24-02, ANDR-04) ──────────────────────────────────────────────────────────────────────────────
-
-    private fun batTuCapNhat() {
-        val kiem = object : Runnable {
-            override fun run() {
-                nen.execute {
-                    val ban = capNhat.kiemVaTai()
-                    runOnUiThread { if (ban != null) banMoi = ban }
-                }
-                dongHo.postDelayed(this, CapNhat.KIEM_MOI_MS)
-            }
-        }
-        dongHo.post(kiem)
-        // Mỗi 30 giây xem máy đã để yên đủ lâu chưa (cùng luật app Windows) — có bản mới thì hỏi.
-        val xem = object : Runnable {
-            override fun run() {
-                val yen = (SystemClock.elapsedRealtime() - lanThaoTacCuoi) / 1000
-                if (!dangHoiCapNhat && SystemClock.elapsedRealtime() >= hoanDen &&
-                    CapNhat.duocHoi(banMoi != null, yen)
-                ) hoiCapNhat()
-                dongHo.postDelayed(this, 30_000)
-            }
-        }
-        dongHo.postDelayed(xem, 30_000)
-    }
-
-    private fun hoiCapNhat() {
-        val ban = banMoi ?: return
-        dangHoiCapNhat = true
-        AlertDialog.Builder(this)
-            .setTitle("Có bản mới ${ban.phienBan}")
-            .setMessage("Cập nhật mất khoảng 1 phút. Đăng nhập và cài đặt máy in được giữ nguyên.")
-            .setPositiveButton("Cập nhật") { _, _ -> caiBanMoi() }
-            .setNegativeButton("Để sau") { _, _ -> hoanDen = SystemClock.elapsedRealtime() + CapNhat.KIEM_MOI_MS }
-            .setOnDismissListener { dangHoiCapNhat = false }
-            .show()
-    }
-
-    private fun caiBanMoi() {
-        val ban = banMoi ?: return
-        if (!ban.tep.exists()) {
-            banMoi = null
-            return
-        }
-        // Lần đầu: Android bắt người dùng tự bật "Cho phép từ nguồn này" cho app — mở đúng màn đó, quay lại là cài.
-        if (!packageManager.canRequestPackageInstalls()) {
-            choCaiSauKhiCapQuyen = true
-            Toast.makeText(this, "Bật \"Cho phép từ nguồn này\" rồi quay lại để cập nhật.", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
-            return
-        }
-        CookieManager.getInstance().flush()
-        val uri = FileProvider.getUriForFile(this, "$packageName.cap-nhat", ban.tep)
-        startActivity(
-            Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-    }
-
     // ── Nút ☰ nổi + menu (Giao diện #4 — chủ dự án chọn nút nổi) ───────────────────────────────────────────────────
 
     @SuppressLint("ClickableViewAccessibility")
@@ -478,6 +404,9 @@ class MainActivity : AppCompatActivity() {
                 }
             })
         }
+        fun ngan() = ds.addView(View(this).apply {
+            setBackgroundColor(0x1F000000)
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1).apply { setMargins(dp(24), dp(4), dp(24), dp(4)) })
         ds.addView(TextView(this).apply {
             text = c.tenantName
             textSize = 14f
@@ -486,12 +415,15 @@ class MainActivity : AppCompatActivity() {
         })
         muc((if (c.manHinh == "pos") "✓ " else "") + "Thu ngân") { doiManHinh("pos") }
         muc((if (c.manHinh == "kds") "✓ " else "") + "Màn bếp") { doiManHinh("kds") }
+        ngan()
+        muc("Quản trị") { QuanTriActivity.mo(this, c) }
+        ngan()
         muc("Cài đặt máy in") {
             if (c.coMayIn) web.loadUrl(TRANG + "cai-dat-may-in.html")
             else Toast.makeText(this, "Máy này ở chế độ chỉ xem — không in.", Toast.LENGTH_LONG).show()
         }
         muc("Tải lại") { web.reload() }
-        banMoi?.let { b -> muc("Cập nhật lên bản ${b.phienBan}") { caiBanMoi() } }
+        tuCapNhat.banMoi?.let { b -> muc("Cập nhật lên bản ${b.phienBan}") { tuCapNhat.cai() } }
         if (c.nhieuChiNhanh) muc("Đổi chi nhánh") { hoiDangXuat("Đổi chi nhánh? Phải đăng nhập lại bằng tài khoản chủ quán.") }
         muc("Đăng xuất máy") { hoiDangXuat("Đăng xuất máy này? Phải đăng nhập lại bằng tài khoản chủ quán.") }
         ds.addView(TextView(this).apply {
@@ -531,6 +463,7 @@ class MainActivity : AppCompatActivity() {
         CookieManager.getInstance().removeAllCookies(null)
         CookieManager.getInstance().flush()
         WebStorage.getInstance().deleteAllData()
+        QuanTriActivity.xoaPhien() // đăng nhập quản trị nằm ở hồ sơ riêng — xóa luôn (Giao diện A4)
         web.clearCache(true)
         web.loadUrl(TRANG + "kich-hoat.html")
         web.clearHistory()

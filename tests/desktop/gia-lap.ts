@@ -41,12 +41,46 @@ export async function mayChuGia(opts: { serverCu?: boolean; cong?: number } = {}
     if (url.pathname.startsWith("/rest/v1/memberships")) return json(200, [{ tenant_id: "00000000-0000-0000-0000-000000000001" }]);
     if (url.pathname.startsWith("/rest/v1/")) return req.method === "GET" ? json(200, []) : (res.writeHead(204), res.end());
 
+    // Phiên đăng nhập giả bằng cookie `phien` (owner / cashier) — để kiểm cửa sổ Quản trị có phiên RIÊNG với POS (P30).
+    const phien = /(?:^|;\s*)phien=(\w+)/.exec(req.headers.cookie ?? "")?.[1] ?? "";
+    const chuyen = (dich: string, cookie?: string) => {
+      res.writeHead(302, { location: dich, ...(cookie ? { "set-cookie": `phien=${cookie}; Path=/` } : {}) });
+      res.end();
+    };
+    if (url.pathname === "/dang-nhap-thu") return chuyen(`/r/quan-thu/pos`, url.searchParams.get("vai") ?? "cashier");
+
     const trang = url.pathname.match(/^\/r\/([a-z0-9-]+)\/(pos|kds)$/);
     if (trang) {
       return html(`<!doctype html><title>${trang[2]} ${trang[1]}</title><h1 id="man">${trang[2]}:${trang[1]}</h1>
+<p id="phien">${phien}</p>
 <a id="ngoai" href="https://example.com/">ngoai</a>
 <script>window.__kq = { req: typeof require, proc: typeof process, td: window.techmenuDesktop || null,
   tm: typeof window.techmenu };</script>`);
+    }
+    const qt = url.pathname.match(/^\/r\/([a-z0-9-]+)\/(admin\/login|admin|admin\/reports\/export|print\/qr)$/);
+    if (qt) {
+      const [, slug, phan] = qt;
+      if (phan === "admin/login" && req.method === "POST") {
+        // Như ownerSignIn với cờ chiQuanTri: chủ → vào admin; nhân viên → báo không có quyền, không sang POS.
+        const email = new URLSearchParams(body).get("email");
+        if (email === "chu@quan.vn") return chuyen(`/r/${slug}/admin`, "owner");
+        return html(`<!doctype html><p role="alert">Tài khoản này không có quyền quản trị.</p>`);
+      }
+      if (phan === "admin/login") {
+        if (phien === "owner") return chuyen(`/r/${slug}/admin`);
+        return html(`<!doctype html><title>Đăng nhập quản trị</title><h1>Đăng nhập quản trị</h1>
+<form method="post" action="/r/${slug}/admin/login"><input id="email" name="email"><button id="dn">Đăng nhập</button></form>`);
+      }
+      if (phien !== "owner") return chuyen(`/r/${slug}/admin/login`);
+      if (phan === "admin/reports/export") {
+        res.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": 'attachment; filename="bao-cao.xlsx"' });
+        return res.end("XLSX");
+      }
+      if (phan === "print/qr") return html(`<!doctype html><h1 id="man">qr:${phien}</h1>`);
+      return html(`<!doctype html><title>Tổng quan</title><h1 id="man">admin:${slug}</h1>
+<a id="xuat" href="/r/${slug}/admin/reports/export">Xuất Excel</a>
+<a id="qr" href="/r/${slug}/print/qr" target="_blank">In mã QR</a>
+<script>window.__kq = { req: typeof require, proc: typeof process, tm: typeof window.techmenu };</script>`);
     }
     if (url.pathname === "/api/desktop/activate") {
       const b = JSON.parse(body || "{}");

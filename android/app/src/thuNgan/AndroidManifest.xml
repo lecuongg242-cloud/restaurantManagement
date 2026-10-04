@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App "TechMenu Thu ngân" (P24, QD-030): POS / Màn bếp, cầu in chạy nền, ☰ → Quản trị (P30). Gộp với src/main. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Cầu in trong app (24-03): dịch vụ chạy nền có thông báo, giữ CPU/Wi-Fi thức, bật lại sau khi khởi động máy. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application>
+        <service
+            android:name=".CauInDichVu"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Cầu in phiếu bếp và hóa đơn cho máy in LAN của quán (in liên tục khi tắt màn hình)" />
+        </service>
+        <receiver
+            android:name=".KhoiDongMay"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- ☰ → Quản trị (P30, QD-033 D1): trang quản trị trong hồ sơ WebView riêng, phủ lên POS. -->
+        <activity
+            android:name=".QuanTriActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density"
+            android:windowSoftInputMode="adjustResize" />
+    </application>
+</manifest>

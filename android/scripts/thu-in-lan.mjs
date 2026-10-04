@@ -5,7 +5,7 @@
 // Máy in GIẢ trên máy dev (cổng 9101 = bếp, 9102 = quầy; máy ảo gọi máy dev qua 10.0.2.2) ghi lại mọi byte nhận được.
 // Kích hoạt app "Có — máy quầy" vào quán DEMO pho-viet (KHÔNG qt-food) → cài máy in → In thử → trình duyệt máy tính bấm
 // "Phiếu bếp" / "In tạm tính" ⇒ máy in giả nhận. Cuối cùng trả quán demo về như cũ (chế độ in, nhịp tim, bàn V2) và đăng
-// xuất app. App phải là bản DEBUG đã build (android/app/build/outputs/apk/debug/app-debug.apk).
+// xuất app. App phải là bản DEBUG đã build (android/app/build/outputs/apk/thuNgan/debug/app-thuNgan-debug.apk).
 import fs from "node:fs";
 import net from "node:net";
 import zlib from "node:zlib";
@@ -89,7 +89,7 @@ try {
   try {
     adb("uninstall", GOI);
   } catch {}
-  adb("install", path.join(ANDROID, "app/build/outputs/apk/debug/app-debug.apk"));
+  adb("install", path.join(ANDROID, "app/build/outputs/apk/thuNgan/debug/app-thuNgan-debug.apk"));
   adb("shell", "pm", "grant", GOI, "android.permission.POST_NOTIFICATIONS");
   adb("shell", "dumpsys", "deviceidle", "whitelist", `+${GOI}`); // như người dùng đã bấm "Cho phép" ở màn bỏ tối ưu pin
   adb("shell", "am", "start", "-n", `${GOI}/.MainActivity`);

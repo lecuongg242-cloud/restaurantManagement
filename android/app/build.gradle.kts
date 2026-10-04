@@ -39,6 +39,25 @@ android {
         }
     }
 
+    // Hai app cùng một dự án (P30, QD-033 D6): Thu ngân GIỮ NGUYÊN mã gói (QD-030 D6 — máy đang cài phải lên được bản
+    // mới) và "TechMenu Quản lý" cho điện thoại chủ quán. Code dùng chung ở src/main; manifest + tên + biểu tượng riêng
+    // ở src/thuNgan, src/quanLy. Tự cập nhật đọc tệp chỉ mục của đúng app (`?app=`), tên tệp theo tiền tố riêng.
+    flavorDimensions += "app"
+    productFlavors {
+        create("thuNgan") {
+            dimension = "app"
+            applicationId = "vn.techmenu.thungan"
+            buildConfigField("String", "APP_CAP_NHAT", "\"thu-ngan\"")
+            buildConfigField("String", "TIEN_TO_TEP", "\"TechMenu-ThuNgan\"")
+        }
+        create("quanLy") {
+            dimension = "app"
+            applicationId = "vn.techmenu.quanly"
+            buildConfigField("String", "APP_CAP_NHAT", "\"quan-ly\"")
+            buildConfigField("String", "TIEN_TO_TEP", "\"TechMenu-QuanLy\"")
+        }
+    }
+
     buildFeatures { buildConfig = true }
 
     compileOptions {

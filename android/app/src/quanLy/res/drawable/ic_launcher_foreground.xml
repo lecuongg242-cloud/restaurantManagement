@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chữ "T" cam trên nền tối (app Quản lý). Vùng an toàn 66dp giữa khung 108dp — cùng hình với app Thu ngân. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FA520F" android:pathData="M34,34h40v10h-15v32h-10v-32h-15z" />
+</vector>

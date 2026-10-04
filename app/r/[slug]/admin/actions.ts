@@ -33,7 +33,12 @@ export async function ownerSignIn(
   }
 
   // Điều hướng theo vai trò (kitchen/cashier... đăng nhập nhầm cửa admin → về đúng khu).
+  // `chiQuanTri` (cửa sổ Quản trị trong app Thu ngân, app Quản lý — QD-033): không đưa sang POS mà báo rõ + thu hồi phiên.
   if (!canAccess(session.role, "admin")) {
+    if (formData.get("chiQuanTri")) {
+      await supabase.auth.signOut();
+      return { error: "Tài khoản này không có quyền quản trị." };
+    }
     redirect(defaultRouteForRole(slug, session.role));
   }
   redirect(`/r/${slug}/admin`);

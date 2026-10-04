@@ -15,6 +15,8 @@ const EXE = process.env.TECHMENU_EXE;
 const ELECTRON = EXE ?? path.resolve("desktop/node_modules/electron/dist/electron.exe");
 const APP = path.resolve("desktop");
 const THAM_SO = EXE ? [] : [APP];
+/** Phiên bản app đang thử (khớp desktop/package.json) — không ghi cứng, mỗi lần lên bản không phải sửa test. */
+const PHIEN_BAN: string = JSON.parse(fs.readFileSync(path.join(APP, "package.json"), "utf8")).version;
 /** Ảnh bằng chứng cho 21-SUMMARY (chụp từ chính cửa sổ app). */
 const ANH = (ten: string) => path.join("docs/30-KeHoach/P21/anh", ten);
 
@@ -99,7 +101,7 @@ test("máy chỉ xem → mở Màn bếp; trang web không chạm được Node;
   await expect(trang.locator("#man")).toHaveText("kds:quan-thu");
 
   const kq = await trang.evaluate(() => (window as unknown as { __kq: Record<string, unknown> }).__kq);
-  expect(kq).toEqual({ req: "undefined", proc: "undefined", td: { phienBan: "1.0.2", coCauIn: false }, tm: "undefined" });
+  expect(kq).toEqual({ req: "undefined", proc: "undefined", td: { phienBan: PHIEN_BAN, coCauIn: false }, tm: "undefined" });
 
   // Bấm bằng DOM: app chặn điều hướng (đúng ý) nên Playwright sẽ chờ mãi một điều hướng không bao giờ tới.
   await trang.evaluate(() => document.getElementById("ngoai")!.click());
@@ -150,9 +152,9 @@ test("máy quầy có máy in → Cài đặt máy in, In thử ra giấy, Lưu 
     await trang.click("#luu");
     await expect(trang.locator("#man")).toHaveText("pos:quan-thu");
     const td = await trang.evaluate(() => (window as unknown as { __kq: { td: unknown } }).__kq.td);
-    expect(td).toEqual({ phienBan: "1.0.2", coCauIn: true });
+    expect(td).toEqual({ phienBan: PHIEN_BAN, coCauIn: true });
 
-    await doiDen(() => may.nhipTim.some((n) => n.p_agent === "app/1.0.2" && n.p_printer_ok === true), 30_000, "nhịp tim cầu in trong app");
+    await doiDen(() => may.nhipTim.some((n) => n.p_agent === `app/${PHIEN_BAN}` && n.p_printer_ok === true), 30_000, "nhịp tim cầu in trong app");
     const ch = fs.readFileSync(path.join(thuMuc, "cau-hinh.json"), "utf8");
     expect(ch).not.toContain("mk-printer"); // mật khẩu printer chỉ lưu dạng mã hóa
     expect(ch).not.toContain("dung-mat-khau");
@@ -223,6 +225,68 @@ test("cầu in cũ giữ khóa mà lúc mở app dò không thấy → app VẪN
   } finally {
     await new Promise<void>((r) => khoa.close(() => r()));
   }
+});
+
+test("☰ Quản trị → cửa sổ riêng, phiên riêng: POS vẫn là thu ngân; thu ngân bị từ chối; tab mới cùng phiên; tải tệp; đăng xuất máy xóa phiên quản trị (DESK-13)", async () => {
+  const { app: a, trang } = await moApp();
+  const anhP30 = (ten: string) => path.join("docs/30-KeHoach/P30/anh", ten);
+  await dangNhap(trang, "chu@quan.vn", false);
+  await bamMenu(a, "Thu ngân");
+  // Thu ngân đăng nhập POS ở cửa sổ chính.
+  await expect(trang.locator("#man")).toHaveText("pos:quan-thu");
+  await trang.goto(`${may.url}/dang-nhap-thu?vai=cashier`);
+  await expect(trang.locator("#phien")).toHaveText("cashier");
+  expect(await nhanMenu(a)).toEqual(expect.arrayContaining(["Thu ngân", "Màn bếp", "Quản trị"]));
+
+  const [qt] = await Promise.all([a.waitForEvent("window"), bamMenu(a, "Quản trị")]);
+  await expect(qt.locator("#email")).toBeVisible();
+  expect(qt.url()).toContain("/r/quan-thu/admin/login?chi-quan-tri=1");
+  const tieuDe = () => a.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w: { getTitle(): string }) => w.getTitle()).sort());
+  await expect.poll(tieuDe).toContain("Quản trị — Quán Thử");
+
+  // Thu ngân đăng nhập nhầm cửa quản trị → báo không có quyền.
+  await qt.fill("#email", "thu@quan.vn");
+  await qt.click("#dn");
+  await expect(qt.getByRole("alert")).toHaveText("Tài khoản này không có quyền quản trị.");
+
+  // Chủ quán → vào admin; trang admin không chạm được Node / lệnh có quyền của app.
+  await qt.goto(`${may.url}/r/quan-thu/admin/login?chi-quan-tri=1`);
+  await qt.fill("#email", "chu@quan.vn");
+  await qt.click("#dn");
+  await expect(qt.locator("#man")).toHaveText("admin:quan-thu");
+  expect(await qt.evaluate(() => (window as unknown as { __kq: unknown }).__kq)).toEqual({ req: "undefined", proc: "undefined", tm: "undefined" });
+  await qt.screenshot({ path: anhP30("01-windows-quan-tri.png") });
+
+  // POS ở cửa sổ chính VẪN là thu ngân sau khi chủ đăng nhập quản trị.
+  await trang.reload();
+  await expect(trang.locator("#phien")).toHaveText("cashier");
+
+  // Bấm Quản trị lần nữa → không mở cửa sổ thứ ba.
+  await bamMenu(a, "Quản trị");
+  expect(await a.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2);
+
+  // "In mã QR" mở tab mới → cửa sổ con CÙNG phiên quản trị (không ra trình duyệt, không mất đăng nhập).
+  const [con] = await Promise.all([a.waitForEvent("window"), qt.evaluate(() => document.getElementById("qr")!.click())]);
+  await expect(con.locator("#man")).toHaveText("qr:owner");
+  expect(await a.evaluate(() => (globalThis as unknown as { __moNgoai: string[] }).__moNgoai)).toEqual([]);
+  await con.close();
+
+  // Xuất Excel → tải được tệp (hộp "Lưu tệp" thay bằng đường dẫn cố định).
+  const tep = path.join(thuMuc, "bao-cao.xlsx");
+  await a.evaluate(({ session }, tep) => {
+    session.fromPartition("persist:quan-tri").on("will-download", (_e: unknown, item: { setSavePath(p: string): void }) => item.setSavePath(tep));
+  }, tep);
+  await qt.evaluate(() => document.getElementById("xuat")!.click());
+  await expect.poll(() => fs.existsSync(tep) && fs.readFileSync(tep, "utf8")).toBe("XLSX");
+
+  // Đăng xuất máy quầy → đóng cửa sổ Quản trị + xóa đăng nhập quản trị.
+  await a.evaluate(({ dialog }) => {
+    dialog.showMessageBox = (async () => ({ response: 0, checkboxChecked: false })) as typeof dialog.showMessageBox;
+  });
+  await bamMenu(a, "Đăng xuất máy quầy");
+  await expect(trang.getByRole("heading", { name: "Đăng nhập" })).toBeVisible();
+  expect(await a.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
+  expect(await a.evaluate(async ({ session }) => (await session.fromPartition("persist:quan-tri").cookies.get({})).length)).toBe(0);
 });
 
 /** Bản đã cài: bấm ☰ → Kiểm tra cập nhật, ghi lại câu hộp thoại (hộp thoại thật được thay bằng bản ghi). */

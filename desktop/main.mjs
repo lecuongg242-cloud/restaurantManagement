@@ -6,7 +6,7 @@
 //
 // An toàn (DESK-04): trang web chạy trong sandbox, không chạm được Node/tệp máy; chỉ điều hướng trong tên miền app;
 // kênh IPC có quyền (kích hoạt, cài máy in) chỉ nhận lệnh từ trang cục bộ của app.
-import { app, BrowserWindow, Menu, Tray, ipcMain, dialog, shell, safeStorage, nativeImage, powerMonitor } from "electron";
+import { app, BrowserWindow, Menu, Tray, ipcMain, dialog, shell, safeStorage, nativeImage, powerMonitor, session } from "electron";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -105,6 +105,7 @@ async function khoiDong() {
   taoCuaSo();
   taoKhay();
   dungMenu();
+  batTaiTepQuanTri();
 
   if (!cauHinh) {
     moTrangCucBo("kich-hoat.html");
@@ -125,17 +126,8 @@ function taoCuaSo() {
     title: TEN_APP,
     icon: BIEU_TUONG,
     backgroundColor: "#fffaeb",
-    webPreferences: {
-      preload: path.join(THU_MUC_APP, "preload.cjs"),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      webviewTag: false,
-      spellcheck: false,
-      devTools: !app.isPackaged,
-      // Màn bếp phát chuông khi có đơn mới — không chờ người bấm vào trang.
-      autoplayPolicy: "no-user-gesture-required",
-    },
+    // Màn bếp phát chuông khi có đơn mới — không chờ người bấm vào trang.
+    webPreferences: cauHinhTrang({ autoplayPolicy: "no-user-gesture-required" }),
   });
   cuaSo.once("ready-to-show", () => {
     cuaSo.maximize();
@@ -163,23 +155,57 @@ function taoCuaSo() {
     dangThoat = true;
   });
 
-  const wc = cuaSo.webContents;
-  wc.on("will-navigate", (e, url) => {
+  ganBaoVe(cuaSo, { moCuaSoCon: false });
+  // Tải lại bằng F5 như trình duyệt (KiotViet: "Đồng bộ dữ liệu").
+  cuaSo.webContents.on("before-input-event", (e, input) => {
+    if (input.type === "keyDown" && input.key === "F5") {
+      e.preventDefault();
+      taiLai();
+    }
+  });
+}
+
+/** Cấu hình trang web chung cho mọi cửa sổ (DESK-04): sandbox, không Node, không webview. */
+function cauHinhTrang(them = {}) {
+  return {
+    preload: path.join(THU_MUC_APP, "preload.cjs"),
+    contextIsolation: true,
+    sandbox: true,
+    nodeIntegration: false,
+    webviewTag: false,
+    spellcheck: false,
+    devTools: !app.isPackaged,
+    ...them,
+  };
+}
+
+/**
+ * Hàng rào chung cho một cửa sổ: chỉ điều hướng trong tên miền app, liên kết ngoài mở trình duyệt, chặn webview,
+ * giới hạn quyền, mất mạng → màn "đang thử lại" ngay trong cửa sổ đó.
+ * `moCuaSoCon`: trang cùng tên miền mở tab mới (admin: "In mã QR", "Xem thực đơn") → cửa sổ con CÙNG phiên, cùng hàng rào —
+ * mở ra trình duyệt thì mất đăng nhập.
+ */
+function ganBaoVe(win, { moCuaSoCon, partition }) {
+  const wc = win.webContents;
+  const chan = (e, url) => {
     if (!duocDieuHuong(url)) {
       e.preventDefault();
       moNgoai(url);
     }
-  });
-  wc.on("will-redirect", (e, url) => {
-    if (!duocDieuHuong(url)) {
-      e.preventDefault();
-      moNgoai(url);
-    }
-  });
+  };
+  wc.on("will-navigate", chan);
+  wc.on("will-redirect", chan);
   wc.setWindowOpenHandler(({ url }) => {
+    if (moCuaSoCon && duocDieuHuong(url) && !url.startsWith("file:")) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: { icon: BIEU_TUONG, autoHideMenuBar: true, webPreferences: cauHinhTrang({ partition }) },
+      };
+    }
     moNgoai(url);
     return { action: "deny" };
   });
+  wc.on("did-create-window", (con) => ganBaoVe(con, { moCuaSoCon, partition }));
   wc.on("will-attach-webview", (e) => e.preventDefault());
   wc.session.setPermissionRequestHandler((_wc, quyen, xong) => {
     xong(["clipboard-sanitized-write", "notifications", "fullscreen"].includes(quyen));
@@ -187,15 +213,69 @@ function taoCuaSo() {
   // Mất mạng lúc mở trang (và service worker P17 không đỡ được) → màn của app, tự thử lại (DESK-04).
   wc.on("did-fail-load", (_e, maLoi, _moTa, url, khungChinh) => {
     if (!khungChinh || maLoi === -3 || url.startsWith("file:")) return;
-    moTrangCucBo("mat-mang.html", { dich: url });
+    moTrangCucBo("mat-mang.html", { dich: url }, win);
   });
-  // Tải lại bằng F5 như trình duyệt (KiotViet: "Đồng bộ dữ liệu").
-  wc.on("before-input-event", (e, input) => {
-    if (input.type === "keyDown" && input.key === "F5") {
-      e.preventDefault();
-      taiLai();
-    }
+}
+
+// ── Quản trị trong app (DESK-13, QD-033 D1) ──
+// Cửa sổ riêng, PHIÊN RIÊNG: POS và admin cùng tên miền ⇒ chung cookie; chủ đăng nhập admin trong cửa sổ POS sẽ đá thu
+// ngân đang bán ra ngoài. Phân vùng `persist:quan-tri` giữ đăng nhập quản trị giữa các lần mở, tách khỏi POS.
+const PHIEN_QUAN_TRI = "persist:quan-tri";
+let cuaSoQuanTri = null;
+
+function moQuanTri() {
+  if (!cauHinh) return;
+  if (cuaSoQuanTri) {
+    if (cuaSoQuanTri.isMinimized()) cuaSoQuanTri.restore();
+    cuaSoQuanTri.show();
+    cuaSoQuanTri.focus();
+    return;
+  }
+  const tieuDe = `Quản trị — ${cauHinh.tenantName}`;
+  cuaSoQuanTri = new BrowserWindow({
+    width: 1366,
+    height: 820,
+    minWidth: 900,
+    minHeight: 600,
+    show: false,
+    title: tieuDe,
+    icon: BIEU_TUONG,
+    autoHideMenuBar: true,
+    backgroundColor: "#fffaeb",
+    webPreferences: cauHinhTrang({ partition: PHIEN_QUAN_TRI }),
   });
+  cuaSoQuanTri.setMenuBarVisibility(false);
+  cuaSoQuanTri.once("ready-to-show", () => {
+    cuaSoQuanTri?.maximize();
+    cuaSoQuanTri?.show();
+  });
+  // Giữ tiêu đề "Quản trị — {quán}" để phân biệt với cửa sổ Thu ngân trên thanh tác vụ.
+  cuaSoQuanTri.on("page-title-updated", (e) => e.preventDefault());
+  cuaSoQuanTri.on("closed", () => {
+    cuaSoQuanTri = null;
+  });
+  ganBaoVe(cuaSoQuanTri, { moCuaSoCon: true, partition: PHIEN_QUAN_TRI });
+  cuaSoQuanTri.loadURL(duongDanQuanTri(cauHinh));
+}
+
+/** Vào qua trang đăng nhập quản trị: đã đăng nhập chủ/quản lý thì trang tự chuyển vào admin; `chi-quan-tri=1` để thu
+ *  ngân đăng nhập nhầm ở đây nhận câu "không có quyền" thay vì mở POS thứ hai trong cửa sổ Quản trị. */
+function duongDanQuanTri(c) {
+  return `${new URL(c.apiBase ?? API_BASE).origin}/r/${c.slug}/admin/login?chi-quan-tri=1`;
+}
+
+/** Xuất Excel / tải tệp từ admin: hộp "Lưu tệp" của Windows, mặc định thư mục Tải xuống. */
+function batTaiTepQuanTri() {
+  session.fromPartition(PHIEN_QUAN_TRI).on("will-download", (_e, item) => {
+    item.setSaveDialogOptions({ title: "Lưu tệp", defaultPath: path.join(app.getPath("downloads"), item.getFilename()) });
+  });
+}
+
+/** Đăng xuất máy quầy: đóng cửa sổ Quản trị + xóa đăng nhập quản trị (máy về như mới cài). */
+async function xoaPhienQuanTri() {
+  if (cuaSoQuanTri) cuaSoQuanTri.destroy();
+  cuaSoQuanTri = null;
+  await session.fromPartition(PHIEN_QUAN_TRI).clearStorageData();
 }
 
 /** Chỉ tên miền app và trang cục bộ của app. */
@@ -218,10 +298,10 @@ function moNgoai(url) {
   }
 }
 
-function moTrangCucBo(ten, thamSo = {}) {
+function moTrangCucBo(ten, thamSo = {}, win = cuaSo) {
   const url = pathToFileURL(path.join(THU_MUC_TRANG, ten));
   for (const [k, v] of Object.entries(thamSo)) url.searchParams.set(k, String(v));
-  cuaSo.loadURL(url.toString());
+  win.loadURL(url.toString());
 }
 
 function moManHinh() {
@@ -259,6 +339,8 @@ function dungMenu() {
           enabled: coCauHinh,
           click: () => chonManHinh("kds"),
         },
+        { type: "separator" },
+        { label: "Quản trị", enabled: coCauHinh, click: moQuanTri },
         { type: "separator" },
         { label: "Tải lại", accelerator: "F5", enabled: coCauHinh, click: taiLai },
         { label: "Cài đặt máy in", enabled: Boolean(cauHinh?.coMayIn), click: () => moTrangCucBo("cai-dat-may-in.html") },
@@ -305,6 +387,7 @@ async function dangXuatMayQuay(kieu) {
   trangThaiIn = { chay: false };
   // Xóa phiên đăng nhập nhân viên trên trang (cookie) — máy về trạng thái như mới cài.
   await cuaSo.webContents.session.clearStorageData();
+  await xoaPhienQuanTri();
   dungMenu();
   capNhatKhay();
   moTrangCucBo("kich-hoat.html");
@@ -556,10 +639,11 @@ function tuTrangCucBo(e) {
   }
 }
 
+/** `ham(...args, e)` — sự kiện IPC đứng cuối để lệnh nào cần biết cửa sổ gọi (thử lại khi mất mạng) thì dùng. */
 function xuLy(kenh, ham) {
   ipcMain.handle(kenh, async (e, ...args) => {
     if (!tuTrangCucBo(e)) throw new Error("Không được phép.");
-    return ham(...args);
+    return ham(...args, e);
   });
 }
 
@@ -669,8 +753,11 @@ xuLy("mo-man-hinh", async () => {
   if (cauHinh) moManHinh();
 });
 
-xuLy("thu-lai", async (dich) => {
-  if (typeof dich === "string" && duocDieuHuong(dich)) cuaSo.loadURL(dich);
+xuLy("thu-lai", async (dich, e) => {
+  // Màn "mất mạng" có thể đang nằm trong cửa sổ Quản trị — thử lại đúng cửa sổ đó, không kéo POS sang trang admin.
+  const win = BrowserWindow.fromWebContents(e.sender) ?? cuaSo;
+  if (typeof dich === "string" && duocDieuHuong(dich) && !dich.startsWith("file:")) win.loadURL(dich);
+  else if (win === cuaSoQuanTri && cauHinh) win.loadURL(duongDanQuanTri(cauHinh));
   else if (cauHinh) moManHinh();
 });
 

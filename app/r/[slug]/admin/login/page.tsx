@@ -7,16 +7,20 @@ import { ownerForRenewal } from "@/lib/tenant/renewal";
 
 export default async function AdminLoginPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ "chi-quan-tri"?: string }>;
 }) {
   const { slug } = await params;
+  // Cửa sổ Quản trị trong app Thu ngân mở `?chi-quan-tri=1` (QD-033): không đưa nhân viên sang POS.
+  const chiQuanTri = (await searchParams)["chi-quan-tri"] === "1";
 
   // Đã đăng nhập đúng quyền → vào thẳng admin (hoặc khu mặc định của vai trò).
   const session = await getSessionMembership(slug);
   if (session) {
     if (canAccess(session.role, "admin")) redirect(`/r/${slug}/admin`);
-    redirect(defaultRouteForRole(slug, session.role));
+    if (!chiQuanTri) redirect(defaultRouteForRole(slug, session.role));
   }
   // Owner đã đăng nhập của quán hết hạn (RLS loại quán nên `session` rỗng) → thẳng trang Gia hạn.
   if (await ownerForRenewal(slug)) redirect(`/r/${slug}/admin/gia-han`);
@@ -38,7 +42,7 @@ export default async function AdminLoginPage({
           Nhà hàng <span className="font-medium text-ink">{tenantName}</span>
         </p>
 
-        <OwnerLoginForm slug={slug} />
+        <OwnerLoginForm slug={slug} chiQuanTri={chiQuanTri} />
       </div>
     </div>
   );

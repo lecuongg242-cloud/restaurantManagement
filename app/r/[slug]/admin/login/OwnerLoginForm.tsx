@@ -5,13 +5,17 @@ import { ownerSignIn } from "../actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 
-/** Form đăng nhập owner: lỗi hiện inline (useActionState), không đổi link. */
-export function OwnerLoginForm({ slug }: { slug: string }) {
+/**
+ * Form đăng nhập owner: lỗi hiện inline (useActionState), không đổi link.
+ * `chiQuanTri`: mở từ cửa sổ Quản trị của app (QD-033) — thu ngân đăng nhập thì báo không có quyền, không sang POS.
+ */
+export function OwnerLoginForm({ slug, chiQuanTri = false }: { slug: string; chiQuanTri?: boolean }) {
   const [state, action] = useActionState(ownerSignIn, {});
 
   return (
     <form action={action} className="mt-lg flex flex-col gap-md">
       <input type="hidden" name="slug" value={slug} />
+      {chiQuanTri && <input type="hidden" name="chiQuanTri" value="1" />}
 
       {state.error && (
         <p

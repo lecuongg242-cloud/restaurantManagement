@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { goiPhatHanhAndroid, thongTinAndroid } from "@/lib/android/phat-hanh";
+import { APP_ANDROID, docAppAndroid, goiPhatHanhAndroid, thongTinAndroid } from "@/lib/android/phat-hanh";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +9,12 @@ export const dynamic = "force-dynamic";
  * nhật (ANDR-04): app tải tệp theo `duongDan` rồi tự kiểm `sha256` trước khi cài.
  */
 export async function GET(req: Request) {
+  // `?app=quan-ly` (P30, MGR-07): APK "TechMenu Quản lý"; không tham số = Thu ngân như cũ.
+  const app = docAppAndroid(new URL(req.url).searchParams.get("app"));
   const goc = goiPhatHanhAndroid();
-  const ban = await thongTinAndroid({ moi: true });
+  const ban = await thongTinAndroid({ moi: true, app });
   if (!goc || !ban) {
-    return new NextResponse("Chưa có bản phát hành TechMenu Thu ngân cho Android — liên hệ TechMenu.", {
+    return new NextResponse(`Chưa có bản phát hành ${APP_ANDROID[app].ten} cho Android — liên hệ TechMenu.`, {
       status: 404,
       headers: { "content-type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
     });

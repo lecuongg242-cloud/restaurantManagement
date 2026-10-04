@@ -5,6 +5,9 @@ import fs from "node:fs";
 
 export const ADB = process.env.ADB || `${process.env.LOCALAPPDATA}/Android/Sdk/platform-tools/adb.exe`;
 export const GOI = "vn.techmenu.thungan";
+/** App đang điều khiển — mặc định Thu ngân; kịch bản app Quản lý (P30) gọi `chonGoi("vn.techmenu.quanly")`. */
+let goi = GOI;
+export const chonGoi = (g) => (goi = g);
 
 export const adb = (...a) => execFileSync(ADB, a).toString().trim();
 export const ngu = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -13,13 +16,16 @@ export function chup(thuMuc, ten) {
   if (thuMuc) fs.writeFileSync(`${thuMuc}/${ten}.png`, execFileSync(ADB, ["exec-out", "screencap", "-p"]));
 }
 
-/** Chạy biểu thức JS trong trang đang mở của WebView app; tự nối lại khi app vừa khởi động lại. */
-export async function js(bieuThuc) {
+/**
+ * Gửi một lệnh DevTools (`method`, `params`) tới trang trong WebView app; tự nối lại khi app vừa khởi động lại.
+ * `loc(url)`: chọn trang khi app có nhiều WebView (P30: POS + màn Quản trị) — mặc định trang đầu tiên.
+ */
+export async function cdp(method, params, loc = () => true) {
   for (let lan = 0; lan < 30; lan++) {
     try {
-      const pid = adb("shell", "pidof", GOI);
+      const pid = adb("shell", "pidof", goi);
       adb("forward", "tcp:9333", `localabstract:webview_devtools_remote_${pid}`);
-      const trang = (await (await fetch("http://127.0.0.1:9333/json/list")).json()).find((t) => t.type === "page");
+      const trang = (await (await fetch("http://127.0.0.1:9333/json/list")).json()).find((t) => t.type === "page" && loc(t.url));
       const ws = new WebSocket(trang.webSocketDebuggerUrl);
       await new Promise((ok, loi) => ((ws.onopen = ok), (ws.onerror = loi)));
       const kq = await new Promise((ok) => {
@@ -27,10 +33,10 @@ export async function js(bieuThuc) {
           const m = JSON.parse(e.data);
           if (m.id === 1) ok(m.result);
         };
-        ws.send(JSON.stringify({ id: 1, method: "Runtime.evaluate", params: { expression: bieuThuc, awaitPromise: true, returnByValue: true } }));
+        ws.send(JSON.stringify({ id: 1, method, params }));
       });
       ws.close();
-      return kq?.result?.value;
+      return kq;
     } catch {
       await ngu(1000);
     }
@@ -38,9 +44,15 @@ export async function js(bieuThuc) {
   throw new Error("Không nối được WebView của app — app bản debug đã cài và đang chạy chưa?");
 }
 
-export async function doi(dk, giay = 30) {
+/** Chạy biểu thức JS trong trang đang mở của WebView app (xem `cdp`). */
+export async function js(bieuThuc, loc = () => true) {
+  const kq = await cdp("Runtime.evaluate", { expression: bieuThuc, awaitPromise: true, returnByValue: true }, loc);
+  return kq?.result?.value;
+}
+
+export async function doi(dk, giay = 30, loc) {
   for (let i = 0; i < giay; i++) {
-    if (await js(dk)) return true;
+    if (await js(dk, loc)) return true;
     await ngu(1000);
   }
   return false;
@@ -78,4 +90,19 @@ export function ketQua() {
       return hong ? 1 : 0;
     },
   };
+}
+
+/**
+ * Bấm phần tử có chữ `chu` bằng sự kiện chuột TIN CẬY của DevTools (có cử chỉ người dùng như chạm thật). `el.click()` qua
+ * Runtime.evaluate thì không: Chromium đánh dấu các bước điều hướng đó là "bỏ qua khi Back" ⇒ WebView.canGoBack() = false
+ * và phím Back đóng luôn app — kịch bản sai, app đúng (P30, đo 04/10/2026).
+ */
+export async function bam(chu, loc) {
+  const r = await js(
+    `(() => { const a = [...document.querySelectorAll('a,button')].find(e => e.textContent.trim() === ${JSON.stringify(chu)}); if (!a) return null; a.scrollIntoView({ block: 'center' }); const b = a.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`,
+    loc
+  );
+  if (!r) return false;
+  for (const type of ["mousePressed", "mouseReleased"]) await cdp("Input.dispatchMouseEvent", { type, x: r.x, y: r.y, button: "left", clickCount: 1 }, loc);
+  return true;
 }
