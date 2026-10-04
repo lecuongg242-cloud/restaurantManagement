@@ -311,7 +311,7 @@ Chủ dự án 01/10/2026: hai chỗ nhập hàng là thừa, và kiểm kê ghi
 
 Yêu cầu INV-11, INV-12; `30-KeHoach/P25/00-TongQuan.md`.
 
-## P30 — Quản trị trong app Thu ngân + app "TechMenu Quản lý" (CODE XONG 04/10/2026, chưa deploy / phát hành)
+## P30 — Quản trị trong app Thu ngân + app "TechMenu Quản lý" (WEB ĐÃ DEPLOY PRODUCTION 04/10/2026, main 7a3b3c1; Windows 1.0.4, Android Thu ngân 1.0.1 + Quản lý 1.0.0 đã phát hành)
 
 Chủ dự án 04/10/2026: mở được quản trị trong app Thu ngân **và** có app riêng cho chủ quán (QD-033). ☰ → "Quản trị" mở
 cửa sổ / màn riêng có phiên đăng nhập riêng; app Quản lý = màn `/quan-ly` 5 tab (Tổng quan · Hóa đơn · Báo cáo · Thực đơn ·

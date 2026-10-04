@@ -1,6 +1,6 @@
 # 30-03 — Báo cáo: APK "TechMenu Quản lý" + tải app
 
-> 04/10/2026. Yêu cầu MGR-07, MGR-08. **Code xong, đã kiểm trên máy ảo; CHƯA phát hành APK, CHƯA deploy web.**
+> 04/10/2026. Yêu cầu MGR-07, MGR-08. **Web đã deploy production 04/10/2026 (main 7a3b3c1)** — e2e `p30-quan-ly.spec.ts` 13/13 chạy thẳng trên production. Đã phát hành 04/10/2026: Thu ngân Windows 1.0.4, Thu ngân Android 1.0.1, Quản lý Android 1.0.0 (cùng chứng chỉ ký `ae654a27…`).
 
 ## Đã làm
 

@@ -2,7 +2,7 @@
 
 > Lập 04/10/2026. Plan là hợp đồng và nghiệm thu, không phải bản nháp code. **Trạng thái: ĐÃ CHỐT 04/10/2026** (chủ dự án: "ok triển khai" — giữ
 > toàn bộ Giao diện như đề xuất + tên "TechMenu Quản lý", mã gói `vn.techmenu.quanly`).
-> MGR-01..08 (`20-DanhSachYeuCau/00-Requirements.md`). Plan chi tiết: `30-0x-PLAN.md`. **30-01, 30-02, 30-03 CODE XONG 04/10/2026 (chưa deploy / phát hành)** — `30-0x-SUMMARY.md`.
+> MGR-01..08 (`20-DanhSachYeuCau/00-Requirements.md`). Plan chi tiết: `30-0x-PLAN.md`. **30-01, 30-02, 30-03: WEB ĐÃ DEPLOY PRODUCTION 04/10/2026 (main 7a3b3c1); app Thu ngân Windows 1.0.4 + Android 1.0.1, APK Quản lý 1.0.0 ĐÃ PHÁT HÀNH** — `30-0x-SUMMARY.md`.
 
 ## Vì sao làm
 

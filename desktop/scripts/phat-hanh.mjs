@@ -25,7 +25,10 @@ if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {
   process.exit(1);
 }
 
-const chay = (lenh, thamSo, cwd = DESKTOP) => execFileSync(lenh, thamSo, { cwd, stdio: "inherit", shell: process.platform === "win32" });
+// Chỉ `npx` (tệp .cmd trên Windows) cần shell. `gh` chạy thẳng: qua shell thì tham số KHÔNG được bọc ngoặc ⇒ tiêu đề
+// "TechMenu Thu ngân x.y.z" bị tách thành nhiều tham số và `gh release create` hỏng (gặp 04/10/2026 khi phát hành 1.0.4).
+const chay = (lenh, thamSo, cwd = DESKTOP) =>
+  execFileSync(lenh, thamSo, { cwd, stdio: "inherit", shell: process.platform === "win32" && lenh === "npx" });
 
 // 1) Build. ELECTRON_RUN_AS_NODE (VS Code đặt) làm electron-builder chạy Electron như Node — bỏ đi.
 delete process.env.ELECTRON_RUN_AS_NODE;

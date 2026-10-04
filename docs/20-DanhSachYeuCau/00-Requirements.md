@@ -265,7 +265,7 @@
 | DESK-10 | Tự cập nhật không gián đoạn bán hàng | Kiểm bản mới ≤ 1 giờ/lần, tải nền, kiểm toàn vẹn (hash) trước khi cài; chỉ cài khi **không đang in** (như PRINT-12) hoặc lúc khởi động lại; tải hỏng / hash sai → giữ bản cũ chạy tiếp. Bản cập nhật **không** hiện cảnh báo SmartScreen. Kiểm trên máy thật: bản 1.0.0 → 1.0.1 tự lên ≤ 1 giờ, không mất phiếu nào tạo trong lúc cập nhật | P21 | ☐ |
 | DESK-11 | Tải app ở Admin → Máy in + hướng dẫn | Admin → Máy in có nút **Tải TechMenu Thu ngân** (như KiotViet "Tải KiotViet Thu ngân"); bộ cài cầu in cũ vẫn tải được cho tới khi không còn quán dùng. `/huong-dan-cai-dat` có mục cài app kèm ảnh bước SmartScreen; đổi tên "POSMenu" → "TechMenu" trên trang và tài liệu. Cấu hình máy ghi **Tối thiểu / Khuyến nghị** theo RAM đo thật khi app chạy POS + cầu in | P21 | ☐ |
 | DESK-12 | Chạy thật tại qt-food | qt-food bán 7 ngày bằng app: 0 phiếu mất, 0 phiếu trùng (đối chiếu `print_jobs`); cầu in cũ đã gỡ; tài liệu bàn giao (`60-BanGiao/`) cập nhật cách cài app | P21 | ☐ |
-| DESK-13 | ☰ → "Quản trị" mở cửa sổ riêng (P30, QD-033 D1) | Menu ☰ có **Quản trị** dưới "Màn bếp" → cửa sổ "Quản trị — {tên quán}" với phiên đăng nhập riêng; chủ/quản lý đăng nhập vào admin, thu ngân bị từ chối; đóng cửa sổ → POS vẫn là thu ngân đang đăng nhập; Xuất Excel lưu được tệp; "Đăng xuất máy quầy" xóa luôn đăng nhập quản trị | P30 | ◐ code (30-01): desktop e2e xanh; chưa phát hành bản app |
+| DESK-13 | ☰ → "Quản trị" mở cửa sổ riêng (P30, QD-033 D1) | Menu ☰ có **Quản trị** dưới "Màn bếp" → cửa sổ "Quản trị — {tên quán}" với phiên đăng nhập riêng; chủ/quản lý đăng nhập vào admin, thu ngân bị từ chối; đóng cửa sổ → POS vẫn là thu ngân đang đăng nhập; Xuất Excel lưu được tệp; "Đăng xuất máy quầy" xóa luôn đăng nhập quản trị | P30 | ☑ phát hành Windows 1.0.4 (04/10/2026); desktop e2e xanh |
 
 ## ANDR — Ứng dụng Android "TechMenu Thu ngân" (P24, `QD-030`)
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
@@ -278,7 +278,7 @@
 | ANDR-06 | In chạy nền ổn định | Thông báo thường trực; để máy yên 8 giờ (màn tắt) vẫn in; máy in lỗi → thông báo đỏ + chip trên POS | P24 | ◐ code (24-03): thông báo thường trực + giữ CPU/Wi-Fi; tắt màn 90 s vẫn in; chưa đo 8 giờ |
 | ANDR-07 | Máy in Bluetooth + liền thân Sunmi | In hóa đơn có dấu 58/80 ≤ 3 giây trên máy thật | P24 | ☐ |
 | ANDR-08 | Đăng ký nhà phát triển Android | Đăng ký Android Developer Console + khai báo app trước khi Google áp xác minh ở Việt Nam (dự kiến 2027) | P24 | ☐ |
-| ANDR-09 | ☰ nổi → "Quản trị" (P30, QD-033 D1) | Như DESK-13 trên Android: màn Quản trị có "← Về Thu ngân", WebView profile riêng (POS không bị đăng xuất); máy không hỗ trợ profile riêng → mở trình duyệt kèm thông báo; tải tệp vào Tải xuống | P30 | ◐ code (30-01): thu-quan-tri.mjs 15/15 trên Android 15; chưa phát hành APK |
+| ANDR-09 | ☰ nổi → "Quản trị" (P30, QD-033 D1) | Như DESK-13 trên Android: màn Quản trị có "← Về Thu ngân", WebView profile riêng (POS không bị đăng xuất); máy không hỗ trợ profile riêng → mở trình duyệt kèm thông báo; tải tệp vào Tải xuống | P30 | ☑ phát hành APK Thu ngân 1.0.1 (04/10/2026); thu-quan-tri.mjs 15/15 trên Android 15 |
 
 ## PURCH — Nhà cung cấp, phiếu nhập, công nợ (P20, `QD-027`)
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |
@@ -314,7 +314,7 @@
 | MGR-04 | Báo cáo gọn | Tab Báo cáo: Kết quả kinh doanh, theo nhóm món, theo món, phương thức thanh toán, nhân viên, món hủy, giảm giá — dùng chung hàm báo cáo admin; "Xem báo cáo đầy đủ" mở admin | P30 | ◐ code (30-02): e2e đủ 7 khối + link báo cáo đầy đủ; chưa deploy |
 | MGR-05 | Thực đơn trên điện thoại | Công tắc Còn/Hết → POS + QR thấy "Hết" ≤ 5 giây; "Sửa món" (tên, giá, nhóm — chốt 04/10) qua server action admin sẵn có, tôn trọng `price_locked` chuỗi | P30 | ◐ code (30-02): e2e Còn/Hết ghi DB ≤ 5 s, Sửa món đổi giá + giữ mô tả; chưa có "Đang bán" (xem 30-02-SUMMARY) |
 | MGR-06 | Bố cục điện thoại + iPhone web app | 5 tab đáy; không tràn ngang ở 360 px; manifest riêng "TechMenu Quản lý" (`start_url` `/quan-ly`) — iPhone "Thêm vào MH chính" ra biểu tượng riêng, mở toàn màn hình | P30 | ◐ code (30-02): e2e không tràn ngang 360 px; manifest riêng; chưa thử trên iPhone thật |
-| MGR-07 | APK "TechMenu Quản lý" | Flavor `quanLy` (`vn.techmenu.quanly`) mở `/quan-ly`; cài cạnh app Thu ngân; tự cập nhật như ANDR-04; **APK Thu ngân build sau thay đổi vẫn cài đè, giữ kích hoạt + máy in** | P30 | ◐ code (30-03): thu-quan-ly.mjs 10/10 trên Android 15; thu-cap-nhat.mjs 8/8 cho Thu ngân sau tách flavor; chưa phát hành APK |
+| MGR-07 | APK "TechMenu Quản lý" | Flavor `quanLy` (`vn.techmenu.quanly`) mở `/quan-ly`; cài cạnh app Thu ngân; tự cập nhật như ANDR-04; **APK Thu ngân build sau thay đổi vẫn cài đè, giữ kích hoạt + máy in** | P30 | ◐ code (30-03): thu-quan-ly.mjs 10/10 trên Android 15; thu-cap-nhat.mjs 8/8 cho Thu ngân sau tách flavor; APK Quản lý 1.0.0 đã phát hành 04/10/2026 (cùng chứng chỉ ký ae654a27…) |
 | MGR-08 | Tải app quản lý | Admin → Tổng quan có thẻ "App quản lý trên điện thoại": mã QR → `/tai-app-quan-ly` (nút "Tải cho Android" + 3 bước iPhone có ảnh); điện thoại sạch cài ≤ 3 phút | P30 | ◐ code (30-03): e2e trang tải + thẻ QR admin; nút Android hiện khi có bản phát hành |
 
 ## Tiêu chí phát hành V1 (map từ `00-TongThe.md` §7)
