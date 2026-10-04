@@ -38,7 +38,7 @@ export default async function NewVoucherPage({
         <Link href={`/r/${slug}/admin/so-quy`} className="text-sm text-primary">
           ‹ Sổ quỹ
         </Link>
-        <h1 className="mt-xxs font-display text-2xl text-ink">{direction === "in" ? "Lập phiếu thu" : "Lập phiếu chi"}</h1>
+        <h1 className="mt-xxs font-semibold text-2xl text-ink">{direction === "in" ? "Lập phiếu thu" : "Lập phiếu chi"}</h1>
         <p className="text-sm text-steel">
           {direction === "in"
             ? "Tiền vào quỹ ngoài bán hàng (bán hàng tự vào sổ quỹ, không cần lập phiếu)."

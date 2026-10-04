@@ -160,7 +160,7 @@ function HopSuaMon({ slug, mon, nhom, dong, daLuu }: { slug: string; mon: MonDT;
         }}
         className="flex flex-col gap-md p-lg pb-[calc(theme(spacing.lg)+env(safe-area-inset-bottom))]"
       >
-        <h2 id="sua-mon-tieu-de" className="font-display text-lg text-ink">
+        <h2 id="sua-mon-tieu-de" className="font-semibold text-lg text-ink">
           Sửa món
         </h2>
         <input type="hidden" name="slug" value={slug} />

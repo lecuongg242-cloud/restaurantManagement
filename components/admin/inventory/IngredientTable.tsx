@@ -259,7 +259,7 @@ function CongThucDialog({
       {ing && row?.recipe && (
         <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
           <div className="flex items-center justify-between gap-md border-b border-hairline-soft px-lg py-md">
-            <h2 id="cong-thuc-tieu-de" className="font-display text-xl">
+            <h2 id="cong-thuc-tieu-de" className="font-semibold text-xl">
               Công thức 1 mẻ {ing.name}{" "}
               <span className="text-base text-steel">
                 ({ing.batch_output_qty?.toLocaleString("vi-VN")} {BASE_UNIT_LABEL[ing.base_unit]})

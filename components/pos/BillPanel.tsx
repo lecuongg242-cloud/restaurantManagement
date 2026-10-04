@@ -95,7 +95,7 @@ export function BillPanel({
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink/40 p-md max-sm:p-0" role="dialog" aria-modal="true" aria-label="Hóa đơn">
       <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none">
         <div className="flex items-center justify-between border-b border-hairline-soft px-lg py-md">
-          <h2 className="font-display text-xl text-ink">
+          <h2 className="font-semibold text-xl text-ink">
             Hóa đơn
             {groupLabel && <span className="text-base font-normal text-steel"> · {groupLabel}</span>}
           </h2>
@@ -153,7 +153,7 @@ export function BillPanel({
           ) : isChild ? (
             <div className="py-lg text-center">
               <p className="text-sm text-steel">{selected.note}</p>
-              <p className="mt-sm font-display text-3xl font-semibold tabular-nums text-primary">
+              <p className="mt-sm text-3xl font-semibold tabular-nums text-primary">
                 {formatVnd(selected.totals.total)}
               </p>
               <p className="mt-xs text-xs text-steel">Phần chia đều — thu ở bước thanh toán (04-04).</p>
@@ -217,8 +217,8 @@ export function BillPanel({
           <div className="border-t border-hairline-soft px-lg py-md">
             {!isChild && (
               <div className="mb-md flex items-center justify-between">
-                <span className="font-display text-lg text-ink">TỔNG</span>
-                <span className="font-display text-2xl font-semibold tabular-nums text-primary">
+                <span className="font-semibold text-lg text-ink">TỔNG</span>
+                <span className="text-2xl font-semibold tabular-nums text-primary">
                   {formatVnd(selected.totals.total)}
                 </span>
               </div>

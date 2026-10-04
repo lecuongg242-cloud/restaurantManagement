@@ -38,7 +38,7 @@ export default async function AdminDashboard({
 
   return (
     <div className="w-full">
-      <h1 className="font-display text-3xl text-ink">
+      <h1 className="font-semibold text-3xl text-ink">
         Chào {session?.tenant.name ?? slug}
       </h1>
       <p className="mt-sm text-sm text-slate">

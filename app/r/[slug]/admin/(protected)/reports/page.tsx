@@ -107,7 +107,7 @@ export default async function ReportsPage({
           }
           dauTrang={
             <div>
-              <h1 className="font-display text-2xl text-ink">Báo cáo dòng tiền</h1>
+              <h1 className="font-semibold text-2xl text-ink">Báo cáo dòng tiền</h1>
               <p className="text-sm text-steel">{range.label} · giờ Việt Nam · cả chuỗi {chuoi!.brand.name}</p>
               {phamVi}
               <div className="mt-xs">{nutXuat}</div>
@@ -351,7 +351,7 @@ function ReportShell({
     <div className="w-full">
       <div className="mb-lg flex flex-wrap items-center justify-between gap-md">
         <div>
-          <h1 className="font-display text-2xl text-ink">Báo cáo dòng tiền</h1>
+          <h1 className="font-semibold text-2xl text-ink">Báo cáo dòng tiền</h1>
           <p className="text-sm text-steel">{range.label} · giờ Việt Nam</p>
           {phamVi}
         </div>
@@ -378,7 +378,7 @@ function ReportShell({
 function Panel({ title, className, children }: { title: string; className?: string; children: React.ReactNode }) {
   return (
     <section className={`rounded-lg border border-hairline bg-canvas p-lg shadow-card ${className ?? ""}`}>
-      <h2 className="mb-md font-display text-lg text-ink">{title}</h2>
+      <h2 className="mb-md font-semibold text-lg text-ink">{title}</h2>
       {children}
     </section>
   );

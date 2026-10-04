@@ -65,11 +65,14 @@ async function moveInList(
 
 // ---- Danh mục ---------------------------------------------------------------
 
-export async function createCategory(formData: FormData) {
+/** Trả id danh mục mới để hộp thoại "+ Danh mục" chuyển thẳng sang tab của nó (chủ dự án chốt 04/10/2026). */
+export async function createCategory(
+  formData: FormData
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireMenuManager(slug);
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
+  if (!name) return { ok: false, error: "Thiếu tên danh mục." };
 
   const supabase = await createClient();
   // sort_order = max + 1 để danh mục mới xuống cuối.
@@ -82,12 +85,15 @@ export async function createCategory(formData: FormData) {
     .maybeSingle();
   const sort_order = (last?.sort_order ?? -1) + 1;
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("menu_categories")
-    .insert({ tenant_id: session.tenant.id, name, sort_order });
+    .insert({ tenant_id: session.tenant.id, name, sort_order })
+    .select("id")
+    .single();
   revalidatePath(menuPath(slug));
   revalidateMenu(session.tenant.id);
   await setFlash(error ? "error" : "ok", error ? error.message : `Đã thêm danh mục "${name}".`);
+  return error || !data ? { ok: false, error: error?.message ?? "Chưa thêm được danh mục." } : { ok: true, id: data.id };
 }
 
 export async function renameCategory(formData: FormData) {

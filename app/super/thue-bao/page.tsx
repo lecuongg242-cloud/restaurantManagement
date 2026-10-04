@@ -109,7 +109,7 @@ export default async function ThueBaoPage({
       </section>
 
       <section className="rounded-lg border border-hairline-soft bg-canvas shadow-card">
-        <h2 className="px-lg pt-lg font-display text-xl text-ink">Nhật ký gia hạn</h2>
+        <h2 className="px-lg pt-lg font-semibold text-xl text-ink">Nhật ký gia hạn</h2>
         {(nhatKy ?? []).length === 0 ? (
           <p className="px-lg pb-lg pt-sm text-sm text-steel">Chưa có lần gia hạn nào.</p>
         ) : (

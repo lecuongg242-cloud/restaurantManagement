@@ -130,7 +130,7 @@ export default async function PrintersPage({
   return (
     <div className="w-full">
       <TuLamMoi />
-      <h1 className="font-display text-2xl text-ink">Máy in</h1>
+      <h1 className="font-semibold text-2xl text-ink">Máy in</h1>
       <p className="mt-xxs text-sm text-steel">
         Cầu in bếp và máy in bếp có đang hoạt động không. Tự làm mới mỗi 30 giây.
       </p>

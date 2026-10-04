@@ -419,7 +419,7 @@ export function TakeawayPanel({
       {/* Header: tiêu đề · tab · ô tìm DUY NHẤT. Ba thứ này cùng điều khiển một danh sách nên
           gom chung một thanh; wrap khi panel hẹp. */}
       <div className="flex flex-wrap items-center gap-x-md gap-y-sm border-b border-hairline-soft px-lg py-md">
-        <h2 className="inline-flex shrink-0 items-center gap-sm font-display text-xl text-ink">
+        <h2 className="inline-flex shrink-0 items-center gap-sm font-semibold text-xl text-ink">
           <ShoppingBag className="h-5 w-5 text-primary" /> {title}
         </h2>
         <div
@@ -674,7 +674,7 @@ export function TakeawayPanel({
           <Drawer.Overlay className="fixed inset-0 z-40 bg-ink/40 sm:hidden" />
           <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-xl bg-canvas pb-[env(safe-area-inset-bottom)] shadow-modal outline-none sm:hidden">
             <div className="flex items-center justify-between border-b border-hairline-soft px-md py-sm">
-              <Drawer.Title className="font-display text-lg text-ink">Giỏ hàng</Drawer.Title>
+              <Drawer.Title className="font-semibold text-lg text-ink">Giỏ hàng</Drawer.Title>
               <Drawer.Description className="sr-only">Món đã chọn, ghi chú và nút tạo đơn</Drawer.Description>
               <Drawer.Close asChild>
                 <button

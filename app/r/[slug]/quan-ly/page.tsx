@@ -108,7 +108,7 @@ export default async function TongQuanPage({
               </span>
             </span>
             <span className="text-right">
-              <span className="block font-display text-lg font-semibold tabular-nums text-ink">{formatVnd(phucVu.tamTinh)}</span>
+              <span className="block text-lg font-semibold tabular-nums text-ink">{formatVnd(phucVu.tamTinh)}</span>
               <span className="block text-xs text-steel">tạm tính chưa thu</span>
             </span>
           </summary>

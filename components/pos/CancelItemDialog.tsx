@@ -102,7 +102,7 @@ export function CancelItemDialog({
     >
       <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none">
         <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
-          <h3 className="font-display text-xl text-status-late">
+          <h3 className="font-semibold text-xl text-status-late">
             {variant === "order" ? `Hủy cả đơn ${item.name}` : `Hủy món: ${item.name}`}
           </h3>
           <p className="mt-xxs text-xs text-steel">

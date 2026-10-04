@@ -25,7 +25,7 @@ export function KhoHangHeader({ adminBase }: { adminBase: string }) {
   const pathname = usePathname();
   return (
     <>
-      <h1 className="font-display text-2xl text-ink">Kho hàng</h1>
+      <h1 className="font-semibold text-2xl text-ink">Kho hàng</h1>
       {/* overflow-x-auto: trên điện thoại 360px cuộn ngang TRONG thanh tab, không cuộn trang. */}
       <nav aria-label="Kho hàng" className="-mx-xs mt-md flex gap-sm overflow-x-auto px-xs py-xxs">
         {TABS.map((t) => {

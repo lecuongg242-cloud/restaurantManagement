@@ -78,7 +78,7 @@ export default async function RecipesPage({ params }: { params: Promise<{ slug: 
         if (list.length === 0) return null;
         return (
           <section key={cat.id}>
-            <h2 className="font-display text-lg text-ink">{cat.name}</h2>
+            <h2 className="font-semibold text-lg text-ink">{cat.name}</h2>
             <ul className="mt-sm flex flex-col gap-md">
               {list.map((it) => {
                 const lines = data.byItem.get(it.id) ?? [];

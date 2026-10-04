@@ -53,7 +53,7 @@ export default async function ChiTietHoaDonPage({
         <ChevronLeft className="size-4" aria-hidden /> Hóa đơn
       </Link>
       <div>
-        <h1 className="font-display text-xl text-ink">
+        <h1 className="font-semibold text-xl text-ink">
           Hóa đơn #{hd.billNo ?? "—"} · {hd.tableLabel}
         </h1>
         {bill?.area_label && <p className="text-sm text-steel">{bill.area_label as string}</p>}

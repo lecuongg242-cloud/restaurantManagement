@@ -56,18 +56,18 @@ export function KdsTicket({
       <div className="flex items-start justify-between gap-sm">
         <div className="flex items-baseline gap-sm">
           {ticket.kitchenNo != null && (
-            <span className={cn("font-display font-semibold leading-none text-primary", done ? "text-2xl" : "text-3xl")}>
+            <span className={cn("font-semibold leading-none text-primary", done ? "text-2xl" : "text-3xl")}>
               #{ticket.kitchenNo}
             </span>
           )}
           {ticket.channel === "dine_in" ? (
-            <span className={cn("font-display leading-none text-ink", done ? "text-xl" : "text-2xl")}>{ticket.place}</span>
+            <span className={cn("font-semibold leading-none text-ink", done ? "text-xl" : "text-2xl")}>{ticket.place}</span>
           ) : (
             // Nhãn do server tính (place-label.ts) — quán chế độ quầy hiện "Tại quán", không phải
             // "Mang về"; chỉ đơn khách tự đặt online mới là mang về/giao.
             <span
               className={cn(
-                "rounded-md px-sm py-xxs font-display text-xl leading-none",
+                "rounded-md px-sm py-xxs font-semibold text-xl leading-none",
                 ticket.channel === "takeaway"
                   ? "bg-cream text-primary"
                   : "bg-status-ready-bg text-status-ready"

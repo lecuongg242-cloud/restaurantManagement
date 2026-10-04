@@ -68,7 +68,7 @@ export async function BridgeTable({
   return (
     <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-sm">
-        <h2 className="font-display text-xl text-ink">Cầu in các quán</h2>
+        <h2 className="font-semibold text-xl text-ink">Cầu in các quán</h2>
         <p className="text-sm text-steel">
           Bản mới nhất: <span className="font-mono text-ink">{banMoiNhat}</span>
           {soCanChuY > 0 && <span className="ml-sm font-medium text-status-late">· {soCanChuY} quán cần chú ý</span>}

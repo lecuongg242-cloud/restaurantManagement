@@ -95,7 +95,7 @@ export function MenuPanel({
         {/* Điện thoại: bỏ chữ "Thực đơn" (thanh tab dưới đã ghi) — giữ cho trình đọc màn hình; còn dòng
             nhắc chọn bàn thì vẫn hiện. */}
         <div className="flex items-center justify-between gap-sm">
-          <h2 className="font-display text-lg text-ink max-sm:sr-only">Thực đơn</h2>
+          <h2 className="font-semibold text-lg text-ink max-sm:sr-only">Thực đơn</h2>
           {!canAdd && <span className="text-xs text-steel">{emptyHint}</span>}
         </div>
         <div className={`relative mt-sm${canAdd ? " max-sm:mt-0" : ""}`}>
@@ -144,7 +144,7 @@ export function MenuPanel({
               {/* -top-sm = bù đúng padding trên (py-sm) của vùng cuộn: sticky tính từ mép TRONG padding, để
                   top-0 thì tiêu đề dính cách mép 12px và thẻ món lọt qua khe đó khi cuộn. */}
               {showHeaders && (
-                <h3 className="sticky -top-sm z-10 -mx-md mb-xs bg-canvas px-md py-xs font-display text-base font-semibold text-ink">
+                <h3 className="sticky -top-sm z-10 -mx-md mb-xs bg-canvas px-md py-xs text-base font-semibold text-ink">
                   {cat.name}
                 </h3>
               )}

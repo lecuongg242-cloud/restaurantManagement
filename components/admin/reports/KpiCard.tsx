@@ -21,7 +21,7 @@ export function KpiCard({ label, value, delta, hint, accent }: Props) {
   return (
     <div className="rounded-lg border border-hairline bg-canvas p-lg shadow-card">
       <p className="text-sm text-steel">{label}</p>
-      <p className={cn("mt-xs font-display text-2xl font-semibold tabular-nums", accent ? "text-primary" : "text-ink")}>
+      <p className={cn("mt-xs text-2xl font-semibold tabular-nums", accent ? "text-primary" : "text-ink")}>
         {value}
       </p>
       {showDelta && (

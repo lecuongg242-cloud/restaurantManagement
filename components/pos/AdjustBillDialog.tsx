@@ -78,7 +78,7 @@ export function AdjustBillDialog({
     <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-md max-sm:p-0" role="dialog" aria-modal="true" aria-label="Điều chỉnh hóa đơn">
       <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none">
         <div className="flex items-center justify-between border-b border-hairline-soft px-lg py-md">
-          <h3 className="font-display text-lg text-ink">Điều chỉnh hóa đơn{bill.billNo != null ? ` #${bill.billNo}` : ""}</h3>
+          <h3 className="font-semibold text-lg text-ink">Điều chỉnh hóa đơn{bill.billNo != null ? ` #${bill.billNo}` : ""}</h3>
           <button type="button" onClick={onClose} aria-label="Đóng" className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface">
             <X className="h-5 w-5" />
           </button>

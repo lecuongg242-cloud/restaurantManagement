@@ -42,7 +42,7 @@ export default async function SettingsPage({
 
   return (
     <div className="w-full max-w-4xl">
-      <h1 className="font-display text-2xl text-ink">Cài đặt</h1>
+      <h1 className="font-semibold text-2xl text-ink">Cài đặt</h1>
       <p className="mt-xxs text-sm text-steel">
         Nhận diện nhà hàng (tên, logo/avatar, ảnh bìa) và cấu hình vận hành (phí phục vụ, VAT, footer hóa đơn, duyệt order QR).
       </p>

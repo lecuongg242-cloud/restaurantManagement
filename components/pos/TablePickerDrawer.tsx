@@ -35,7 +35,7 @@ export function TablePickerDrawer({
         <Drawer.Overlay className="fixed inset-0 z-40 bg-ink/40" />
         <Drawer.Content className="fixed inset-y-0 left-0 z-50 flex w-[88vw] max-w-sm flex-col bg-canvas shadow-modal outline-none">
           <div className="flex items-center justify-between border-b border-hairline-soft px-md py-sm">
-            <Drawer.Title className="font-display text-lg text-ink">Sơ đồ bàn</Drawer.Title>
+            <Drawer.Title className="font-semibold text-lg text-ink">Sơ đồ bàn</Drawer.Title>
             <Drawer.Description className="sr-only">Chọn bàn để gọi món hoặc xem đơn</Drawer.Description>
             <Drawer.Close asChild>
               <button

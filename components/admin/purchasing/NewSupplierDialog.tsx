@@ -40,7 +40,7 @@ export function NewSupplierDialog({ slug }: { slug: string }) {
           className="flex flex-col gap-md p-lg"
         >
           <div className="flex items-center justify-between gap-md">
-            <h2 id="them-ncc" className="font-display text-xl">
+            <h2 id="them-ncc" className="font-semibold text-xl">
               Thêm nhà cung cấp
             </h2>
             <button type="button" onClick={close} aria-label="Đóng" className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface">

@@ -58,7 +58,7 @@ export async function GiaHanChuoi({
   return (
     <div className="flex flex-col gap-lg">
       <header>
-        <h2 className="font-display text-xl text-ink">Gia hạn cả chuỗi {brand.name}</h2>
+        <h2 className="font-semibold text-xl text-ink">Gia hạn cả chuỗi {brand.name}</h2>
         <p className="mt-xs text-sm text-steel">
           Một lần chuyển khoản cho mọi chi nhánh đang hoạt động — tất cả cùng một ngày hết hạn. Chi nhánh mở thêm giữa kỳ
           dùng ngay, hết hạn cùng ngày, không thu bù.
@@ -66,7 +66,7 @@ export async function GiaHanChuoi({
       </header>
 
       <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
-        <h2 className="font-display text-lg text-ink">Hạn chung</h2>
+        <h2 className="font-semibold text-lg text-ink">Hạn chung</h2>
         <p className="mt-xs text-sm text-slate" data-han-chung>
           {chung.han ? <>Hết hạn <strong className="text-ink">{ngayVnHienThi(chung.han)}</strong></> : "Không giới hạn"} ·{" "}
           {chung.soDangTinh} chi nhánh đang hoạt động
@@ -91,7 +91,7 @@ export async function GiaHanChuoi({
       </section>
 
       <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
-        <h2 className="font-display text-lg text-ink">Chuyển khoản gia hạn</h2>
+        <h2 className="font-semibold text-lg text-ink">Chuyển khoản gia hạn</h2>
         <nav className="mt-md flex flex-wrap gap-xs" aria-label="Chọn gói">
           {plans
             .filter((p) => p.visible)
@@ -147,7 +147,7 @@ export async function GiaHanChuoi({
       </section>
 
       <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
-        <h2 className="font-display text-lg text-ink">Lịch sử gia hạn chuỗi</h2>
+        <h2 className="font-semibold text-lg text-ink">Lịch sử gia hạn chuỗi</h2>
         {(lichSu ?? []).length === 0 ? (
           <p className="mt-md text-sm text-steel">Chưa có lần gia hạn nào.</p>
         ) : (

@@ -74,7 +74,7 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
           <Link href={base} className="text-sm text-primary">
             ‹ Nhập hàng
           </Link>
-          <h2 className="mt-xxs flex flex-wrap items-center gap-sm font-display text-xl text-ink">
+          <h2 className="mt-xxs flex flex-wrap items-center gap-sm font-semibold text-xl text-ink">
             <span className="font-mono">{r.code}</span>
             <ReceiptStatusBadge status={r.status} />
           </h2>

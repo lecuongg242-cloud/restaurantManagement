@@ -40,7 +40,7 @@ export default async function ThucDonPage({ params }: { params: Promise<{ slug: 
   return (
     <div className="flex flex-col gap-md">
       <div className="flex items-center justify-between gap-sm">
-        <h1 className="font-display text-xl text-ink">Thực đơn</h1>
+        <h1 className="font-semibold text-xl text-ink">Thực đơn</h1>
         {canManage(session.role, "menu") && (
           <Link href={`/r/${slug}/admin/menu`} className="inline-flex min-h-10 items-center gap-xxs rounded-md bg-primary px-md text-sm font-medium text-primary-fg">
             <Plus className="size-4" aria-hidden /> Thêm món

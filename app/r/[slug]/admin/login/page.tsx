@@ -37,7 +37,7 @@ export default async function AdminLoginPage({
   return (
     <div className="grid min-h-screen place-items-center bg-surface p-lg">
       <div className="w-full max-w-sm rounded-lg border border-hairline-soft bg-canvas p-xxl shadow-card">
-        <h1 className="font-display text-2xl text-ink">Đăng nhập quản trị</h1>
+        <h1 className="font-semibold text-2xl text-ink">Đăng nhập quản trị</h1>
         <p className="mt-xxs text-sm text-steel">
           Nhà hàng <span className="font-medium text-ink">{tenantName}</span>
         </p>

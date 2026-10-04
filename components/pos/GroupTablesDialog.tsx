@@ -86,7 +86,7 @@ export function GroupTablesDialog({
       <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:max-h-[90dvh] max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-start justify-between gap-md border-b border-hairline-soft px-lg py-md">
           <div>
-            <h3 className="font-display text-lg text-ink">Ghép bàn với {mainTable.name}</h3>
+            <h3 className="font-semibold text-lg text-ink">Ghép bàn với {mainTable.name}</h3>
             <p className="text-xs text-steel">Các bàn được chọn dùng chung một đơn và một hóa đơn.</p>
           </div>
           <button

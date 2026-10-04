@@ -37,7 +37,7 @@ export default async function ThucDonChuoiPage({ params }: { params: Promise<{ s
         <Link href={`/r/${slug}/admin/chi-nhanh`} className="text-sm text-primary underline-offset-4 hover:underline">
           ← Chi nhánh
         </Link>
-        <h1 className="mt-xs font-display text-2xl text-ink">Đồng bộ thực đơn</h1>
+        <h1 className="mt-xs font-semibold text-2xl text-ink">Đồng bộ thực đơn</h1>
         <p className="mt-xs max-w-3xl text-sm text-steel">
           Sửa thực đơn ở <strong className="text-ink">chi nhánh gốc</strong> như bình thường, rồi đồng bộ sang chi nhánh khác:
           thêm món mới, cập nhật tên / ảnh / nhóm / tùy chọn / giá, ẩn món gốc đã bỏ. Chi nhánh <strong>giữ giá riêng</strong>{" "}
@@ -64,7 +64,7 @@ export default async function ThucDonChuoiPage({ params }: { params: Promise<{ s
           </div>
           {plans.map(({ b, p }) => (
             <section key={b.tenantId} className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card" data-sync-branch={b.slug}>
-              <h2 className="mb-md font-display text-lg text-ink">{b.name}</h2>
+              <h2 className="mb-md font-semibold text-lg text-ink">{b.name}</h2>
               <BranchSync slug={slug} tenantId={b.tenantId} them={p.them} sua={p.sua} an={p.an} goiYNoi={p.goiYNoi} />
             </section>
           ))}

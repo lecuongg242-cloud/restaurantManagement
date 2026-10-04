@@ -82,7 +82,7 @@ export default async function NewPurchasePage({ params }: { params: Promise<{ sl
         <Link href={`/r/${slug}/admin/nhap-hang`} className="text-sm text-primary">
           ‹ Nhập hàng
         </Link>
-        <h2 className="mt-xxs font-display text-xl text-ink">Lập phiếu nhập</h2>
+        <h2 className="mt-xxs font-semibold text-xl text-ink">Lập phiếu nhập</h2>
         <p className="mt-xxs text-sm text-steel">
           Nhà cung cấp, giá không bắt buộc. Mỗi lần Hoàn thành là một phiếu nhập; nhập nhiều lần trong ngày sẽ cộng dồn.
         </p>
@@ -111,7 +111,7 @@ export default async function NewPurchasePage({ params }: { params: Promise<{ sl
 
       {nhuCau && (
         <Card data-goi-y-nhap>
-          <h2 className="font-display text-lg text-ink">Gợi ý nhập theo dự báo hôm nay</h2>
+          <h2 className="font-semibold text-lg text-ink">Gợi ý nhập theo dự báo hôm nay</h2>
           <p className="mt-xxs text-sm text-steel">
             = món dự báo bán hôm nay × định lượng − tồn hiện tại, cộng 10% dự phòng, làm tròn lên theo đơn vị nhập. Bấm
             &quot;Điền theo gợi ý&quot; ở phiếu nhập bên trên để chép số.

@@ -80,7 +80,7 @@ export default async function GiaHanPage({
             ← Về khu quản trị
           </Link>
         )}
-        <h1 className="mt-sm font-display text-2xl text-ink">Gia hạn sử dụng</h1>
+        <h1 className="mt-sm font-semibold text-2xl text-ink">Gia hạn sử dụng</h1>
         <p className="mt-xxs text-sm text-steel">{tenant.name}</p>
 
         <div className="mt-lg grid gap-lg">

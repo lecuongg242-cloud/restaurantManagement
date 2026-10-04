@@ -80,7 +80,7 @@ export function PendingOrdersDrawer({
         <Drawer.Overlay className="fixed inset-0 z-40 bg-ink/40" />
         <Drawer.Content className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-canvas shadow-modal outline-none">
           <div className="flex items-center justify-between border-b border-hairline-soft px-lg py-md">
-            <Drawer.Title className="font-display text-xl text-ink">
+            <Drawer.Title className="font-semibold text-xl text-ink">
               Chờ duyệt ({pending.length})
             </Drawer.Title>
             <button

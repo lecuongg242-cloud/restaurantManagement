@@ -52,7 +52,7 @@ export default async function SuperHome() {
             className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card transition-colors hover:bg-surface/60"
           >
             <p className="text-sm text-steel">{t.nhan}</p>
-            <p className={cn("mt-xxs font-display text-3xl tabular-nums", t.canh ? "text-status-late" : "text-ink")}>
+            <p className={cn("mt-xxs font-semibold text-3xl tabular-nums", t.canh ? "text-status-late" : "text-ink")}>
               {t.so}
             </p>
             <p className="mt-xxs text-xs text-steel">{t.phu}</p>
@@ -63,7 +63,7 @@ export default async function SuperHome() {
       <div className="grid gap-lg xl:grid-cols-2">
         <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
           <div className="flex items-baseline justify-between gap-sm">
-            <h2 className="font-display text-xl text-ink">Cần thu tiền</h2>
+            <h2 className="font-semibold text-xl text-ink">Cần thu tiền</h2>
             <Link href="/super/thue-bao" className="text-sm text-primary underline-offset-4 hover:underline">
               Thuê bao →
             </Link>
@@ -92,7 +92,7 @@ export default async function SuperHome() {
 
         <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
           <div className="flex items-baseline justify-between gap-sm">
-            <h2 className="font-display text-xl text-ink">Cầu in cần chú ý</h2>
+            <h2 className="font-semibold text-xl text-ink">Cầu in cần chú ý</h2>
             <Link href="/super/cau-in" className="text-sm text-primary underline-offset-4 hover:underline">
               Cầu in →
             </Link>

@@ -55,7 +55,7 @@ export default async function PosReservationsPage({
         <Link href={`/r/${slug}/pos`} className="inline-flex items-center gap-xs text-sm text-steel hover:text-ink">
           <ArrowLeft className="h-4 w-4" /> Về sơ đồ bàn
         </Link>
-        <h1 className="mt-sm font-display text-2xl text-ink">Đặt bàn</h1>
+        <h1 className="mt-sm font-semibold text-2xl text-ink">Đặt bàn</h1>
         <p className="mt-xxs text-sm text-steel">
           Yêu cầu đặt bàn theo ngày. Tạo mới khi khách gọi điện, xác nhận hoặc từ chối.
         </p>

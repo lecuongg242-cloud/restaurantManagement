@@ -117,7 +117,7 @@ export function AreaTableManager({
                   </form>
                 ) : (
                   <div className="flex items-center gap-sm">
-                    <h2 className="font-display text-lg text-ink">
+                    <h2 className="font-semibold text-lg text-ink">
                       {area ? area.name : "Chưa xếp khu"}
                     </h2>
                     <span className="text-xs text-steel">{g.tables.length} bàn</span>

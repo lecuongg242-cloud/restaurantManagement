@@ -9,7 +9,7 @@ export function TenantSuspended() {
   return (
     <main className="grid min-h-screen place-items-center bg-canvas px-lg">
       <div className="max-w-md text-center">
-        <h1 className="font-display text-2xl text-ink">Nhà hàng đang tạm ngưng</h1>
+        <h1 className="font-semibold text-2xl text-ink">Nhà hàng đang tạm ngưng</h1>
         <p className="mt-sm text-sm text-slate">
           Hệ thống của nhà hàng này hiện không hoạt động. Vui lòng liên hệ trực tiếp nhà hàng để
           được hỗ trợ.

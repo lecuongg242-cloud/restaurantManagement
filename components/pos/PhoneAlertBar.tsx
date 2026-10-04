@@ -240,7 +240,7 @@ export function PhoneAlertBar({
             className="absolute right-0 top-[calc(100%+8px)] z-50 flex max-h-[70vh] w-[26rem] flex-col rounded-lg border border-hairline-soft bg-canvas shadow-modal"
           >
             <div className="flex items-center justify-between border-b border-hairline-soft px-md py-xs">
-              <p className="font-display text-base text-ink">{tieuDe}</p>
+              <p className="font-semibold text-base text-ink">{tieuDe}</p>
               <button
                 type="button"
                 aria-label="Đóng"
@@ -264,7 +264,7 @@ export function PhoneAlertBar({
             <Drawer.Overlay className="fixed inset-0 z-40 bg-ink/40" />
             <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[80dvh] flex-col rounded-t-xl bg-canvas pb-[env(safe-area-inset-bottom)] shadow-modal outline-none">
               <div className="flex items-center justify-between border-b border-hairline-soft px-md py-sm">
-                <Drawer.Title className="font-display text-lg text-ink">
+                <Drawer.Title className="font-semibold text-lg text-ink">
                   {tieuDe}
                 </Drawer.Title>
                 <Drawer.Description className="sr-only">

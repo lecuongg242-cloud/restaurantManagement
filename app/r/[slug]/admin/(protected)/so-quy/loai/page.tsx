@@ -88,7 +88,7 @@ export default async function CategoriesPage({ params }: { params: Promise<{ slu
         <Link href={`/r/${slug}/admin/so-quy`} className="text-sm text-primary">
           ‹ Sổ quỹ
         </Link>
-        <h1 className="mt-xxs font-display text-2xl text-ink">Loại thu chi</h1>
+        <h1 className="mt-xxs font-semibold text-2xl text-ink">Loại thu chi</h1>
         <p className="text-sm text-steel">
           &quot;Hạch toán&quot; = mặc định tính vào Kết quả kinh doanh (từng phiếu vẫn bỏ chọn được). Mục chi phí dùng khi xuất sổ
           chi phí. Đổi ở đây không đổi phiếu đã lập.

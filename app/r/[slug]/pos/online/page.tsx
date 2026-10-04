@@ -41,7 +41,7 @@ export default async function PosOnlinePage({
         <Link href={`/r/${slug}/pos`} className="inline-flex items-center gap-xs text-sm text-steel hover:text-ink">
           <ArrowLeft className="h-4 w-4" /> Về màn POS
         </Link>
-        <h1 className="mt-sm font-display text-2xl text-ink">Đơn online</h1>
+        <h1 className="mt-sm font-semibold text-2xl text-ink">Đơn online</h1>
         <p className="mt-xxs text-sm text-steel">
           Đơn mang về / giao của khách. Nhận đơn để xuống bếp, đánh dấu sẵn sàng, rồi thu tiền hoàn tất.
         </p>

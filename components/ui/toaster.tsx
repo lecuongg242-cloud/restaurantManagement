@@ -18,6 +18,10 @@ export function Toaster({ flash }: { flash: Flash | null }) {
   const [items, setItems] = useState<Item[]>([]);
   const seen = useRef<string | null>(null);
   const seq = useRef(0);
+  // Hẹn giờ ẩn giữ ở ref, chỉ hủy khi gỡ Toaster. Đừng hủy trong cleanup của effect [flash]: layout render lại với flash
+  // mới (hoặc cùng id nhưng object mới) sẽ hủy hẹn giờ của toast trước → toast đó kẹt mãi, che nút góc phải.
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   useEffect(() => {
     if (!flash || flash.id === seen.current) return;
@@ -28,10 +32,11 @@ export function Toaster({ flash }: { flash: Flash | null }) {
     // Xoá cookie để lần điều hướng/render sau không hiện lại toast cũ.
     document.cookie = `${FLASH_COOKIE}=; path=/; max-age=0`;
 
-    const t = setTimeout(() => {
-      setItems((cur) => cur.filter((i) => i.key !== key));
-    }, 4000);
-    return () => clearTimeout(t);
+    timers.current.push(
+      setTimeout(() => {
+        setItems((cur) => cur.filter((i) => i.key !== key));
+      }, 4000)
+    );
   }, [flash]);
 
   const dismiss = (key: number) => setItems((cur) => cur.filter((i) => i.key !== key));

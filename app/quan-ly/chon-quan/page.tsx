@@ -17,7 +17,7 @@ export default async function ChonQuanPage() {
 
   return (
     <main className="mx-auto w-full max-w-[480px]">
-      <h1 className="font-display text-2xl text-ink">Chọn quán</h1>
+      <h1 className="font-semibold text-2xl text-ink">Chọn quán</h1>
       <ul className="mt-lg flex flex-col gap-sm">
         {chuoi.map((c) => (
           <li key={c.brandId}>

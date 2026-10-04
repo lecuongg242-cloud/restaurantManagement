@@ -55,7 +55,7 @@ export default async function KhachChiTiet({
         <Link href={`/r/${slug}/admin/khach-hang${caChuoi ? "?pham=chuoi" : ""}`} className="text-sm text-primary underline-offset-4 hover:underline">
           ← Khách hàng
         </Link>
-        <h1 className="mt-xs font-display text-2xl text-ink">{k?.ten ?? "(không tên)"}</h1>
+        <h1 className="mt-xs font-semibold text-2xl text-ink">{k?.ten ?? "(không tên)"}</h1>
         <p className="font-mono text-sm text-slate">
           <a href={`tel:${phone}`} className="underline-offset-4 hover:underline">
             {phone}

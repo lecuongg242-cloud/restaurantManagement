@@ -78,7 +78,7 @@ export default async function CountPage({ params }: { params: Promise<{ slug: st
       </p>
 
       <Card>
-        <h2 className="font-display text-lg text-ink">Kiểm kê cuối ngày</h2>
+        <h2 className="font-semibold text-lg text-ink">Kiểm kê cuối ngày</h2>
         <p className="mt-xxs text-sm text-steel">
           Chỉ đếm nguyên liệu đã đánh dấu &quot;cần kiểm&quot;. Số thực tế thay cho tồn kho trên sổ. Không kiểm cũng được — khi
           đó sẽ không có số hao hụt thật.
@@ -106,7 +106,7 @@ export default async function CountPage({ params }: { params: Promise<{ slug: st
       </Card>
 
       <Card>
-        <h2 className="font-display text-lg text-ink">Xuất hủy</h2>
+        <h2 className="font-semibold text-lg text-ink">Xuất hủy</h2>
         <p className="mt-xxs text-sm text-steel">Đồ hỏng, đổ bỏ, cơm nhân viên — ghi để báo cáo hao hụt nói được hụt vì đâu.</p>
         <form action={recordWaste} className="mt-md grid grid-cols-1 gap-sm sm:grid-cols-2">
           <input type="hidden" name="slug" value={slug} />

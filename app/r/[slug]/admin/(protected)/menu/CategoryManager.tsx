@@ -51,7 +51,7 @@ export function CategoryManager({
         </form>
       ) : (
         <div className="flex items-center gap-sm">
-          <h2 className="font-display text-xl text-ink">{category.name}</h2>
+          <h2 className="font-semibold text-xl text-ink">{category.name}</h2>
           <span className="text-xs text-steel">{itemCount} món</span>
           <Button type="button" variant="link" size="sm" onClick={() => setEditing(true)}>
             Sửa tên

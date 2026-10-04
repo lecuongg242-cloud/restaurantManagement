@@ -82,7 +82,7 @@ export default async function ChiTietNhanVien({
         <Link href={`/r/${slug}/admin/reports?${new URLSearchParams(giu)}`} className="text-sm text-primary underline-offset-4 hover:underline">
           ← Báo cáo
         </Link>
-        <h1 className="mt-xs font-display text-2xl text-ink">{ten}</h1>
+        <h1 className="mt-xs font-semibold text-2xl text-ink">{ten}</h1>
         <p className="text-sm text-steel">
           {range.label} · giờ Việt Nam{caChuoi ? ` · ${ids.length} chi nhánh` : ""}
         </p>

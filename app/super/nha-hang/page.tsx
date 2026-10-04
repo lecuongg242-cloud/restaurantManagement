@@ -66,7 +66,7 @@ export default async function NhaHangPage({
                       <div className="flex items-center gap-sm">
                         <span
                           className={cn(
-                            "grid h-9 w-9 shrink-0 place-items-center rounded-md bg-cream-soft font-display text-lg text-ink",
+                            "grid h-9 w-9 shrink-0 place-items-center rounded-md bg-cream-soft font-semibold text-lg text-ink",
                             isSuspended && "opacity-60"
                           )}
                         >

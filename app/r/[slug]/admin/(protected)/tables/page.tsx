@@ -60,7 +60,7 @@ export default async function TablesPage({
     <div className="w-full">
       <div className="flex flex-wrap items-end justify-between gap-md">
         <div>
-          <h1 className="font-display text-2xl text-ink">Bàn & QR</h1>
+          <h1 className="font-semibold text-2xl text-ink">Bàn & QR</h1>
           <p className="mt-xxs text-sm text-steel">
             Khai báo khu vực và bàn. Mỗi bàn có mã QR riêng trỏ tới menu gọi món.
           </p>

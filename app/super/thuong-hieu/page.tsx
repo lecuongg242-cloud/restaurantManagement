@@ -54,7 +54,7 @@ export default async function ThuongHieuPage() {
       />
 
       <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
-        <h2 className="font-display text-lg text-ink">Tạo thương hiệu</h2>
+        <h2 className="font-semibold text-lg text-ink">Tạo thương hiệu</h2>
         <div className="mt-md">
           <CreateBrandForm quanLe={quanLe} />
         </div>
@@ -70,7 +70,7 @@ export default async function ThuongHieuPage() {
         return (
           <section key={b.id} className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card" data-brand={b.slug}>
             <div className="flex flex-wrap items-baseline justify-between gap-sm">
-              <h2 className="font-display text-xl text-ink">
+              <h2 className="font-semibold text-xl text-ink">
                 {b.name} <span className="font-mono text-sm text-steel">{b.slug}</span>
               </h2>
               <p className="text-sm text-steel">

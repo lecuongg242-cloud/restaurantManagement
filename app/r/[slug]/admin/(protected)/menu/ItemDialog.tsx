@@ -71,7 +71,7 @@ export function ItemDialog({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-xl text-ink">
+              <h2 className="font-semibold text-xl text-ink">
                 {isEdit ? "Sửa món" : "Thêm món mới"}
               </h2>
               <button

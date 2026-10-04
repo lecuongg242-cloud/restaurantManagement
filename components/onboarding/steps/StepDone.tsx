@@ -18,11 +18,11 @@ export function StepDone({
       <p className="text-sm text-slate">Tóm tắt thiết lập:</p>
       <ul className="grid gap-sm sm:grid-cols-2">
         <li className="rounded-md border border-hairline-soft bg-canvas px-md py-sm text-sm text-ink">
-          <span className="text-2xl font-display">{itemCount}</span>
+          <span className="text-2xl font-semibold">{itemCount}</span>
           <span className="ml-xs text-steel">món trong thực đơn</span>
         </li>
         <li className="rounded-md border border-hairline-soft bg-canvas px-md py-sm text-sm text-ink">
-          <span className="text-2xl font-display">{tableCount}</span>
+          <span className="text-2xl font-semibold">{tableCount}</span>
           <span className="ml-xs text-steel">bàn đã tạo</span>
         </li>
       </ul>

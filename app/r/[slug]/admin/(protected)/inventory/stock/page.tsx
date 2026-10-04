@@ -49,7 +49,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     <div className="flex flex-col gap-xl">
       <section>
         <div className="flex flex-wrap items-baseline justify-between gap-sm">
-          <h2 className="font-display text-lg text-ink">Tồn hiện tại (ước tính)</h2>
+          <h2 className="font-semibold text-lg text-ink">Tồn hiện tại (ước tính)</h2>
           <Link href={`/r/${slug}/admin/nhap-hang/moi`} className="text-sm text-primary">
             + Nhập hàng
           </Link>
@@ -75,7 +75,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
       </section>
 
       <Card>
-        <h2 className="font-display text-lg text-ink">Chế biến</h2>
+        <h2 className="font-semibold text-lg text-ink">Chế biến</h2>
         <p className="mt-xxs text-sm text-steel">Nấu xong một mẻ thì ghi ở đây: trừ nguyên liệu con, cộng bán thành phẩm.</p>
         <div className="mt-md">
           <BatchForm slug={slug} ingredients={data.ingredients} recipes={Object.fromEntries(data.byParent)} />

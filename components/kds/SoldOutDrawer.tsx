@@ -52,7 +52,7 @@ export function SoldOutDrawer({
         <Drawer.Content className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-canvas shadow-modal outline-none">
           <header className="flex shrink-0 items-start justify-between gap-sm border-b border-hairline px-lg py-md">
             <div>
-              <Drawer.Title className="font-display text-xl text-ink">Báo hết món</Drawer.Title>
+              <Drawer.Title className="font-semibold text-xl text-ink">Báo hết món</Drawer.Title>
               <Drawer.Description className="mt-xxs text-sm text-steel">
                 Tắt món khi bếp hết nguyên liệu — khách và POS không đặt được nữa.
                 {soldOutCount > 0 && (

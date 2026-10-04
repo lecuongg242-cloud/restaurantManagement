@@ -62,7 +62,7 @@ export async function TongQuanChuoi({ branches, hienTai }: { branches: ChiNhanh[
   return (
     <section className="rounded-lg border border-hairline-soft bg-canvas shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-sm px-lg pt-lg">
-        <h2 className="font-display text-lg text-ink">Hôm nay cả chuỗi</h2>
+        <h2 className="font-semibold text-lg text-ink">Hôm nay cả chuỗi</h2>
         <p className="text-sm text-steel">{range.label}</p>
       </div>
       <div className="mt-sm overflow-x-auto">

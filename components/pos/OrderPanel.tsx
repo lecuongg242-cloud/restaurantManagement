@@ -272,7 +272,7 @@ export function OrderPanel({
     <div className="flex h-full min-h-0 flex-col bg-canvas">
       <div className="flex items-center justify-between border-b border-hairline-soft px-lg py-md">
         <div className="min-w-0">
-          <h2 className="font-display text-xl text-ink">Bàn {table.name}</h2>
+          <h2 className="font-semibold text-xl text-ink">Bàn {table.name}</h2>
           {session && (
             <p className="text-xs text-steel">
               {isGroup && `Nhóm ${mainTable.name} · ${groupSize} bàn · `}
@@ -490,7 +490,7 @@ export function OrderPanel({
           <Drawer.Overlay className="fixed inset-0 z-40 bg-ink/40 sm:hidden" />
           <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-xl bg-canvas pb-[env(safe-area-inset-bottom)] shadow-modal outline-none sm:hidden">
             <div className="flex items-center justify-between border-b border-hairline-soft px-md py-sm">
-              <Drawer.Title className="font-display text-lg text-ink">Giỏ hàng · Bàn {table.name}</Drawer.Title>
+              <Drawer.Title className="font-semibold text-lg text-ink">Giỏ hàng · Bàn {table.name}</Drawer.Title>
               <Drawer.Description className="sr-only">Món chưa gửi, ghi chú và nút gửi bếp</Drawer.Description>
               <Drawer.Close asChild>
                 <button

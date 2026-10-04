@@ -56,7 +56,7 @@ export default async function CaiDatNenTangPage() {
       />
 
       <section className="rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card">
-        <h2 className="font-display text-lg text-ink">Gói dịch vụ</h2>
+        <h2 className="font-semibold text-lg text-ink">Gói dịch vụ</h2>
         <p className="mt-xxs text-sm text-steel">
           Mỗi gói một giá riêng — thêm, sửa, xóa tùy ý. Gói bật “Hiện cho quán” xuất hiện trên trang Gia hạn của chủ
           quán; tắt đi thì gói chỉ dùng khi bạn ghi nhận ở Thuê bao.
@@ -79,7 +79,7 @@ export default async function CaiDatNenTangPage() {
         </section>
 
         <aside className="self-start rounded-lg border border-hairline-soft bg-canvas p-lg shadow-card" data-qr-xem-truoc>
-          <h2 className="font-display text-lg text-ink">Xem trước QR</h2>
+          <h2 className="font-semibold text-lg text-ink">Xem trước QR</h2>
           {svg && cfg.bank ? (
             <>
               <div

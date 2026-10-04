@@ -57,7 +57,7 @@ export default async function KhachHangPage({
     <div className="flex flex-col gap-lg">
       <header className="flex flex-wrap items-end justify-between gap-md">
         <div>
-          <h1 className="font-display text-2xl text-ink">Khách hàng</h1>
+          <h1 className="font-semibold text-2xl text-ink">Khách hàng</h1>
           <p className="mt-xxs text-sm text-steel">
             {tong} khách có số điện thoại · 30 ngày qua {tyLe}% doanh thu có SĐT khách
             {tyLe < 20 && " — nhập SĐT khách khi bán mang về / giao hàng để danh sách đầy đủ hơn"}.

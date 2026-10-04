@@ -79,7 +79,7 @@ export function IngredientDialog({
           className="flex max-h-[calc(100dvh-2rem)] flex-col"
         >
           <div className="flex items-center justify-between gap-md border-b border-hairline-soft px-lg py-md">
-            <h2 id="nguyen-lieu-tieu-de" className="font-display text-xl">
+            <h2 id="nguyen-lieu-tieu-de" className="font-semibold text-xl">
               {tieuDe}
             </h2>
             <button

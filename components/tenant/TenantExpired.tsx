@@ -9,7 +9,7 @@ export function TenantExpired({ slug, supportPhone }: { slug: string; supportPho
   return (
     <main className="grid min-h-screen place-items-center bg-canvas px-lg">
       <div className="max-w-md text-center">
-        <h1 className="font-display text-2xl text-ink">Hết hạn sử dụng</h1>
+        <h1 className="font-semibold text-2xl text-ink">Hết hạn sử dụng</h1>
         <p className="mt-sm text-sm text-slate">
           Gói sử dụng phần mềm của nhà hàng này đã hết hạn. Dữ liệu vẫn được giữ nguyên và mở lại ngay khi gia hạn.
         </p>

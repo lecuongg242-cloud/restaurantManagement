@@ -49,7 +49,7 @@ export default async function VoucherPage({ params }: { params: Promise<{ slug: 
         <Link href={`/r/${slug}/admin/so-quy?quy=${v.fund}`} className="text-sm text-primary">
           ‹ Sổ quỹ
         </Link>
-        <h1 className="mt-xxs flex flex-wrap items-center gap-sm font-display text-2xl text-ink">
+        <h1 className="mt-xxs flex flex-wrap items-center gap-sm font-semibold text-2xl text-ink">
           {chi ? "Phiếu chi" : "Phiếu thu"} <span className="font-mono text-lg">{v.code}</span>
           {v.status === "cancelled" ? <Badge variant="done">Đã hủy</Badge> : <Badge variant="ready">Còn hiệu lực</Badge>}
         </h1>

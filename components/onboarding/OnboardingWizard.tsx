@@ -73,7 +73,7 @@ export function OnboardingWizard({
 
       {/* Nội dung bước */}
       <div className="mt-xl rounded-lg border border-hairline-soft bg-canvas p-xl">
-        <h2 className="font-display text-xl text-ink">
+        <h2 className="font-semibold text-xl text-ink">
           Bước {step}: {STEPS[step - 1]}
         </h2>
         <div className="mt-lg">

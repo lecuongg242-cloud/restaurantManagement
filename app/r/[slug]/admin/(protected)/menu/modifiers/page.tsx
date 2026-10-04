@@ -59,7 +59,7 @@ export default async function ModifiersPage({
     <div className="w-full">
       <div className="flex flex-wrap items-end justify-between gap-md">
         <div>
-          <h1 className="font-display text-2xl text-ink">Nhóm tùy chọn</h1>
+          <h1 className="font-semibold text-2xl text-ink">Nhóm tùy chọn</h1>
           <p className="mt-xxs text-sm text-steel">
             Size, topping, mức đường/đá… kèm phụ thu. Gắn nhóm vào món ở dialog sửa món.
           </p>

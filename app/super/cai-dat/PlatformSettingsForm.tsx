@@ -23,7 +23,7 @@ export function PlatformSettingsForm({ giaTri }: { giaTri: GiaTriForm }) {
   return (
     <form action={action} className="flex flex-col gap-lg">
       <fieldset className="flex flex-col gap-md">
-        <legend className="font-display text-lg text-ink">Tài khoản nhận tiền gia hạn</legend>
+        <legend className="font-semibold text-lg text-ink">Tài khoản nhận tiền gia hạn</legend>
         <p className="text-sm text-steel">Mã QR trên trang Gia hạn của mọi quán chuyển tiền về tài khoản này.</p>
         <label className="flex min-w-0 max-w-md flex-col gap-xxs text-sm text-slate">
           Ngân hàng
@@ -63,7 +63,7 @@ export function PlatformSettingsForm({ giaTri }: { giaTri: GiaTriForm }) {
       </fieldset>
 
       <fieldset className="flex flex-col gap-md">
-        <legend className="font-display text-lg text-ink">Hỗ trợ</legend>
+        <legend className="font-semibold text-lg text-ink">Hỗ trợ</legend>
         <label className="flex max-w-xs flex-col gap-xxs text-sm text-slate">
           Số điện thoại hỗ trợ
           <Input

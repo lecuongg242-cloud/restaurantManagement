@@ -61,7 +61,7 @@ export default async function CashbookPage({
     <div className="flex flex-col gap-lg">
       <header className="flex flex-wrap items-end justify-between gap-md">
         <div>
-          <h1 className="font-display text-2xl text-ink">Sổ quỹ</h1>
+          <h1 className="font-semibold text-2xl text-ink">Sổ quỹ</h1>
           <p className="text-sm text-steel">{range.label} · giờ Việt Nam</p>
           <nav aria-label="Sổ quỹ" className="mt-xs flex gap-md text-sm">
             <span className="font-medium text-ink">Sổ quỹ</span>
@@ -129,7 +129,7 @@ export default async function CashbookPage({
         ].map((k) => (
           <Card key={k.nhan}>
             <p className="text-sm text-steel">{k.nhan}</p>
-            <p className={cn("mt-xxs font-display text-2xl tabular-nums", k.dam ? "text-primary" : "text-ink")}>{formatVnd(k.so)}</p>
+            <p className={cn("mt-xxs font-semibold text-2xl tabular-nums", k.dam ? "text-primary" : "text-ink")}>{formatVnd(k.so)}</p>
           </Card>
         ))}
       </section>

@@ -65,12 +65,12 @@ export default async function BrandPublicPage({ params }: { params: Promise<{ br
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logo} alt="" className="h-14 w-14 rounded-full object-cover" />
           ) : (
-            <span className="grid h-14 w-14 place-items-center rounded-full bg-primary font-display text-2xl text-primary-fg" aria-hidden>
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-primary font-semibold text-2xl text-primary-fg" aria-hidden>
               {brand.name.charAt(0).toUpperCase()}
             </span>
           )}
           <div>
-            <h1 className="font-display text-3xl text-ink">{brand.name}</h1>
+            <h1 className="font-semibold text-3xl text-ink">{brand.name}</h1>
             <p className="text-sm text-steel">Chọn chi nhánh để đặt món hoặc đặt bàn</p>
           </div>
         </header>

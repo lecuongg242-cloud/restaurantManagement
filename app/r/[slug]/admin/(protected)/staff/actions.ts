@@ -24,6 +24,29 @@ function staffPath(slug: string) {
   return `/r/${slug}/admin/staff`;
 }
 
+/** Kết quả trả về hộp thoại (P31): lỗi thì hộp thoại giữ nguyên và hiện câu lỗi; toast góc màn vẫn có. */
+export type StaffResult = { ok: true } | { ok: false; error: string };
+
+async function fail(error: string): Promise<StaffResult> {
+  await setFlash("error", error);
+  return { ok: false, error };
+}
+
+async function done(message: string): Promise<StaffResult> {
+  await setFlash("ok", message);
+  return { ok: true };
+}
+
+/** Kiểm bí mật theo vai trò: quản lý → mật khẩu ≥8 ký tự, vai trò trạm → PIN 4 số. Trả câu lỗi hoặc null. */
+function secretError(isManager: boolean, secret: string): string | null {
+  if (isManager) {
+    return isValidManagerPassword(secret)
+      ? null
+      : `Mật khẩu quản lý phải từ ${MANAGER_PASSWORD_MIN} ký tự (không dùng 4 chữ số).`;
+  }
+  return isValidPin(secret) ? null : "PIN phải gồm đúng 4 chữ số.";
+}
+
 type TargetMember = { user_id: string | null; email: string | null; role: Role };
 type LoadResult = { ok: false; error: string } | { ok: true; target: TargetMember };
 
@@ -57,7 +80,7 @@ async function loadTarget(
  *  - manager → MẬT KHẨU ≥8 ký tự đặt thẳng, `pin_hash` để null (không dùng PIN-gate).
  * Vai trò gán được do `canAssignRole` quyết định — chặn ở ĐÂY, không chỉ ẩn option trong form.
  */
-export async function createStaff(formData: FormData) {
+export async function createStaff(formData: FormData): Promise<StaffResult> {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireManager(slug);
 
@@ -66,23 +89,15 @@ export async function createStaff(formData: FormData) {
   const role = String(formData.get("role") ?? "") as Role;
   const secret = String(formData.get("secret") ?? "");
 
-  if (!displayName) return setFlash("error", "Thiếu tên nhân viên.");
-  if (!EMAIL_RE.test(email)) return setFlash("error", "Email không hợp lệ.");
+  if (!displayName) return fail("Thiếu tên nhân viên.");
+  if (!EMAIL_RE.test(email)) return fail("Email không hợp lệ.");
   if (!canAssignRole(session.role, role)) {
-    return setFlash("error", "Không đủ quyền cấp vai trò này.");
+    return fail("Không đủ quyền cấp vai trò này.");
   }
 
   const isManager = role === "manager";
-  if (isManager) {
-    if (!isValidManagerPassword(secret)) {
-      return setFlash(
-        "error",
-        `Mật khẩu quản lý phải từ ${MANAGER_PASSWORD_MIN} ký tự (không dùng 4 chữ số).`
-      );
-    }
-  } else if (!isValidPin(secret)) {
-    return setFlash("error", "PIN phải gồm đúng 4 chữ số.");
-  }
+  const bad = secretError(isManager, secret);
+  if (bad) return fail(bad);
 
   const admin = createAdminClient();
 
@@ -94,10 +109,7 @@ export async function createStaff(formData: FormData) {
   });
   if (cErr || !created?.user) {
     const dup = /registered|already/i.test(cErr?.message ?? "");
-    return setFlash(
-      "error",
-      dup ? "Email đã được dùng." : `Không tạo được tài khoản: ${cErr?.message ?? "lỗi"}`
-    );
+    return fail(dup ? "Email đã được dùng." : `Không tạo được tài khoản: ${cErr?.message ?? "lỗi"}`);
   }
 
   const userId = created.user.id;
@@ -114,14 +126,68 @@ export async function createStaff(formData: FormData) {
   if (mErr) {
     // Rollback tài khoản vừa tạo để tránh mồ côi.
     await admin.auth.admin.deleteUser(userId);
-    return setFlash("error", `Không tạo được nhân viên: ${mErr.message}`);
+    return fail(`Không tạo được nhân viên: ${mErr.message}`);
   }
 
   revalidatePath(staffPath(slug));
-  await setFlash(
-    "ok",
+  return done(
     isManager ? `Đã thêm quản lý ${displayName} (${email}).` : `Đã thêm ${displayName} (${email}).`
   );
+}
+
+/**
+ * Sửa tên + vai trò (P31, AUTH-08). Email không đổi: mật khẩu Supabase của vai trò PIN suy dẫn từ email.
+ * Quyền kiểm CẢ vai trò cũ (đọc DB qua `loadTarget`) lẫn vai trò mới — quản lý không nâng ai lên Quản lý.
+ * Đổi giữa nhóm PIN (thu ngân/phục vụ/bếp) và Quản lý (mật khẩu) thì bắt nhập bí mật mới cho nhóm mới:
+ * PIN cũ không dùng làm mật khẩu quản lý được, và quản lý không có PIN.
+ */
+export async function updateStaff(formData: FormData): Promise<StaffResult> {
+  const slug = String(formData.get("slug") ?? "");
+  const session = await requireManager(slug);
+  const id = String(formData.get("id") ?? "");
+  const displayName = String(formData.get("display_name") ?? "").trim();
+  const role = String(formData.get("role") ?? "") as Role;
+  const secret = String(formData.get("secret") ?? "");
+
+  if (!displayName) return fail("Thiếu tên nhân viên.");
+  if (!canAssignRole(session.role, role)) return fail("Không đủ quyền cấp vai trò này.");
+
+  const admin = createAdminClient();
+  const loaded = await loadTarget(admin, session.tenant.id, session.role, id);
+  if (!loaded.ok) return fail(loaded.error);
+  const { target } = loaded;
+
+  const isManager = role === "manager";
+  const kindChanged = (target.role === "manager") !== isManager;
+  const patch: { display_name: string; role: Role; pin_hash?: string | null } = { display_name: displayName, role };
+
+  if (kindChanged) {
+    // Thành viên kiểu cũ (P1) không có tài khoản đăng nhập → không đổi nhóm được, tạo mới thay vì sửa.
+    if (!target.user_id || !target.email) return fail("Nhân viên này chưa có email đăng nhập, không đổi vai trò được.");
+    const bad = secretError(isManager, secret);
+    if (bad) return fail(bad);
+    patch.pin_hash = isManager ? null : await hashPin(secret);
+  }
+
+  if (target.user_id) {
+    const { error } = await admin.auth.admin.updateUserById(target.user_id, {
+      user_metadata: { full_name: displayName },
+      ...(kindChanged
+        ? { password: isManager ? secret : derivePinPassword(target.email!, secret) }
+        : {}),
+    });
+    if (error) return fail(`Không lưu được: ${error.message}`);
+  }
+
+  const { error } = await admin
+    .from("memberships")
+    .update(patch)
+    .eq("id", id)
+    .eq("tenant_id", session.tenant.id);
+  if (error) return fail(error.message);
+
+  revalidatePath(staffPath(slug));
+  return done(`Đã lưu ${displayName}.`);
 }
 
 /**
@@ -129,7 +195,7 @@ export async function createStaff(formData: FormData) {
  *  - vai trò trạm → PIN 4 số: cập nhật mật khẩu suy dẫn + `pin_hash`.
  *  - manager → mật khẩu ≥8 ký tự: cập nhật thẳng, `pin_hash` giữ null.
  */
-export async function resetPin(formData: FormData) {
+export async function resetPin(formData: FormData): Promise<StaffResult> {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireManager(slug);
   const id = String(formData.get("id") ?? "");
@@ -137,26 +203,18 @@ export async function resetPin(formData: FormData) {
 
   const admin = createAdminClient();
   const loaded = await loadTarget(admin, session.tenant.id, session.role, id);
-  if (!loaded.ok) return setFlash("error", loaded.error);
+  if (!loaded.ok) return fail(loaded.error);
   const { target } = loaded;
 
   const isManager = target.role === "manager";
-  if (isManager) {
-    if (!isValidManagerPassword(secret)) {
-      return setFlash(
-        "error",
-        `Mật khẩu quản lý phải từ ${MANAGER_PASSWORD_MIN} ký tự (không dùng 4 chữ số).`
-      );
-    }
-  } else if (!isValidPin(secret)) {
-    return setFlash("error", "PIN phải 4 chữ số.");
-  }
+  const bad = secretError(isManager, secret);
+  if (bad) return fail(bad);
 
   if (target.user_id && target.email) {
     const { error } = await admin.auth.admin.updateUserById(target.user_id, {
       password: isManager ? secret : derivePinPassword(target.email, secret),
     });
-    if (error) return setFlash("error", `Không đặt lại được: ${error.message}`);
+    if (error) return fail(`Không đặt lại được: ${error.message}`);
   }
 
   const { error } = await admin
@@ -164,17 +222,17 @@ export async function resetPin(formData: FormData) {
     .update({ pin_hash: isManager ? null : await hashPin(secret) })
     .eq("id", id)
     .eq("tenant_id", session.tenant.id);
-  if (error) return setFlash("error", error.message);
+  if (error) return fail(error.message);
 
   revalidatePath(staffPath(slug));
-  await setFlash("ok", isManager ? "Đã đặt lại mật khẩu." : "Đã đặt lại PIN.");
+  return done(isManager ? "Đã đặt lại mật khẩu." : "Đã đặt lại PIN.");
 }
 
 /**
  * Bật/tắt thành viên (giữ lịch sử). Tắt = ban tài khoản Supabase để không đăng nhập được.
- * Void: cập nhật tại chỗ (badge trạng thái đổi ngay), không đổi link.
+ * Cập nhật tại chỗ (badge trạng thái đổi ngay), không đổi link.
  */
-export async function setStaffActive(formData: FormData) {
+export async function setStaffActive(formData: FormData): Promise<StaffResult> {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireManager(slug);
   const id = String(formData.get("id") ?? "");
@@ -182,7 +240,7 @@ export async function setStaffActive(formData: FormData) {
 
   const admin = createAdminClient();
   const loaded = await loadTarget(admin, session.tenant.id, session.role, id);
-  if (!loaded.ok) return setFlash("error", loaded.error);
+  if (!loaded.ok) return fail(loaded.error);
   const { target } = loaded;
 
   await admin
@@ -198,7 +256,7 @@ export async function setStaffActive(formData: FormData) {
   }
 
   revalidatePath(staffPath(slug));
-  await setFlash("ok", active ? "Đã bật nhân viên." : "Đã tắt nhân viên.");
+  return done(active ? "Đã bật nhân viên." : "Đã tắt nhân viên.");
 }
 
 /**
@@ -206,14 +264,14 @@ export async function setStaffActive(formData: FormData) {
  * `loadTarget` + `canAssignRole` đảm bảo không ai xóa được owner/station, và manager không
  * xóa được manager khác.
  */
-export async function deleteStaff(formData: FormData) {
+export async function deleteStaff(formData: FormData): Promise<StaffResult> {
   const slug = String(formData.get("slug") ?? "");
   const session = await requireManager(slug);
   const id = String(formData.get("id") ?? "");
 
   const admin = createAdminClient();
   const loaded = await loadTarget(admin, session.tenant.id, session.role, id);
-  if (!loaded.ok) return setFlash("error", loaded.error);
+  if (!loaded.ok) return fail(loaded.error);
   const { target } = loaded;
 
   await admin
@@ -225,5 +283,5 @@ export async function deleteStaff(formData: FormData) {
   if (target.user_id) await admin.auth.admin.deleteUser(target.user_id);
 
   revalidatePath(staffPath(slug));
-  await setFlash("ok", "Đã xóa nhân viên.");
+  return done("Đã xóa nhân viên.");
 }

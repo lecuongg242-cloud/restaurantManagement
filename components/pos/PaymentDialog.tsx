@@ -132,7 +132,7 @@ export function PaymentDialog({
     <div className="fixed inset-0 z-[60] grid place-items-center bg-ink/50 p-md max-sm:p-0" role="dialog" aria-modal="true" aria-label="Thu tiền">
       <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none">
         <div className="flex items-center justify-between border-b border-hairline-soft px-lg py-md">
-          <h3 className="font-display text-lg text-ink">
+          <h3 className="font-semibold text-lg text-ink">
             {done ? "Đã thanh toán" : "Thu tiền"}
             {bill.billNo != null ? ` · #${bill.billNo}` : ""}
           </h3>
@@ -144,7 +144,7 @@ export function PaymentDialog({
         <div className="min-h-0 flex-1 overflow-y-auto px-lg py-md">
           <div className="mb-md flex items-center justify-between">
             <span className="text-sm text-steel">Tổng phải thu</span>
-            <span className="font-display text-2xl font-semibold tabular-nums text-primary">{formatVnd(total)}</span>
+            <span className="text-2xl font-semibold tabular-nums text-primary">{formatVnd(total)}</span>
           </div>
 
           {done ? (

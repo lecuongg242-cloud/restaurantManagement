@@ -25,7 +25,7 @@ export default async function ChiNhanhPage({ params }: { params: Promise<{ slug:
   return (
     <div className="flex flex-col gap-lg">
       <header>
-        <h1 className="font-display text-2xl text-ink">Chi nhánh</h1>
+        <h1 className="font-semibold text-2xl text-ink">Chi nhánh</h1>
         <p className="mt-xxs text-sm text-steel">
           {chuoi
             ? `Chuỗi ${chuoi.brand.name} · ${chuoi.branches.length} chi nhánh. Chuyển chi nhánh bằng ô chọn ở góc trên.`

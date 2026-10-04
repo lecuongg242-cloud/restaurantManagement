@@ -37,7 +37,7 @@ export function PinPrompt({
     <div className="fixed inset-0 z-[70] grid place-items-center bg-ink/50 p-md max-sm:p-0" role="dialog" aria-modal="true" aria-label={title}>
       <div className="flex max-h-[90vh] w-full max-w-sm flex-col overflow-hidden rounded-xl bg-canvas shadow-modal max-sm:h-full max-sm:max-h-none max-sm:max-w-none max-sm:rounded-none">
         <div className="border-b border-hairline-soft px-lg py-md">
-          <h3 className="font-display text-lg text-ink">{title}</h3>
+          <h3 className="font-semibold text-lg text-ink">{title}</h3>
           {!canSkip && (
             <p className="mt-xxs text-xs text-steel">Chọn quản lý/thu ngân và nhập PIN.</p>
           )}

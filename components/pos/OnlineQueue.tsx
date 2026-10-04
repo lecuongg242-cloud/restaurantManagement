@@ -312,7 +312,7 @@ function OrderHeader({ order }: { order: OnlineOrderView }) {
     <div className="flex items-start justify-between gap-md">
       <div className="flex items-baseline gap-sm">
         {order.kitchenNo != null && (
-          <span className="font-display text-xl font-semibold text-primary">#{order.kitchenNo}</span>
+          <span className="text-xl font-semibold text-primary">#{order.kitchenNo}</span>
         )}
         <span
           className={

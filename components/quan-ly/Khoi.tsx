@@ -15,7 +15,7 @@ export function TheSo({ nhan, so, phu }: { nhan: string; so: string; phu?: strin
   return (
     <div className="min-w-0 rounded-lg border border-hairline-soft bg-canvas p-sm shadow-card">
       <p className="truncate text-xs text-steel">{nhan}</p>
-      <p className="mt-xxs truncate font-display text-lg font-semibold tabular-nums text-ink">{so}</p>
+      <p className="mt-xxs truncate text-lg font-semibold tabular-nums text-ink">{so}</p>
       {phu && <p className="truncate text-xs text-steel">{phu}</p>}
     </div>
   );
