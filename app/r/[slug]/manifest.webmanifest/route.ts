@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { thuongHieuQuan } from "@/lib/tenant/thuong-hieu";
+import { duongDanBieuTuong } from "@/lib/tenant/bieu-tuong";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   if (!quan) return new NextResponse(null, { status: 404 });
   const k = req.nextUrl.searchParams.get("app");
   const b = BE_MAT[k === "kds" || k === "admin" ? k : "pos"];
-  const icon = (s: number) => ({ src: `/r/${slug}/favicon.png?s=${s}`, sizes: `${s}x${s}`, type: "image/png", purpose: "any" });
+  const icon = (s: number) => ({ src: duongDanBieuTuong(slug, quan, s), sizes: `${s}x${s}`, type: "image/png", purpose: "any" });
   return NextResponse.json(
     {
       id: `/r/${slug}/${b.duong}`,

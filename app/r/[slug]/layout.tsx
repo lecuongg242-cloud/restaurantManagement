@@ -5,6 +5,7 @@ import { thuongHieuQuan } from "@/lib/tenant/thuong-hieu";
 import { TenantSuspended } from "@/components/tenant/TenantSuspended";
 import { TenantExpired } from "@/components/tenant/TenantExpired";
 import { platformConfig } from "@/lib/platform/config";
+import { duongDanBieuTuong } from "@/lib/tenant/bieu-tuong";
 
 /**
  * Trang vẫn mở khi quán HẾT HẠN (SUB-04): đăng nhập + Gia hạn — lối thoát duy nhất của chủ quán. Trang
@@ -19,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const quan = await thuongHieuQuan(slug);
   if (!quan) return {};
-  return { title: quan.ten, icons: { icon: `/r/${slug}/favicon.png` } };
+  return { title: quan.ten, icons: { icon: duongDanBieuTuong(slug, quan) } };
 }
 
 /**
