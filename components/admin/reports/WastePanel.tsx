@@ -18,10 +18,10 @@ const pct = (n: number | null) => (n === null ? "–" : `${n.toLocaleString("vi-
  */
 export function WastePanel({ data }: { data: InventoryReport }) {
   const w = data.waste;
-  if (w.closedDays === 0) {
+  if (w.closedDays + w.openDays === 0) {
     return (
       <p className="text-sm text-steel">
-        Chưa có ngày nào được chốt sổ trong kỳ này. Số hao hụt có từ ngày hôm sau của ngày đầu tiên nhập nguyên liệu.
+        Kỳ này chưa có số liệu kho. Số hao hụt có từ ngày đầu tiên nhập nguyên liệu.
       </p>
     );
   }
@@ -30,7 +30,8 @@ export function WastePanel({ data }: { data: InventoryReport }) {
     <div className="flex flex-col gap-md">
       <p className="text-sm text-steel">
         Tổng hao hụt <span className="font-medium text-ink">{formatVnd(w.total)}</span> ·{" "}
-        <span className="font-medium text-ink">{pct(w.pctOfRevenue)}</span> doanh thu món · {w.closedDays} ngày đã chốt.
+        <span className="font-medium text-ink">{pct(w.pctOfRevenue)}</span> doanh thu món · {w.closedDays} ngày đã chốt
+        {w.openDays > 0 && <> + {w.openDays} ngày chưa chốt (tạm tính — có thể đổi khi nhập phiếu muộn hoặc sửa định lượng)</>}.
         <span className="block text-xs">Quán vận hành tốt thường dưới 2%; trên 5% là có vấn đề cần tìm.</span>
       </p>
 

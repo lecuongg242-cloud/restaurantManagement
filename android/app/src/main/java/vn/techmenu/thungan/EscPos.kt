@@ -98,7 +98,9 @@ object EscPos {
         lenh(TRAI)
         chu("-".repeat(rong))
         val tenBan = if (phieu.isNull("tableName")) "-" else phieu.optString("tableName", "-")
-        chu(hang("Ban: $tenBan", "#${phieu.optString("ticketNo")}", rong))
+        // Đơn không bàn (P35): in thẳng nơi phục vụ ("Tai quan" / "Mang ve"), không "Ban: ...".
+        val noi = if (phieu.isNull("place")) "" else phieu.optString("place", "")
+        chu(hang(if (noi.isNotEmpty()) noi else "Ban: $tenBan", "#${phieu.optString("ticketNo")}", rong))
         val mon = phieu.optJSONArray("items")
         var phan = 0
         for (i in 0 until (mon?.length() ?: 0)) phan += mon!!.optJSONObject(i)?.optInt("qty") ?: 0

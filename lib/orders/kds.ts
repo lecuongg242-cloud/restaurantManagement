@@ -38,7 +38,7 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
     supabase
       .from("orders")
       .select(
-        "id, kitchen_no, status, channel, source, confirmed_at, table_session_id, table_id, table_sessions(table_id, tables(name)), order_items(id, name_snapshot, qty, note, status, created_at, delivered_at, order_item_modifiers(name_snapshot))"
+        "id, kitchen_no, status, channel, source, eat_in, confirmed_at, table_session_id, table_id, table_sessions(table_id, tables(name)), order_items(id, name_snapshot, qty, note, status, created_at, delivered_at, order_item_modifiers(name_snapshot))"
       )
       .eq("tenant_id", tenantId)
       .in("status", ["confirmed", "preparing", "ready"])
@@ -94,6 +94,7 @@ export async function getKdsTickets(tenantId: string): Promise<KdsTicket[]> {
         tableName: groupName ?? ts?.tables?.name ?? null,
         channel: (o.channel as OrderChannel) ?? "dine_in",
         source: o.source as OrderSource,
+        eatIn: o.eat_in as boolean,
       }),
       items,
     });

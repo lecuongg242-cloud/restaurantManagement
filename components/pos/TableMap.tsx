@@ -173,7 +173,7 @@ export function TableMap({
           type="button"
           onClick={onSelectTakeaway}
           aria-pressed={takeawayActive}
-          aria-label={`Bán mang về${takeawayCount > 0 ? `, ${takeawayCount} đơn đang chờ` : ""}`}
+          aria-label={`Khách không bàn${takeawayCount > 0 ? `, ${takeawayCount} đơn đang chờ` : ""}`}
           className={cn(
             "mt-lg flex w-full items-center gap-sm rounded-lg border-2 border-dashed px-md py-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
             takeawayActive
@@ -182,14 +182,14 @@ export function TableMap({
           )}
         >
           <ShoppingBag className="h-5 w-5 text-primary" />
-          <span className="text-sm font-semibold">Bán mang về</span>
+          <span className="text-sm font-semibold">Khách không bàn</span>
           <span className="ml-auto flex items-center gap-sm">
             {takeawayCount > 0 && (
               <span className="grid h-6 min-w-[24px] place-items-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-fg">
                 {takeawayCount}
               </span>
             )}
-            <span className="text-xs text-steel">{takeawayCount > 0 ? "đơn chờ" : "không gắn bàn"}</span>
+            <span className="text-xs text-steel">{takeawayCount > 0 ? "đơn chờ" : "Tại quán · Mang về"}</span>
           </span>
         </button>
       )}

@@ -2,10 +2,11 @@
  * Nhãn CHỖ của một đơn — dùng chung cho phiếu khách, hóa đơn/tạm tính và màn hình bếp, để ba nơi
  * không bao giờ nói khác nhau về cùng một đơn.
  *
- * Quán chạy chế độ QUẦY (service_mode='counter'): nhân viên gõ đơn cho khách ngay tại quầy, khách
- * ngồi ăn tại quán nhưng ngồi ngẫu nhiên nên KHÔNG gắn bàn. Những đơn này lưu channel='takeaway'
- * (để dùng chung luồng đơn không bàn) nhưng KHÔNG phải mang về → in "Tại quán". Chỉ đơn do KHÁCH
- * tự đặt online (source='online') mới thật sự là mang về / giao tận nơi.
+ * Đơn không bàn do NHÂN VIÊN gõ lưu channel='takeaway' (dùng chung luồng đơn không bàn), nhưng khách
+ * có thể ngồi ăn tại quán:
+ *  - quán chế độ QUẦY (service_mode='counter'): khách ngồi ngẫu nhiên, không gắn bàn → luôn "Tại quán";
+ *  - quán chế độ BÀN (P35): nhân viên chọn "Tại quán" / "Mang về" khi tạo đơn (`orders.eat_in`).
+ * Đơn do KHÁCH tự đặt online (source='online') luôn là mang về / giao tận nơi.
  */
 import type { ServiceMode } from "@/lib/tenant/settings";
 import type { OrderChannel, OrderSource } from "./types";
@@ -15,13 +16,14 @@ export function orderPlaceLabel(args: {
   tableName?: string | null;
   channel: OrderChannel;
   source?: OrderSource | null;
+  /** `orders.eat_in` — đơn không bàn khách ăn tại quán (P35). Thiếu = false (đơn cũ). */
+  eatIn?: boolean | null;
 }): string {
   if (args.tableName) return `Bàn ${args.tableName}`;
   if (args.channel === "delivery") return "Giao tận nơi";
   if (args.channel === "takeaway") {
-    // Khách tự đặt online → mang về thật. Nhân viên gõ tại quầy ở quán chế độ quầy → ăn tại quán.
-    if (args.source === "online" || args.serviceMode !== "counter") return "Mang về";
-    return "Tại quán";
+    if (args.source === "online") return "Mang về";
+    return args.serviceMode === "counter" || args.eatIn ? "Tại quán" : "Mang về";
   }
   return "Tại quán";
 }
@@ -36,6 +38,7 @@ export function orderPlaceGroup(args: {
   hasTable: boolean;
   channel: OrderChannel;
   source?: OrderSource | null;
+  eatIn?: boolean | null;
 }): string {
   if (args.hasTable) return "Tại bàn";
   return orderPlaceLabel({ ...args, tableName: null });

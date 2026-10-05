@@ -89,7 +89,7 @@ async function ghep(page: Page, tich: string[], soBan: number) {
 test.describe("máy tính 1280×800", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  const soDo = (page: Page) => page.locator("aside").filter({ has: page.getByRole("button", { name: /^Bán mang về/ }) }).first();
+  const soDo = (page: Page) => page.locator("aside").filter({ has: page.getByRole("button", { name: /^Khách không bàn/ }) }).first();
   const moSoDo = async (page: Page) => {
     const tab = page.getByRole("tab", { name: "Sơ đồ bàn" });
     if (await tab.isVisible()) await tab.click();

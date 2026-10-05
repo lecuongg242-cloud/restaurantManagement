@@ -7,6 +7,7 @@ import { getSessionMembership } from "@/lib/auth/session";
 import { canManage } from "@/lib/auth/rbac";
 import { setFlash } from "@/lib/flash";
 import { purchaseErrorMessage } from "@/lib/purchasing/receipt";
+import { lockMessage, parseLockDetail } from "@/lib/inventory/lock";
 
 async function requirePurchasing(slug: string) {
   const session = await getSessionMembership(slug);
@@ -34,7 +35,8 @@ export async function cancelReceipt(fd: FormData) {
     p_cancel_vouchers: fd.get("cancel_vouchers") === "on",
   });
   if (error) {
-    await setFlash("error", purchaseErrorMessage(error.message));
+    const conflicts = parseLockDetail(error.message, error.details);
+    await setFlash("error", conflicts ? lockMessage(conflicts, "Không hủy bỏ được phiếu nhập") : purchaseErrorMessage(error.message));
     return;
   }
   refresh(slug);
@@ -57,16 +59,15 @@ export async function copyReceipt(fd: FormData) {
   redirect(detail(slug, moi.id));
 }
 
-/** Phiếu đã nhập: chỉ sửa ghi chú, ngày chứng từ, gắn NCC khi đang trống. */
+/** Phiếu đã nhập: chỉ sửa ghi chú, gắn NCC khi đang trống. Thời gian nhập không sửa (P34, QD-034 D1). */
 export async function updateReceiptMeta(fd: FormData) {
   const slug = String(fd.get("slug") ?? "");
   await requirePurchasing(slug);
-  const docDate = String(fd.get("doc_date") ?? "");
   const supabase = await createClient();
   const { error } = await supabase.rpc("update_purchase_receipt_meta", {
     p_receipt: String(fd.get("id") ?? ""),
     p_note: String(fd.get("note") ?? "").slice(0, 500),
-    p_doc_date: /^\d{4}-\d{2}-\d{2}$/.test(docDate) ? docDate : null,
+    p_doc_date: null,
     p_supplier: String(fd.get("supplier_id") ?? "") || null,
   });
   if (error) {

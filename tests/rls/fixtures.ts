@@ -81,6 +81,8 @@ export const IDX = {
   cash_categories: 28,
   cash_voucher_allocations: 29,
   supplier_debt_adjustments: 30,
+  stock_counts: 31,
+  stock_count_lines: 32,
   // Khóa chính là (item_id, group_id) → trỏ theo menu_items.
   menu_item_modifier_groups: 2,
 } as const;
@@ -242,7 +244,8 @@ function stepsFor(key: TenantKey, tenantId: string): SeedStep[] {
     {
       table: "stock_entries",
       row: {
-        id: id(22), ...t, business_date: "2030-01-01", ingredient_id: id(19),
+        // P34 (0085): business_date do trigger tính từ occurred_at — đặt occurred_at để dòng vẫn nằm ở năm 2030.
+        id: id(22), ...t, business_date: "2030-01-01", occurred_at: "2030-01-01T05:00:00Z", ingredient_id: id(19),
         kind: "receipt", qty: 1000, note: label,
       },
     },
@@ -268,6 +271,15 @@ function stepsFor(key: TenantKey, tenantId: string): SeedStep[] {
     { table: "cash_categories", row: { id: id(28), ...t, direction: "out", name: label, cost_group: "e" } },
     { table: "cash_voucher_allocations", row: { id: id(29), ...t, voucher_id: id(27), receipt_id: id(25), amount: 1 } },
     { table: "supplier_debt_adjustments", row: { id: id(30), ...t, supplier_id: id(24), amount: 1000, note: label } },
+    // P34 (0085): phiếu kiểm kê năm 2030 — không bao giờ là mốc khóa của một test đang chạy hôm nay.
+    { table: "stock_counts", row: { id: id(31), ...t, code: `${label}-KK`, counted_at: "2030-01-01T05:00:00Z" } },
+    {
+      table: "stock_count_lines",
+      row: {
+        id: id(32), ...t, count_id: id(31), ingredient_id: id(19),
+        counted_base: 1, count_unit: "purchase", theoretical: 1, diff: 0,
+      },
+    },
   ];
 }
 
@@ -286,6 +298,8 @@ async function seedTenant(admin: SupabaseClient, key: TenantKey, tenantId: strin
  */
 const TEARDOWN: { table: string; column: string; n: number }[] = [
   // recipe_lines → ingredients là ON DELETE RESTRICT: định lượng chết trước nguyên liệu.
+  { table: "stock_count_lines", column: "id", n: 32 },
+  { table: "stock_counts", column: "id", n: 31 },
   { table: "supplier_debt_adjustments", column: "id", n: 30 },
   { table: "cash_voucher_allocations", column: "id", n: 29 },
   { table: "cash_vouchers", column: "id", n: 27 },

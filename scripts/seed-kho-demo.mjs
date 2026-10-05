@@ -2,7 +2,7 @@
 // phiếu nhập (kể cả nhập nhầm → hủy → sao chép, phiếu tạm sửa hôm sau, nhập bổ sung khác giá, phiếu không giá), mẻ nước
 // dùng hụt, xuất hủy, kiểm kê cuối ngày (kể cả gõ nhầm rồi đếm lại) — để thử luồng nhập kho → bán → hao hụt từ đầu tới cuối.
 //
-//   node scripts/seed-kho-demo.mjs --out kho-demo.json      7 ngày tính tới HÔM QUA (giờ VN), đáp án ra kho-demo.json
+//   node scripts/seed-kho-demo.mjs --out kho-demo.json      7 ngày tính tới HÔM NAY − 7 (giờ VN), đáp án ra kho-demo.json
 //   node scripts/seed-kho-demo.mjs --den 2026-10-02         7 ngày kết thúc ngày chỉ định
 //   node scripts/doi-chieu-kho-demo.mjs kho-demo.json       đối chiếu bản chốt sổ với đáp án (sau khi mở khu Kho hàng)
 //
@@ -13,8 +13,9 @@
 // đối chiếu với bản chốt sổ sau khi app tự chốt.
 //
 // Phiếu nhập / mẻ đi qua ĐÚNG RPC của app (save_purchase_receipt, cancel_purchase_receipt, copy_purchase_receipt,
-// update_purchase_receipt_meta, record_batch) dưới danh nghĩa chủ quán, rồi lùi ngày giờ về ngày mô phỏng (RPC luôn lấy ngày
-// hôm nay). Chạy lại = xóa sạch dữ liệu kho của quán + đơn KHO_DEMO rồi sinh lại.
+// update_purchase_receipt_meta, record_batch) dưới danh nghĩa chủ quán, rồi lùi ngày giờ về ngày mô phỏng (RPC chỉ nhận thời
+// gian nhập trong 7 ngày gần nhất). Lùi ngày = đặt `occurred_at` (P34, 0085): `business_date` do trigger tính từ nó.
+// Chạy lại = xóa sạch dữ liệu kho của quán + đơn KHO_DEMO rồi sinh lại.
 //
 // CHỈ chạy trên quán demo. Cần POSTGRES_URL_NON_POOLING (.env.local).
 import crypto from "node:crypto";
@@ -31,9 +32,10 @@ const arg = (name) => {
   return i > 0 ? process.argv[i + 1] : null;
 };
 const OUT = arg("--out");
-// 7 ngày kết thúc HÔM QUA (giờ VN) → hôm nay còn trống cho thao tác tay / E2E kho-thuc-te, và app tự chốt đủ 7 ngày.
+// 7 ngày kết thúc HÔM NAY − 7 (giờ VN): sổ kho để mở 7 ngày (P34, QD-034 D4) nên chỉ ngày ≤ hôm nay − 7 mới tự chốt — app
+// chốt đủ 7 ngày mô phỏng; 7 ngày gần nhất còn trống cho thao tác tay / E2E kho-thuc-te.
 const addDay = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
-const END = arg("--den") ?? addDay(new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10), -1);
+const END = arg("--den") ?? addDay(new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10), -7);
 const DAYS = [-6, -5, -4, -3, -2, -1, 0].map((n) => addDay(END, n));
 // Sự kiện đặt theo THỨ TỰ ngày (N1…N7), không theo ngày lịch — chạy hôm nào kịch bản cũng như nhau.
 const [N1, N2, , N4, N5, N6, N7] = DAYS;
@@ -123,6 +125,7 @@ console.log("Dọn dữ liệu kho cũ của", SLUG);
 await q("begin");
 await q("delete from daily_closes where tenant_id=$1", [T]);
 await q("delete from stock_entries where tenant_id=$1", [T]);
+await q("delete from stock_counts where tenant_id=$1", [T]);
 await q("delete from production_batches where tenant_id=$1", [T]);
 await q("delete from cash_voucher_allocations where tenant_id=$1", [T]);
 await q("delete from cash_vouchers where tenant_id=$1 and (purchase_receipt_id is not null or source in ('purchase','supplier_payment'))", [T]);
@@ -242,8 +245,8 @@ async function receipt(day, h, m, { sup, lines, discount = 0, payNow = "all", fu
   const ts = at(day, h, m);
   if (!id) await q("update purchase_receipts set created_at=$2, doc_date=$3 where id=$1", [saved.id, at(createdDay ?? day, h, m), createdDay ?? day]);
   if (!draft) {
-    await q("update purchase_receipts set doc_date=$3, stock_date=$3, completed_at=$2, updated_at=$2 where id=$1", [saved.id, ts, day]);
-    await q("update stock_entries set business_date=$3, created_at=$2 where purchase_receipt_id=$1", [saved.id, ts, day]);
+    await q("update purchase_receipts set doc_date=$3, stock_date=$3, received_at=$2, completed_at=$2, updated_at=$2 where id=$1", [saved.id, ts, day]);
+    await q("update stock_entries set occurred_at=$2, created_at=$2 where purchase_receipt_id=$1", [saved.id, ts]);
     await q("update cash_vouchers set occurred_at=$2, created_at=$2 where purchase_receipt_id=$1", [saved.id, ts]);
     await q("update ingredients set last_cost_at=$2 where tenant_id=$1 and last_cost_at > now() - interval '1 hour'", [T, ts]);
     const ratio = subtotal > 0 ? total / subtotal : 1;
@@ -302,7 +305,7 @@ async function batch(day, h, m, count, actual) {
   );
   const ts = at(day, h, m);
   await q("update production_batches set created_at=$2 where id=$1", [batchId, ts]);
-  await q("update stock_entries set created_at=$2 where batch_id=$1", [batchId, ts]);
+  await q("update stock_entries set occurred_at=$2, created_at=$2 where batch_id=$1", [batchId, ts]);
   const b = dayBook(day);
   b.nuocdung.batch_in = r3(b.nuocdung.batch_in + actual);
   b.nuocdung.batch_shortfall = r3(b.nuocdung.batch_shortfall + expected - actual);
@@ -318,8 +321,8 @@ async function batch(day, h, m, count, actual) {
 const REASON_COL = { hong: "waste_hong", do_bo: "waste_do_bo", com_nhan_vien: "waste_com_nv", khac: "waste_khac" };
 async function waste(day, h, m, k, baseQty, reason, note = null) {
   await q(
-    `insert into stock_entries (tenant_id, business_date, ingredient_id, kind, qty, reason, note, created_by, created_at)
-     values ($1,$2,$3,'waste',$4,$5,$6,$7,$8)`,
+    `insert into stock_entries (tenant_id, business_date, ingredient_id, kind, qty, reason, note, created_by, created_at, occurred_at)
+     values ($1,$2,$3,'waste',$4,$5,$6,$7,$8,$8)`,
     [T, day, ingId[k], -baseQty, reason, note, owner.id, at(day, h, m)]
   );
   dayBook(day)[k][REASON_COL[reason]] = r3(dayBook(day)[k][REASON_COL[reason]] + baseQty);
@@ -333,8 +336,8 @@ async function count(day, h, m, k, countedBase, label) {
   const oh = Number((await q("select on_hand from inventory_on_hand($1, $2) where ingredient_id=$3", [T, ts, ingId[k]])).rows[0]?.on_hand ?? 0);
   const diff = r3(countedBase - oh);
   await q(
-    `insert into stock_entries (tenant_id, business_date, ingredient_id, kind, qty, note, created_by, created_at)
-     values ($1,$2,$3,'count_adjust',$4,$5,$6,$7)`,
+    `insert into stock_entries (tenant_id, business_date, ingredient_id, kind, qty, note, created_by, created_at, occurred_at)
+     values ($1,$2,$3,'count_adjust',$4,$5,$6,$7,$7)`,
     [T, day, ingId[k], diff, `đếm ${countedBase}`, owner.id, ts]
   );
   dayBook(day)[k].adjust = r3(dayBook(day)[k].adjust + diff);
@@ -507,8 +510,8 @@ for (const day of DAYS) {
     // ghi chú "Tồn đầu kỳ", giá 15.000₫/chai — như createIngredient/updateIngredient ghi. Không phải kiểm kê nên không vào hao hụt.
     phys.bia = 30;
     await q(
-      `insert into stock_entries (tenant_id, business_date, ingredient_id, kind, qty, unit_cost, note, created_by, created_at)
-       values ($1,$2,$3,'receipt',30,15000,'Tồn đầu kỳ',$4,$5)`,
+      `insert into stock_entries (tenant_id, business_date, ingredient_id, kind, qty, unit_cost, note, created_by, created_at, occurred_at)
+       values ($1,$2,$3,'receipt',30,15000,'Tồn đầu kỳ',$4,$5,$5)`,
       [T, day, ingId.bia, owner.id, at(day, 6, 0)]
     );
     dayBook(day).bia.receipts += 30;
@@ -534,9 +537,9 @@ for (const day of DAYS) {
     const rec = await receipt(day, 6, 30, { sup: "thit", lines: thit, discount: disc, payNow: Math.round((total - disc) / 2 / 1000) * 1000, note: "Nhập sáng" });
     physReceive(thit);
     if (day === N6) {
-      // E3: sửa thông tin phiếu đã nhập — ngày chứng từ theo hóa đơn NCC ghi hôm trước, thêm ghi chú.
-      await asOwner(() => q("select update_purchase_receipt_meta($1, $2, $3, $4)", [rec.id, "HĐ số 0012 của Thanh Tuấn", N5, null]));
-      log.push(`${day} 09:00 Sửa thông tin ${rec.code}: ngày chứng từ ${N5}, ghi chú "HĐ số 0012"`);
+      // E3: sửa thông tin phiếu đã nhập — thêm ghi chú. Thời gian nhập không sửa được (P34, QD-034 D1) — RPC bỏ qua ngày.
+      await asOwner(() => q("select update_purchase_receipt_meta($1, $2, $3, $4)", [rec.id, "HĐ số 0012 của Thanh Tuấn", null, null]));
+      log.push(`${day} 09:00 Sửa thông tin ${rec.code}: ghi chú "HĐ số 0012"`);
     }
   }
 

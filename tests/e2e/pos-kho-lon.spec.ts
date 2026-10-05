@@ -62,7 +62,7 @@ for (const { w, h } of KHO) {
 
     test("bán mang về", async ({ page }) => {
       await vaoPos(page);
-      await page.getByRole("button", { name: /^Bán mang về/ }).click();
+      await page.getByRole("button", { name: /^Khách không bàn/ }).click();
       await page.waitForTimeout(500);
       await expect(page).toHaveScreenshot(`pos-mang-ve-${w}.png`, { fullPage: false, mask: [page.locator("[data-thoi-gian]")] });
     });

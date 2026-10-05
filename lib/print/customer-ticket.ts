@@ -20,7 +20,7 @@ export async function buildCustomerTicket(
   const { data: order } = await supabase
     .from("orders")
     .select(
-      "id, kitchen_no, created_at, channel, source, customer_contact, tenant_id, table_session_id, table_sessions(tables(name)), order_items(name_snapshot, unit_price_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
+      "id, kitchen_no, created_at, channel, source, eat_in, customer_contact, tenant_id, table_session_id, table_sessions(tables(name)), order_items(name_snapshot, unit_price_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
     )
     .eq("id", orderId)
     .eq("tenant_id", tenantId)
@@ -46,6 +46,7 @@ export async function buildCustomerTicket(
     tableName,
     channel: order.channel as OrderChannel,
     source: order.source as OrderSource,
+    eatIn: order.eat_in as boolean,
   });
   const contact = (order.customer_contact as { name?: string } | null) ?? null;
 

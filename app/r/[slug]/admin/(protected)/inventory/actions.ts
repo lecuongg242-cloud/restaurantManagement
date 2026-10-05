@@ -13,6 +13,7 @@ import { planBatch } from "@/lib/inventory/batch";
 import { loadInventory, costContext } from "@/lib/inventory/data";
 import { checkRecipeChange, MAX_DEPTH } from "@/lib/inventory/recipe-graph";
 import { countToBase, parseCount, type CountUnit } from "@/lib/inventory/count";
+import { lockMessage, parseLockDetail, parseVnDateTime, toConflicts, type LockRow } from "@/lib/inventory/lock";
 import type { BaseUnit, IngredientKind } from "@/lib/inventory/types";
 
 // Định lượng KHÔNG đổi thực đơn khách → không gọi revalidateMenu (cache PERF-02 giữ nguyên).
@@ -415,6 +416,9 @@ export async function saveRecipe(fd: FormData) {
  * Nhập hàng (INV-04 + P20 PURCH-02): mỗi lần gửi là MỘT phiếu nhập qua `save_purchase_receipt` (0076) — "Lưu tạm" chưa
  * cộng kho; "Hoàn thành" ghi dòng `receipt` (ngày VN do DB tính), cập nhật giá gần nhất và sinh phiếu chi nếu trả ngay,
  * trong cùng một giao dịch. Nhập lần hai trong ngày là phiếu mới — cộng dồn như trước.
+ *
+ * P34: "Thời gian nhập" (giờ hàng về, trống = lúc bấm). Vướng phiếu kiểm kê (QD-034 D2) → Lưu tạm để không mất số đã gõ,
+ * mở phiếu tạm — trang chi tiết hiện khung đỏ nêu phiếu kiểm kê cần hủy.
  */
 export async function recordReceipts(fd: FormData) {
   const slug = String(fd.get("slug") ?? "");
@@ -429,6 +433,7 @@ export async function recordReceipts(fd: FormData) {
     pay_now?: number;
     pay_fund?: string;
     note?: string;
+    received_at?: string | null;
     rows: { ingredient_id: string; qty: string; price: string }[];
   };
   let payload: Payload;
@@ -464,20 +469,32 @@ export async function recordReceipts(fd: FormData) {
     return;
   }
 
+  const receivedAt = payload.received_at ? parseVnDateTime(payload.received_at) : null;
+  if (payload.received_at && !receivedAt) {
+    await setFlash("error", "Thời gian nhập không hợp lệ.");
+    return;
+  }
+
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("save_purchase_receipt", {
-    p_tenant: tenantId,
-    p_receipt: {
-      id: payload.id || null,
-      supplier_id: supplierId,
-      discount,
-      pay_now: payNow,
-      pay_fund: payload.pay_fund === "bank" ? "bank" : "cash",
-      note: String(payload.note ?? "").slice(0, 500),
-      lines,
-    },
-    p_complete: complete,
-  });
+  const receipt = {
+    id: payload.id || null,
+    supplier_id: supplierId,
+    discount,
+    pay_now: payNow,
+    pay_fund: payload.pay_fund === "bank" ? "bank" : "cash",
+    note: String(payload.note ?? "").slice(0, 500),
+    received_at: receivedAt,
+    lines,
+  };
+  const { data, error } = await supabase.rpc("save_purchase_receipt", { p_tenant: tenantId, p_receipt: receipt, p_complete: complete });
+  const conflicts = parseLockDetail(error?.message, error?.details);
+  if (conflicts && complete) {
+    const draft = await supabase.rpc("save_purchase_receipt", { p_tenant: tenantId, p_receipt: receipt, p_complete: false });
+    const saved = draft.data?.[0] as { id: string; code: string } | undefined;
+    await setFlash("error", lockMessage(conflicts, saved ? `Chưa nhập kho — đã lưu tạm phiếu ${saved.code}` : "Không nhập được"));
+    if (saved) redirect(`/r/${slug}/admin/nhap-hang/${saved.id}`);
+    return;
+  }
   if (error || !data?.[0]) {
     await setFlash("error", purchaseErrorMessage(error?.message));
     return;
@@ -535,14 +552,15 @@ export async function recordBatch(fd: FormData) {
 // ── 10-03: kiểm kê cuối ngày + xuất hủy ────────────────────────────────────────────────────
 
 /**
- * Kiểm kê (INV-08). Độ lệch = số đếm − tồn lý thuyết TẠI LÚC GỬI, tính lại ở server (không tin số
- * client đưa lên — giữa lúc mở màn và lúc gửi có thể đã bán thêm). Ghi cả độ lệch 0: "đã kiểm, khớp"
- * khác "không kiểm".
+ * Kiểm kê (INV-08, P34 INV-19): mỗi lần Hoàn thành là MỘT phiếu kiểm kê (mã KK…) qua `complete_stock_count` (0085). Độ lệch
+ * = số đếm − tồn sổ TẠI thời gian kiểm kê, tính trong DB (không tin số máy gửi lên — giữa lúc mở màn và lúc gửi có thể đã
+ * bán thêm). Ghi cả độ lệch 0: "đã kiểm, khớp" khác "không kiểm". `redo_of` = Hoàn thành lại phiếu đã hủy: giữ giờ kiểm cũ.
  */
 export async function recordCounts(fd: FormData) {
   const slug = String(fd.get("slug") ?? "");
   const session = await requireInventoryManager(slug);
   const tenantId = session.tenant.id;
+  const redoOf = String(fd.get("redo_of") ?? "") || null;
 
   let parsed: { ingredient_id: string; counted: string; unit?: CountUnit }[];
   try {
@@ -554,21 +572,13 @@ export async function recordCounts(fd: FormData) {
   }
 
   const supabase = await createClient();
-  const [{ data: ingRows }, { data: onHand, error: ohErr }] = await Promise.all([
-    supabase.from("ingredients").select("id, name, must_count, purchase_factor").eq("tenant_id", tenantId),
-    supabase.rpc("inventory_on_hand", { p_tenant: tenantId }),
-  ]);
-  if (ohErr) {
-    await setFlash("error", ohErr.message);
-    return;
-  }
+  const { data: ingRows } = await supabase
+    .from("ingredients")
+    .select("id, name, must_count, purchase_factor")
+    .eq("tenant_id", tenantId);
   const ingById = new Map((ingRows ?? []).map((r) => [r.id as string, r]));
-  const theoretical = new Map(
-    ((onHand ?? []) as { ingredient_id: string; on_hand: number }[]).map((r) => [r.ingredient_id, Number(r.on_hand)])
-  );
 
-  const day = businessDate();
-  const entries: Record<string, unknown>[] = [];
+  const lines: { ingredient_id: string; counted_base: number; unit: CountUnit }[] = [];
   for (const r of parsed) {
     const p = parseCount(String(r.counted ?? ""));
     if (!p) continue; // không đếm nguyên liệu này
@@ -579,25 +589,66 @@ export async function recordCounts(fd: FormData) {
       return;
     }
     // Đếm theo đơn vị nhập (thùng, kg) hoặc đơn vị trừ kho (chai, g) — người đếm chọn trên dòng (P26).
-    const countedBase = countToBase(p.value, r.unit === "base" ? "base" : "purchase", Number(ing.purchase_factor ?? 1));
-    const diff = Math.round((countedBase - (theoretical.get(ing.id as string) ?? 0)) * 1000) / 1000;
-    entries.push({
-      tenant_id: tenantId,
-      business_date: day,
-      ingredient_id: ing.id,
-      kind: "count_adjust",
-      qty: diff,
-      note: `đếm ${countedBase}`,
-      created_by: session.membershipId,
-    });
+    const unit: CountUnit = r.unit === "base" ? "base" : "purchase";
+    lines.push({ ingredient_id: ing.id as string, counted_base: countToBase(p.value, unit, Number(ing.purchase_factor ?? 1)), unit });
   }
-  if (entries.length === 0) {
+  if (lines.length === 0) {
     await setFlash("error", "Chưa nhập số đếm nào.");
     return;
   }
-  const { error } = await supabase.from("stock_entries").insert(entries);
+  const { data, error } = await supabase.rpc("complete_stock_count", { p_tenant: tenantId, p_lines: lines, p_redo_of: redoOf });
   revalidatePath(invPath(slug), "layout");
-  await setFlash(error ? "error" : "ok", error ? error.message : `Đã ghi kiểm kê ${entries.length} nguyên liệu.`);
+  if (error || !data?.[0]) {
+    const conflicts = parseLockDetail(error?.message, error?.details);
+    await setFlash("error", conflicts ? lockMessage(conflicts, "Không hoàn thành được kiểm kê") : countErrorMessage(error?.message));
+    return;
+  }
+  await setFlash("ok", `Đã cân bằng kho — phiếu ${(data[0] as { code: string }).code}, ${lines.length} nguyên liệu.`);
+  if (redoOf) redirect(`${invPath(slug)}/count`);
+}
+
+/** "Hủy" phiếu kiểm kê (P34 INV-21): tồn về số theo sổ, giữ số đếm để Hoàn thành lại. */
+export async function cancelCount(fd: FormData) {
+  const slug = String(fd.get("slug") ?? "");
+  await requireInventoryManager(slug);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("cancel_stock_count", { p_count: String(fd.get("id") ?? "") });
+  revalidatePath(invPath(slug), "layout");
+  if (error) {
+    const conflicts = parseLockDetail(error.message, error.details);
+    await setFlash("error", conflicts ? lockMessage(conflicts, "Không hủy được — có phiếu kiểm kê sau nó") : countErrorMessage(error.message));
+    return;
+  }
+  await setFlash("ok", "Đã hủy phiếu kiểm kê — tồn về số theo sổ. Ghi phiếu còn thiếu rồi bấm \"Hoàn thành lại\".");
+}
+
+function countErrorMessage(raw: string | undefined | null): string {
+  const m = raw ?? "";
+  const map: [string, string][] = [
+    ["ngay_da_chot", "Ngày này đã chốt sổ — phiếu kiểm kê không đổi được nữa."],
+    ["da_hoan_thanh_lai", "Phiếu này đã được hoàn thành lại rồi."],
+    ["da_huy", "Phiếu kiểm kê đã hủy trước đó."],
+    ["khong_tim_thay", "Không tìm thấy phiếu kiểm kê."],
+    ["dong_khong_hop_le", "Có dòng không hợp lệ."],
+    ["khong du quyen", "Không đủ quyền."],
+  ];
+  return map.find(([k]) => m.includes(k))?.[1] ?? `Ghi kiểm kê lỗi: ${m}`;
+}
+
+/** Phiếu kiểm kê đã cân bằng có giờ ≥ `at` của các nguyên liệu này (mốc khóa, QD-034 D2). */
+async function lockConflicts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tenantId: string,
+  ingredientIds: string[],
+  at: string
+) {
+  const { data, error } = await supabase.rpc("inventory_lock_conflicts", {
+    p_tenant: tenantId,
+    p_ingredients: ingredientIds,
+    p_at: at,
+  });
+  if (error) throw new Error(error.message);
+  return toConflicts((data ?? []) as LockRow[]);
 }
 
 const WASTE_REASONS = ["hong", "do_bo", "com_nhan_vien", "khac"] as const;
@@ -650,8 +701,8 @@ export async function recordWaste(fd: FormData) {
 }
 
 /**
- * Ngày kho đã có bản chốt → không xóa dòng sổ của ngày đó nữa (bản chốt bất biến, QD-017 D7). Màn chỉ hiện phiếu HÔM NAY
- * nên thường chưa chốt; kiểm lại ở server phòng mở trang từ hôm qua rồi bấm sau nửa đêm.
+ * Ngày kho đã có bản chốt → không xóa dòng sổ của ngày đó nữa (bản chốt bất biến, QD-017 D7). Màn chỉ hiện phiếu các ngày
+ * CHƯA chốt (P34: 7 ngày); kiểm lại ở server phòng mở trang trước lúc ngày đó tự chốt.
  */
 async function dayClosed(supabase: Awaited<ReturnType<typeof createClient>>, tenantId: string, day: string) {
   const { count } = await supabase
@@ -664,7 +715,8 @@ async function dayClosed(supabase: Awaited<ReturnType<typeof createClient>>, ten
 
 /**
  * "Hủy" phiếu xuất hủy ghi nhầm (P26, như KiotViet "Xuất hủy → Hủy": cộng lại tồn kho). Xóa dòng sổ của ngày chưa chốt —
- * cùng cách hủy phiếu nhập khi ngày kho chưa chốt (QD-027 D5).
+ * cùng cách hủy phiếu nhập khi ngày kho chưa chốt (QD-027 D5). Phiếu nằm trước một lần kiểm kê của cùng nguyên liệu → chặn
+ * (P34 mốc khóa): xóa nó làm độ lệch của lần đếm đó sai.
  */
 export async function cancelWaste(fd: FormData) {
   const slug = String(fd.get("slug") ?? "");
@@ -673,7 +725,7 @@ export async function cancelWaste(fd: FormData) {
   const supabase = await createClient();
   const { data: row } = await supabase
     .from("stock_entries")
-    .select("id, business_date, kind")
+    .select("id, business_date, kind, ingredient_id, occurred_at")
     .eq("tenant_id", tenantId)
     .eq("id", String(fd.get("id") ?? ""))
     .maybeSingle();
@@ -683,6 +735,11 @@ export async function cancelWaste(fd: FormData) {
   }
   if (await dayClosed(supabase, tenantId, row.business_date as string)) {
     await setFlash("error", "Ngày này đã chốt sổ — không hủy được phiếu nữa. Sai lệch sẽ hiện ở lần kiểm kê sau.");
+    return;
+  }
+  const conflicts = await lockConflicts(supabase, tenantId, [row.ingredient_id as string], row.occurred_at as string);
+  if (conflicts.length > 0) {
+    await setFlash("error", lockMessage(conflicts, "Không hủy được phiếu hủy"));
     return;
   }
   const { error } = await supabase.from("stock_entries").delete().eq("tenant_id", tenantId).eq("id", row.id);
@@ -712,6 +769,19 @@ export async function cancelBatch(fd: FormData) {
   if (await dayClosed(supabase, tenantId, batch.business_date as string)) {
     await setFlash("error", "Ngày này đã chốt sổ — không hủy được mẻ nữa.");
     return;
+  }
+  const { data: lines } = await supabase
+    .from("stock_entries")
+    .select("ingredient_id, occurred_at")
+    .eq("tenant_id", tenantId)
+    .eq("batch_id", batch.id);
+  if (lines && lines.length > 0) {
+    const at = lines.map((l) => l.occurred_at as string).sort()[0];
+    const conflicts = await lockConflicts(supabase, tenantId, [...new Set(lines.map((l) => l.ingredient_id as string))], at);
+    if (conflicts.length > 0) {
+      await setFlash("error", lockMessage(conflicts, "Không hủy được mẻ"));
+      return;
+    }
   }
   const { error } = await supabase.from("production_batches").delete().eq("tenant_id", tenantId).eq("id", batch.id);
   revalidatePath(invPath(slug), "layout");

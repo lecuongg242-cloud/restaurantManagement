@@ -10,6 +10,7 @@ import type { CartLine } from "@/lib/orders/types";
 import type { BillView, PaymentMethod } from "@/lib/billing/types";
 import type { OnlineOrderView } from "@/lib/orders/online";
 import { groupTakeawayOrders } from "@/lib/orders/takeaway-group";
+import { NoiTag } from "./NoiTag";
 import { formatVnd, unitPrice } from "@/lib/orders/cart";
 import { usePrintAdapter } from "@/lib/print/print-mode";
 import { QtyStepper } from "@/components/customer/QtyStepper";
@@ -156,14 +157,18 @@ export function TakeawayPanel({
   onGoiThem?: () => void;
 }) {
   const printer = usePrintAdapter();
-  const title = counter ? "Gọi món cho khách" : "Bán mang về";
-  const createLabel = counter ? "Tạo đơn" : "Tạo đơn mang về";
+  const title = counter ? "Gọi món cho khách" : "Khách không bàn";
   const hideClose = counter; // chế độ quầy không có bàn để quay về
 
   const router = useRouter();
   const dienThoai = useLaDienThoai();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  /**
+   * Quán chế độ bàn (P35): khách không bàn ăn TẠI QUÁN hay MANG VỀ — mặc định Tại quán (chủ dự án chốt 05/10), mỗi đơn
+   * mới quay lại Tại quán. Chế độ quầy không có công tắc: mọi đơn nhân viên gõ là khách ăn tại quán.
+   */
+  const [eatIn, setEatIn] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Khóa idempotent của lần bấm "Tạo đơn" đang dở — xem `create`. */
@@ -242,14 +247,16 @@ export function TakeawayPanel({
       : { name: name.trim() || undefined, phone: phone.trim() || undefined };
     // Mất mạng thì máy POS KHÔNG biết đơn đã sang bếp hay chưa; khóa idempotent (0034) làm lượt bấm
     // lại an toàn. Chữ ký gồm cả `addToId`: cùng giỏ nhưng nối vào đơn gốc khác là hành động khác.
-    const key = orderKey.keyFor(actionSignature([lines, contact ?? null, addToId ?? null]));
+    const anTaiQuan = counter || eatIn;
+    const key = orderKey.keyFor(actionSignature([lines, contact ?? null, addToId ?? null, anTaiQuan]));
     const res = await createTakeawayOrderAction(
       slug,
       lines,
       contact,
       undefined,
       addToId ?? undefined,
-      key
+      key,
+      anTaiQuan
     ).catch(() => null);
     setCreating(false);
     if (!res || !res.ok) {
@@ -262,6 +269,7 @@ export function TakeawayPanel({
     onClearCart(guiDi);
     setName("");
     setPhone("");
+    setEatIn(true);
     setAddToOrderId(null);
     onPhoneCartOpenChange?.(false);
     router.refresh();
@@ -317,6 +325,31 @@ export function TakeawayPanel({
             </div>
           ) : (
             <p className="text-sm font-medium text-ink">Đơn mới</p>
+          )}
+
+          {/* Tại quán / Mang về (P35, như CUKCUK "Ngồi tại bàn / Mang về"): quyết định chữ trên phiếu bếp, hóa đơn và
+              báo cáo. Lượt gọi thêm theo đơn gốc nên ẩn. */}
+          {!counter && !addingTo && (
+            <div role="group" aria-label="Khách ăn ở đâu" className="mt-sm grid grid-cols-2 gap-xs">
+              {([
+                [true, "Tại quán"],
+                [false, "Mang về"],
+              ] as const).map(([v, ten]) => (
+                <button
+                  key={ten}
+                  type="button"
+                  aria-pressed={eatIn === v}
+                  onClick={() => setEatIn(v)}
+                  className={
+                    eatIn === v
+                      ? "h-11 rounded-md bg-primary text-sm font-semibold text-primary-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      : "h-11 rounded-md border border-hairline-strong bg-canvas text-sm font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  }
+                >
+                  {ten}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* Tên/SĐT trước, danh sách món ngay trên nút tạo đơn: nhân viên soát lại món + tổng
@@ -405,7 +438,7 @@ export function TakeawayPanel({
             {creating ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              `${addingTo ? `Gửi bếp lượt gọi thêm` : createLabel}${
+              `${addingTo ? `Gửi bếp lượt gọi thêm` : "Tạo đơn"}${
                 cart.length > 0 ? ` · ${formatVnd(cartTotal)}` : ""
               }`
             )}
@@ -548,6 +581,7 @@ export function TakeawayPanel({
                       <span className="ml-xs text-xs font-normal text-steel">
                         {hhmm(g.root.createdAt)}
                       </span>
+                      {!counter && <NoiTag eatIn={g.root.eatIn} />}
                     </p>
                     <div className="flex flex-wrap items-start gap-xs">
                       <TicketPrintButtons

@@ -5,6 +5,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { formatVnd } from "@/lib/orders/cart";
 import { countDiff, countSummary, isBigDiff, parseCount, type CountUnit } from "@/lib/inventory/count";
+import { gioNgayVn } from "@/lib/time/vn";
 import { recordCounts } from "@/app/r/[slug]/admin/(protected)/inventory/actions";
 
 /**
@@ -29,10 +30,30 @@ const signedVnd = (n: number) => (n > 0 ? `+${formatVnd(n)}` : n < 0 ? `−${for
  * Kiểm kê (INV-08, P25 INV-11) — cột theo KiotViet "Kiểm kho": Tồn kho · Thực tế · SL lệch · Giá trị lệch, cuối phiếu có
  * Tổng lệch tăng / giảm / chênh lệch. Số đếm luôn được ghi (đếm là số thật), nhưng lệch quá 50% tồn sổ thì dòng bôi vàng
  * và bấm "Hoàn thành" phải xác nhận lại — chặn gõ nhầm 82 thay vì 8,2. Ô để trống = không đếm nguyên liệu đó.
+ *
+ * P34 (QD-034): dòng tồn sổ ÂM hiện đỏ — thường là còn phiếu nhập chưa ghi (nhập phiếu trước rồi hãy đếm, vì phiếu kiểm
+ * kê là mốc khóa). `redo` = Hoàn thành lại phiếu đã hủy: số đếm điền sẵn, giữ giờ kiểm cũ.
  */
-export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
-  const [counted, setCounted] = useState<Record<string, string>>({});
-  const [units, setUnits] = useState<Record<string, CountUnit>>({});
+export function CountForm({
+  slug,
+  rows,
+  redo,
+  prefill,
+  lastReceipt,
+}: {
+  slug: string;
+  rows: CountRow[];
+  redo?: { id: string; countedAt: string };
+  prefill?: Record<string, { counted: string; unit: CountUnit }>;
+  /** Phiếu nhập cuối trước lúc đếm — bằng chứng cut-off. */
+  lastReceipt?: { code: string; at: string } | null;
+}) {
+  const [counted, setCounted] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(prefill ?? {}).map(([id, v]) => [id, v.counted]))
+  );
+  const [units, setUnits] = useState<Record<string, CountUnit>>(() =>
+    Object.fromEntries(Object.entries(prefill ?? {}).map(([id, v]) => [id, v.unit]))
+  );
 
   /** Tồn sổ, giá, chữ đơn vị theo đơn vị đang chọn trên dòng. */
   const view = (r: CountRow) => {
@@ -59,11 +80,22 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
   const byId = new Map(lines.map((l) => [l.row.id, l]));
   const sum = countSummary(lines.map((l) => ({ theoretical: l.row.theoretical, counted: l.counted, unitPrice: l.row.unitPrice })));
   const big = lines.filter((l) => l.big);
+  const negative = lines.filter((l) => l.row.theoreticalBase < 0);
 
   const confirmBig = (e: React.FormEvent<HTMLFormElement>) => {
     if (invalid.length > 0) {
       e.preventDefault();
       return;
+    }
+    if (negative.length > 0) {
+      const names = negative.map((l) => l.row.name).join(", ");
+      const msg =
+        `${negative.length} nguyên liệu đang âm trên sổ: ${names}.\n` +
+        "Thường là do còn phiếu nhập chưa ghi — nhập phiếu trước rồi hãy kiểm.\n\nVẫn hoàn thành?";
+      if (!confirm(msg)) {
+        e.preventDefault();
+        return;
+      }
     }
     if (big.length === 0) return;
     const list = big
@@ -75,6 +107,16 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
   return (
     <form action={recordCounts} onSubmit={confirmBig} className="flex flex-col gap-sm">
       <input type="hidden" name="slug" value={slug} />
+      {redo && <input type="hidden" name="redo_of" value={redo.id} />}
+      <p className="text-sm text-slate" data-thoi-gian-kiem-ke>
+        Thời gian kiểm kê:{" "}
+        <span className="text-ink">{redo ? `${gioNgayVn(redo.countedAt)} (giữ nguyên)` : "lúc bấm Hoàn thành"}</span>
+        {lastReceipt && (
+          <>
+            {" "}· Phiếu nhập cuối: <span className="font-mono text-ink">{lastReceipt.code}</span> ({gioNgayVn(lastReceipt.at)})
+          </>
+        )}
+      </p>
       <input
         type="hidden"
         name="rows"
@@ -93,6 +135,7 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
             const l = byId.get(r.id);
             const v = view(r);
             const bad = invalid.includes(r);
+            const am = r.theoreticalBase < 0;
             const tone = bad ? "text-status-late" : !l || l.diff === 0 ? "text-slate" : l.diff > 0 ? "text-status-ready" : "text-status-late";
             return (
               <li
@@ -105,11 +148,16 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
                   {l?.big && (
                     <span className="ml-xs whitespace-nowrap rounded bg-status-new px-xs text-xs text-status-new-fg">Lệch lớn</span>
                   )}
-                  <span className="block text-xs text-steel sm:hidden">
+                  {am && (
+                    <span className="block text-xs text-status-late" data-so-am>
+                      Sổ đang âm — còn phiếu nhập chưa ghi?
+                    </span>
+                  )}
+                  <span className={`block text-xs sm:hidden ${am ? "text-status-late" : "text-steel"}`}>
                     Tồn kho: {fmt(v.theoretical)} {v.unit}
                   </span>
                 </span>
-                <span className="hidden text-right text-sm tabular-nums text-slate sm:block">
+                <span className={`hidden text-right text-sm tabular-nums sm:block ${am ? "text-status-late" : "text-slate"}`}>
                   {fmt(v.theoretical)} {v.unit}
                 </span>
                 <span className="flex items-center justify-end gap-xs">
@@ -187,7 +235,7 @@ export function CountForm({ slug, rows }: { slug: string; rows: CountRow[] }) {
           big.length > 0 && <span className="text-sm text-status-new-fg">{big.length} dòng lệch lớn — kiểm tra lại số đếm.</span>
         )}
         <SubmitButton size="sm" className="h-11 sm:h-9" pendingLabel="Đang ghi…">
-          Hoàn thành
+          {redo ? "Hoàn thành lại" : "Hoàn thành"}
         </SubmitButton>
       </div>
     </form>

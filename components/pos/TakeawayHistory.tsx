@@ -19,6 +19,7 @@ import {
 import type { HistoryStatusFilter } from "@/lib/orders/history-filter";
 import { usePrintAdapter } from "@/lib/print/print-mode";
 import { ThanhTien } from "./OrderPanel";
+import { NoiTag } from "./NoiTag";
 import { listTakeawayHistoryAction } from "@/app/r/[slug]/pos/actions";
 import { cn } from "@/lib/utils";
 
@@ -304,7 +305,7 @@ export function TakeawayHistory({
         ? "Không có đơn nào đã thu trong khoảng này."
         : counter
           ? "Không có đơn nào đã xong trong khoảng này."
-          : "Không có đơn mang về nào đã xong trong khoảng này.";
+          : "Không có đơn không bàn nào đã xong trong khoảng này.";
 
   return (
     <div className="flex flex-col">
@@ -442,6 +443,7 @@ export function TakeawayHistory({
                     <span className="ml-xs text-xs font-normal text-steel">
                       {vnStamp(g.root.createdAt)}
                     </span>
+                    {!counter && <NoiTag eatIn={g.root.eatIn} />}
                   </p>
                   <span
                     className={

@@ -35,7 +35,7 @@ test("điều chỉnh nợ đầu kỳ + thanh toán một phần → nợ đún
     .from("purchase_receipts")
     .insert({
       tenant_id: tenant, code: `${TAG}-PN`, supplier_id: ncc!.id, status: "done", doc_date: "2026-09-01", stock_date: "2026-09-01",
-      subtotal: 3_000_000, total: 3_000_000, completed_at: now,
+      subtotal: 3_000_000, total: 3_000_000, completed_at: now, received_at: now,
     })
     .select("id")
     .single();

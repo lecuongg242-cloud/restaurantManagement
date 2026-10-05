@@ -6,6 +6,8 @@ import { costContext, loadInventory } from "@/lib/inventory/data";
 import { getMonDuBao } from "@/lib/forecast/read";
 import { canNguyenLieu, goiYNhap, type GoiYNhap } from "@/lib/forecast/ingredients";
 import { businessDate } from "@/lib/inventory/day";
+import { oldestOpenDay } from "@/lib/inventory/close-server";
+import { toVnDateTimeInput } from "@/lib/inventory/lock";
 import { BASE_UNIT_LABEL, qtyLabel } from "@/lib/inventory/types";
 import { Card } from "@/components/ui/card";
 import { ReceiptForm } from "@/components/admin/inventory/ReceiptForm";
@@ -105,6 +107,8 @@ export default async function NewPurchasePage({ params }: { params: Promise<{ sl
             lastIngredients={lastIngredients}
             goiY={Object.fromEntries(goiY.filter((g) => g.goiY > 0).map((g) => [g.ingredientId, g.goiY]))}
             suppliers={suppliers}
+            nowVn={toVnDateTimeInput(new Date().toISOString())}
+            minDay={await oldestOpenDay(supabase, tenantId, today)}
           />
         )}
       </Card>

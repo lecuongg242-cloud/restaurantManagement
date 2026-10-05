@@ -30,6 +30,7 @@ export function PlaceBreakdown({
       hasTable: c.hasTable,
       channel: c.channel,
       source: c.source,
+      eatIn: c.eatIn,
     });
     const g = grouped.get(label) ?? { revenue: 0, qr: 0 };
     g.revenue += c.revenue;

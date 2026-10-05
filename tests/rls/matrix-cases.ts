@@ -163,7 +163,8 @@ export const CASES: Case[] = [
   {
     table: "stock_entries",
     insertRow: (t, id) => ({
-      id, tenant_id: t, business_date: "2030-01-02", ingredient_id: B(19), kind: "receipt", qty: 1, note: MARK,
+      id, tenant_id: t, business_date: "2030-01-02", occurred_at: "2030-01-02T05:00:00Z", ingredient_id: B(19),
+      kind: "receipt", qty: 1, note: MARK,
     }),
     updatePatch: { note: MARK },
   },
@@ -214,6 +215,19 @@ export const CASES: Case[] = [
     table: "supplier_debt_adjustments",
     insertRow: (t, id) => ({ id, tenant_id: t, supplier_id: B(24), amount: 1, note: MARK }),
     updatePatch: { note: MARK },
+  },
+  // P34 (0085): phiếu kiểm kê + dòng — chỉ đọc (chủ/quản lý); ghi qua complete_stock_count / cancel_stock_count.
+  {
+    table: "stock_counts",
+    insertRow: (t, id) => ({ id, tenant_id: t, code: `${MARK}-${id.slice(0, 8)}`, counted_at: "2030-01-02T05:00:00Z" }),
+    updatePatch: { code: MARK },
+  },
+  {
+    table: "stock_count_lines",
+    insertRow: (t, id) => ({
+      id, tenant_id: t, count_id: B(31), ingredient_id: B(19), counted_base: 2, count_unit: "base", theoretical: 0, diff: 2,
+    }),
+    updatePatch: { diff: 99 },
   },
 ];
 

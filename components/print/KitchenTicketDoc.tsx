@@ -80,8 +80,9 @@ export function KitchenTicketDoc({
 
         <div className="kt-line" />
         <div className="kt-row">
+          {/* Đơn không bàn: in thẳng nơi phục vụ ("Tại quán" / "Mang về"), không "Bàn: —" (P35). */}
           <span>
-            Bàn: <b>{ticket.tableName}</b>
+            {ticket.place ? <b>{ticket.place}</b> : <>Bàn: <b>{ticket.tableName}</b></>}
           </span>
           <span>#{ticket.ticketNo}</span>
         </div>

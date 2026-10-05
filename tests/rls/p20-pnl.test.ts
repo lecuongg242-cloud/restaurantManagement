@@ -62,12 +62,17 @@ beforeAll(async () => {
   await v({ direction: "out", amount: 4_000_000, category_id: cat("Chi khác"), occurred_at: "2001-03-02T03:00:00Z" }); // ngoài kỳ
 
   // Phiếu nhập: 1 đã nhập trong kỳ (trả ngay 200k → phiếu chi "purchase"), 1 phiếu tạm, 1 đã hủy.
-  const pn = (doc: string, total: number, complete: boolean, pay = 0) =>
-    ownerA.rpc("save_purchase_receipt", {
+  // P34: ngày chứng từ = ngày của Thời gian nhập, chỉ lùi được trong 7 ngày → đặt ngày tháng giả bằng service role sau khi
+  // ghi qua đúng RPC (như phiếu cũ đã có trong DB).
+  const pn = async (doc: string, total: number, complete: boolean, pay = 0) => {
+    const r = await ownerA.rpc("save_purchase_receipt", {
       p_tenant: tenantA,
-      p_receipt: { supplier_id: ncc, doc_date: doc, pay_now: pay, note: `P20PNL ${TAG}`, lines: [{ ingredient_id: ing, qty: 1, unit_price: total }] },
+      p_receipt: { supplier_id: ncc, pay_now: pay, note: `P20PNL ${TAG}`, lines: [{ ingredient_id: ing, qty: 1, unit_price: total }] },
       p_complete: complete,
     });
+    if (r.data?.[0]) await db.from("purchase_receipts").update({ doc_date: doc }).eq("id", (r.data[0] as { id: string }).id);
+    return r;
+  };
   await pn("2001-02-20", 1_500_000, true, 200_000);
   await pn("2001-02-21", 7_000_000, false);
   const h = await pn("2001-02-22", 8_000_000, true);

@@ -66,6 +66,8 @@ export type ReceiptListRow = {
   status: ReceiptStatus;
   doc_date: string;
   stock_date: string | null;
+  /** Thời gian nhập (P34); phiếu tạm chưa chọn giờ = null. */
+  received_at: string | null;
   total: number;
   paid: number;
   supplier: { id: string; name: string } | null;
@@ -86,12 +88,14 @@ export async function listReceipts(
   let q = supabase
     .from("purchase_receipts")
     .select(
-      "id, code, status, doc_date, stock_date, total, supplier:suppliers(id, name), " +
+      "id, code, status, doc_date, stock_date, received_at, total, supplier:suppliers(id, name), " +
         "purchase_receipt_lines(qty, purchase_unit, sort, ingredients(name, base_unit)), " +
         "cash_vouchers(amount, status), cash_voucher_allocations(amount)"
     )
     .eq("tenant_id", tenantId)
+    // Phiếu tạm chưa chọn giờ nằm theo giờ tạo (P34: sắp theo thời gian nhập).
     .order("doc_date", { ascending: false })
+    .order("received_at", { ascending: false, nullsFirst: true })
     .order("code", { ascending: false })
     .limit(f.limit ?? 200);
   if (f.status) q = q.eq("status", f.status);
@@ -101,7 +105,8 @@ export async function listReceipts(
   const { data, error } = await q;
   if (error) throw new Error(`Đọc phiếu nhập lỗi: ${error.message}`);
   type Raw = {
-    id: string; code: string; status: ReceiptStatus; doc_date: string; stock_date: string | null; total: number;
+    id: string; code: string; status: ReceiptStatus; doc_date: string; stock_date: string | null; received_at: string | null;
+    total: number;
     supplier: { id: string; name: string } | { id: string; name: string }[] | null;
     purchase_receipt_lines: {
       qty: number; purchase_unit: string | null; sort: number;
@@ -116,6 +121,7 @@ export async function listReceipts(
     status: r.status,
     doc_date: r.doc_date,
     stock_date: r.stock_date,
+    received_at: r.received_at,
     total: r.total,
     paid: (Array.isArray(r.supplier) ? r.supplier[0] : r.supplier)
       ? r.cash_voucher_allocations.reduce((s, a) => s + a.amount, 0)
@@ -138,6 +144,7 @@ export type ReceiptDetail = {
   status: ReceiptStatus;
   doc_date: string;
   stock_date: string | null;
+  received_at: string | null;
   subtotal: number;
   discount: number;
   total: number;
@@ -148,6 +155,7 @@ export type ReceiptDetail = {
   copied_from: string | null;
   created_at: string;
   completed_at: string | null;
+  completed_by: string | null;
   cancelled_at: string | null;
   lines: {
     ingredient_id: string; name: string; qty: number; purchase_unit: string | null; base_unit: string;
@@ -163,7 +171,7 @@ export async function getReceipt(supabase: SupabaseClient, tenantId: string, id:
   const { data } = await supabase
     .from("purchase_receipts")
     .select(
-      "id, code, status, doc_date, stock_date, subtotal, discount, total, pay_now, pay_fund, note, supplier_id, copied_from, created_at, completed_at, cancelled_at, " +
+      "id, code, status, doc_date, stock_date, received_at, subtotal, discount, total, pay_now, pay_fund, note, supplier_id, copied_from, created_at, completed_at, completed_by, cancelled_at, " +
         "purchase_receipt_lines(ingredient_id, qty, purchase_unit, unit_price, amount, sort, ingredients(name, base_unit)), " +
         "cash_vouchers(id, code, amount, fund, status, occurred_at, source), " +
         "cash_voucher_allocations(amount, voucher:cash_vouchers(id, code, fund, status, occurred_at))"

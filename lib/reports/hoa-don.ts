@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ReportRange } from "@/lib/billing/report-range";
+import { orderPlaceLabel } from "@/lib/orders/place-label";
+import type { OrderChannel, OrderSource } from "@/lib/orders/types";
+import { parseSettings, type ServiceMode } from "@/lib/tenant/settings";
 
 /**
  * Tab "Hóa đơn" của app Quản lý (P30, MGR-03, Giao diện B6). Đọc bằng client CỦA NGƯỜI ĐĂNG NHẬP (RLS chặn quán khác) và
@@ -14,7 +17,7 @@ export type DongHoaDon = {
   soHd: number | null;
   /** Giờ thanh toán (ISO). */
   luc: string | null;
-  /** "Bàn A1" · "Mang về" · "Không gắn bàn". */
+  /** "Bàn A1" · "Tại quán" · "Mang về" · "Giao tận nơi" · "Không gắn bàn". */
   ban: string;
   tong: number;
   /** "Tiền mặt", "Chuyển khoản", hoặc cả hai nối bằng dấu phẩy; "—" khi chưa ghi thanh toán. */
@@ -24,9 +27,23 @@ export type DongHoaDon = {
 
 export const TEN_PHUONG_THUC: Record<string, string> = { cash: "Tiền mặt", transfer: "Chuyển khoản" };
 
-export function nhanNoi(b: { table_label: string | null; online_order_id: string | null }): string {
+type DonKhongBan = { channel: string; source: string | null; eat_in: boolean | null };
+
+/** Nơi của một hóa đơn — đơn không bàn dùng chung quy tắc `orderPlaceLabel` với phiếu bếp / hóa đơn in (P35). */
+export function nhanNoi(
+  b: { table_label: string | null; online_order_id: string | null },
+  don: DonKhongBan | null | undefined,
+  serviceMode: ServiceMode
+): string {
   if (b.table_label) return `Bàn ${b.table_label}`;
-  return b.online_order_id ? "Mang về" : "Không gắn bàn";
+  if (!b.online_order_id) return "Không gắn bàn";
+  if (!don) return "Mang về";
+  return orderPlaceLabel({
+    serviceMode,
+    channel: don.channel as OrderChannel,
+    source: don.source as OrderSource,
+    eatIn: don.eat_in,
+  });
 }
 
 export async function danhSachHoaDon(
@@ -79,6 +96,16 @@ export async function danhSachHoaDon(
     ? await client.from("memberships").select("user_id, display_name").eq("tenant_id", tenantId).in("user_id", nguoi)
     : { data: [] as { user_id: string; display_name: string | null }[] };
 
+  const donIds = [...new Set((meta ?? []).map((m) => m.online_order_id as string | null).filter((x): x is string => !!x))];
+  const [{ data: dons }, { data: quan }] = await Promise.all([
+    donIds.length
+      ? client.from("orders").select("id, channel, source, eat_in").eq("tenant_id", tenantId).in("id", donIds)
+      : Promise.resolve({ data: [] as (DonKhongBan & { id: string })[] }),
+    client.from("tenants").select("settings").eq("id", tenantId).maybeSingle(),
+  ]);
+  const donTheoId = new Map((dons ?? []).map((d) => [d.id as string, d as DonKhongBan]));
+  const serviceMode = parseSettings(quan?.settings).service_mode;
+
   const metaTheoId = new Map((meta ?? []).map((m) => [m.id as string, m]));
   const tenTheoUser = new Map((ten ?? []).map((t) => [t.user_id as string, (t.display_name as string | null) ?? null]));
   const ptTheoHd = new Map<string, Set<string>>();
@@ -97,7 +124,11 @@ export async function danhSachHoaDon(
         id: r.id as string,
         soHd: (r.bill_no as number | null) ?? null,
         luc: (r.paid_at as string | null) ?? null,
-        ban: nhanNoi({ table_label: (m?.table_label as string | null) ?? null, online_order_id: (m?.online_order_id as string | null) ?? null }),
+        ban: nhanNoi(
+          { table_label: (m?.table_label as string | null) ?? null, online_order_id: (m?.online_order_id as string | null) ?? null },
+          m?.online_order_id ? donTheoId.get(m.online_order_id as string) : null,
+          serviceMode
+        ),
         tong: Number(r.total ?? 0),
         phuongThuc: pt?.size ? [...pt].join(", ") : "—",
         thuNgan: m?.closed_by ? (tenTheoUser.get(m.closed_by as string) ?? null) : null,

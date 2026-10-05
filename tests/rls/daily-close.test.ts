@@ -8,7 +8,8 @@ import { businessDate, addDays, dayStartUtc } from "@/lib/inventory/day";
 import type { DailyClosePayload } from "@/lib/inventory/close";
 
 /**
- * INV-08/09 — chốt sổ ngày trên DB thật, bằng phiên owner thật. Kịch bản 3 ngày trước hôm nay:
+ * INV-08/09 — chốt sổ ngày trên DB thật, bằng phiên owner thật. P34 (INV-22): sổ để mở 7 ngày, nên kịch bản đặt ở 3 ngày
+ * đã quá 7 ngày (hôm nay − 9 … − 7):
  *   D1: nhập 1.000 g bò giá 250đ/g, bán 3 phần (100 g/phần)          → tồn cuối 700
  *   D2: nhập 1.000 g bò giá 300đ/g, bán 4 phần, kiểm kê lệch −50 g   → tồn cuối 1.250, đã kiểm
  *   D3: không có gì                                                   → tồn 1.250, giá cũ của D2
@@ -19,9 +20,9 @@ let ownerB: SupabaseClient;
 let tenant: string;
 
 const today = businessDate();
-const D1 = addDays(today, -3);
-const D2 = addDays(today, -2);
-const D3 = addDays(today, -1);
+const D1 = addDays(today, -9);
+const D2 = addDays(today, -8);
+const D3 = addDays(today, -7);
 const at = (day: string, hours: number) => new Date(Date.parse(dayStartUtc(day)) + hours * 3_600_000).toISOString();
 
 const ids = { cat: randomUUID(), item: randomUUID(), bo: randomUUID() };
@@ -65,7 +66,7 @@ beforeAll(async () => {
   await must(db.from("recipe_lines").insert({ ...t, menu_item_id: ids.item, ingredient_id: ids.bo, qty: 100 }));
 
   const entry = (day: string, h: number, kind: string, qty: number, unit_cost: number | null = null) => ({
-    ...t, business_date: day, ingredient_id: ids.bo, kind, qty, unit_cost, created_at: at(day, h),
+    ...t, business_date: day, ingredient_id: ids.bo, kind, qty, unit_cost, created_at: at(day, h), occurred_at: at(day, h),
   });
   for (const e of [
     entry(D1, 8, "receipt", 1000, 250),
@@ -89,9 +90,11 @@ afterAll(async () => {
 }, 120_000);
 
 describe("tự chốt sổ (INV-09)", () => {
-  it("chốt đúng 3 ngày D1..D3, không chốt hôm nay", async () => {
+  it("chốt đúng 3 ngày D1..D3 (≤ hôm nay − 7); 7 ngày gần nhất để mở", async () => {
     const r = await ensureClosedThrough(owner, tenant, today);
     expect(r.closed).toEqual([D1, D2, D3]);
+    expect(r.openFrom).toBe(addDays(today, -6));
+    expect(await closeOf(addDays(today, -6))).toBeNull();
     expect(await closeOf(today)).toBeNull();
   });
 

@@ -18,9 +18,11 @@ const preview: DailyClosePayload = {
   ],
 };
 
-describe("gộp lãi gộp + tạm tính hôm nay (REPORT-13)", () => {
+const D = "2026-10-05";
+
+describe("gộp lãi gộp + tạm tính ngày chưa chốt (REPORT-13)", () => {
   it("lãi gộp chỉ tính trên phần có giá vốn", () => {
-    const r = mergeMargin([row({ qty: 5, net_revenue: 250_000, costed_revenue: 150_000, cost_total: 60_000, costed_qty: 3, uncosted_qty: 2 })], [], null);
+    const r = mergeMargin([row({ qty: 5, net_revenue: 250_000, costed_revenue: 150_000, cost_total: 60_000, costed_qty: 3, uncosted_qty: 2 })], [], new Map());
     expect(r.items[0]).toMatchObject({ grossProfit: 90_000, portionCost: 20_000, uncostedQty: 2 });
     expect(r.items[0].foodCostPct).toBeCloseTo(40, 6);
     expect(r.totals).toMatchObject({ grossProfit: 90_000, uncostedQty: 2 });
@@ -30,10 +32,10 @@ describe("gộp lãi gộp + tạm tính hôm nay (REPORT-13)", () => {
     const r = mergeMargin(
       [row({ qty: 2, net_revenue: 100_000, uncosted_qty: 2 })],
       [
-        { menu_item_id: "pho", qty: 1, net_revenue: 50_000, option_ids: ["trung"] },
-        { menu_item_id: "pho", qty: 1, net_revenue: 50_000, option_ids: [] },
+        { day: D, menu_item_id: "pho", qty: 1, net_revenue: 50_000, option_ids: ["trung"] },
+        { day: D, menu_item_id: "pho", qty: 1, net_revenue: 50_000, option_ids: [] },
       ],
-      preview
+      new Map([[D, preview]])
     );
     // (20.000 + 3.000) + 20.000 = 43.000
     expect(r.items[0]).toMatchObject({ costTotal: 43_000, costedQty: 2, uncostedQty: 0, provisionalQty: 2, grossProfit: 57_000 });
@@ -42,14 +44,14 @@ describe("gộp lãi gộp + tạm tính hôm nay (REPORT-13)", () => {
   it("option thiếu giá → dòng vẫn chưa tính được", () => {
     const r = mergeMargin(
       [row({ qty: 1, net_revenue: 50_000, uncosted_qty: 1 })],
-      [{ menu_item_id: "pho", qty: 1, net_revenue: 50_000, option_ids: ["sot"] }],
-      preview
+      [{ day: D, menu_item_id: "pho", qty: 1, net_revenue: 50_000, option_ids: ["sot"] }],
+      new Map([[D, preview]])
     );
     expect(r.items[0]).toMatchObject({ costedQty: 0, uncostedQty: 1, grossProfit: null });
   });
 
   it("món chưa đủ giá → không lãi gộp, không vào tổng", () => {
-    const r = mergeMargin([row({ menu_item_id: "com", name: "Cơm", qty: 3, net_revenue: 90_000, uncosted_qty: 3 })], [], null);
+    const r = mergeMargin([row({ menu_item_id: "com", name: "Cơm", qty: 3, net_revenue: 90_000, uncosted_qty: 3 })], [], new Map());
     expect(r.items[0].grossProfit).toBeNull();
     expect(r.items[0].foodCostPct).toBeNull();
     expect(r.totals.grossProfit).toBe(0);
@@ -64,13 +66,13 @@ describe("gộp lãi gộp + tạm tính hôm nay (REPORT-13)", () => {
         row({ menu_item_id: "c", name: "C", qty: 1, net_revenue: 100, costed_revenue: 100, cost_total: 20, costed_qty: 1 }),
       ],
       [],
-      null
+      new Map()
     );
     expect(r.items.map((i) => i.name)).toEqual(["C", "A", "B"]);
   });
 
   it("Σ doanh thu thuần giữ nguyên, không phụ thuộc giá vốn", () => {
-    const r = mergeMargin([row({ qty: 1, net_revenue: 70_000, uncosted_qty: 1 }), row({ menu_item_id: "x", name: "X", qty: 1, net_revenue: 30_000, costed_revenue: 30_000, cost_total: 1, costed_qty: 1 })], [], null);
+    const r = mergeMargin([row({ qty: 1, net_revenue: 70_000, uncosted_qty: 1 }), row({ menu_item_id: "x", name: "X", qty: 1, net_revenue: 30_000, costed_revenue: 30_000, cost_total: 1, costed_qty: 1 })], [], new Map());
     expect(r.totals.netRevenue).toBe(100_000);
   });
 });

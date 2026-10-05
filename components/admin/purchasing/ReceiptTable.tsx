@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClickableRow } from "./ClickableRow";
 import { formatVnd } from "@/lib/orders/cart";
 import { ngayVn, STATUS_LABEL } from "@/lib/purchasing/receipt";
+import { gioNgayNamVn } from "@/lib/time/vn";
 import type { ReceiptListRow, ReceiptStatus } from "@/lib/purchasing/data";
 
 const VARIANT: Record<ReceiptStatus, "cream" | "ready" | "done"> = { draft: "cream", done: "ready", cancelled: "done" };
@@ -30,7 +31,7 @@ export function ReceiptTable({
           <thead className="border-b border-hairline-soft text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-lg py-sm font-medium">Mã phiếu</th>
-              <th className="px-md py-sm font-medium">Ngày</th>
+              <th className="px-md py-sm font-medium">Thời gian nhập</th>
               {showSupplier && <th className="px-md py-sm font-medium">Nhà cung cấp</th>}
               <th className="px-md py-sm font-medium">Hàng nhập</th>
               <th className="px-md py-sm text-right font-medium">Cần trả NCC</th>
@@ -47,7 +48,9 @@ export function ReceiptTable({
                     {r.code}
                   </Link>
                 </td>
-                <td className="px-md py-sm text-slate">{ngayVn(r.doc_date)}</td>
+                <td className="whitespace-nowrap px-md py-sm text-slate">
+                  {r.received_at ? gioNgayNamVn(r.received_at) : ngayVn(r.doc_date)}
+                </td>
                 {showSupplier && <td className="px-md py-sm text-slate">{r.supplier?.name ?? "—"}</td>}
                 <td className="max-w-[28rem] truncate px-md py-sm text-slate" title={r.items.join("\n")}>
                   {r.items.slice(0, 3).join(" · ")}

@@ -32,7 +32,7 @@ export function MarginPanel({ data }: { data: InventoryReport }) {
         </p>
       )}
       {totals.provisionalQty > 0 && (
-        <p className="text-xs text-steel">Có {totals.provisionalQty} phần của hôm nay — tạm tính, chốt lại sau nửa đêm.</p>
+        <p className="text-xs text-steel">Có {totals.provisionalQty} phần của các ngày chưa chốt sổ — tạm tính, có thể đổi khi nhập phiếu muộn hoặc sửa định lượng (sổ tự chốt sau 7 ngày).</p>
       )}
 
       <div className="overflow-x-auto">

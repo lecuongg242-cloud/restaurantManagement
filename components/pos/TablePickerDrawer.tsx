@@ -8,7 +8,7 @@ import { TableMap } from "@/components/pos/TableMap";
 /**
  * Sơ đồ bàn cho khổ DƯỚI 1024 px (ORDER-19) — iPad/tablet dọc không đủ chỗ cho cột bàn cố định, nên cột
  * đó ẩn đi và thay bằng nút "Bàn: B5 ▾" mở ngăn kéo trái chứa ĐÚNG `TableMap` của khổ lớn (một nguồn sự
- * thật). Chọn bàn / "Bán mang về" xong ngăn kéo tự đóng. Từ 1024 px trở lên nút này ẩn (`lg:hidden`).
+ * thật). Chọn bàn / "Khách không bàn" xong ngăn kéo tự đóng. Từ 1024 px trở lên nút này ẩn (`lg:hidden`).
  */
 export function TablePickerDrawer({
   label,

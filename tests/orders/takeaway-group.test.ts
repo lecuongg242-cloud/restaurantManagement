@@ -22,6 +22,7 @@ const order = (
   total,
   cancelReason: null,
   cancelledAt: null,
+  eatIn: false,
   // Một dòng món khớp `total` — nhóm cộng theo `total` nên chi tiết không ảnh hưởng.
   items: [
     {

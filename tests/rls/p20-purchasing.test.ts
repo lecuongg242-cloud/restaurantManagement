@@ -283,7 +283,7 @@ describe("Hủy bỏ / Sao chép / sửa thông tin", () => {
     expect(l!.map((x) => [x.ingredient_id, Number(x.qty), x.unit_price, x.amount])).toEqual([[trung, 2, 30_000, 60_000]]);
   });
 
-  it("phiếu đã nhập: sửa ghi chú + ngày chứng từ; gắn NCC chỉ khi đang trống", async () => {
+  it("phiếu đã nhập: sửa ghi chú; ngày không đổi (P34: thời gian nhập không sửa); gắn NCC chỉ khi đang trống", async () => {
     const { data } = await save(ownerA, { note: note("meta"), lines: [{ ingredient_id: thit, qty: 1 }] }, true);
     const id = (data![0] as { id: string }).id;
     const ok = await ownerA.rpc("update_purchase_receipt_meta", {
@@ -291,7 +291,7 @@ describe("Hủy bỏ / Sao chép / sửa thông tin", () => {
     });
     expect(ok.error).toBeNull();
     const { data: r } = await db.from("purchase_receipts").select("note, doc_date, supplier_id, stock_date").eq("id", id).single();
-    expect(r).toEqual({ note: note("meta-moi"), doc_date: "2026-09-01", supplier_id: nccA, stock_date: today });
+    expect(r).toEqual({ note: note("meta-moi"), doc_date: today, supplier_id: nccA, stock_date: today });
     const s2 = await ownerA.from("suppliers").insert({ tenant_id: tenantA, name: `P20 khac ${TAG}` }).select("id").single();
     const doi = await ownerA.rpc("update_purchase_receipt_meta", {
       p_receipt: id, p_note: note("meta-moi"), p_doc_date: null, p_supplier: s2.data!.id,

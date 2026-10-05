@@ -14,7 +14,13 @@ export type KitchenTicketView = {
   kitchenNo: number | null;
   tenantName: string;
   logoUrl: string | null;
+  /**
+   * Tên bàn. Đơn KHÔNG bàn: bằng luôn `place` ("Tại quán" / "Mang về") để cầu in bản cũ (chỉ biết in
+   * "Ban: <tableName>") vẫn in ra nơi phục vụ thay vì "Ban: —".
+   */
   tableName: string;
+  /** Nơi phục vụ của đơn KHÔNG bàn ("Tại quán" / "Mang về" / "Giao tận nơi"); null = đơn có bàn (P35). */
+  place: string | null;
   confirmedAt: string | null;
   ticketNo: string;
   isReprint: boolean;

@@ -25,6 +25,8 @@ export type ChannelSlice = {
   source: OrderSource;
   /** Đơn có gắn bàn hay không — cần để dán đúng nhãn nơi phục vụ ở quán chế độ quầy. */
   hasTable: boolean;
+  /** Đơn không bàn khách ăn tại quán (P35) — tách "Tại quán" khỏi "Mang về" ở quán chế độ bàn. */
+  eatIn: boolean;
   revenue: number;
   itemCount: number;
 };
@@ -190,7 +192,7 @@ export async function getReportData(tenantId: string, range: ReportRange): Promi
       // Lấy TẤT CẢ món (không phải top 10) — khối "Cơ cấu theo từng món" cần đủ để tính tỷ trọng.
       rpc<{ name: string; qty: number; revenue: number }>(client, "report_top_items", { ...args, p_limit: 1000 }),
       rpc<{ name: string; qty: number; revenue: number }>(client, "report_by_category", args),
-      rpc<{ channel: string; source: string; has_table: boolean; revenue: number; item_count: number }>(
+      rpc<{ channel: string; source: string; has_table: boolean; eat_in: boolean; revenue: number; item_count: number }>(
         client,
         "report_by_channel",
         args
@@ -242,6 +244,7 @@ export async function getReportData(tenantId: string, range: ReportRange): Promi
       channel: r.channel as OrderChannel,
       source: r.source as OrderSource,
       hasTable: !!r.has_table,
+      eatIn: !!r.eat_in,
       revenue: Number(r.revenue),
       itemCount: Number(r.item_count),
     })),

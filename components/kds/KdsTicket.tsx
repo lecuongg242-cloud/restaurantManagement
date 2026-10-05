@@ -60,11 +60,11 @@ export function KdsTicket({
               #{ticket.kitchenNo}
             </span>
           )}
-          {ticket.channel === "dine_in" ? (
+          {ticket.channel === "dine_in" || ticket.place === "Tại quán" ? (
             <span className={cn("font-semibold leading-none text-ink", done ? "text-xl" : "text-2xl")}>{ticket.place}</span>
           ) : (
-            // Nhãn do server tính (place-label.ts) — quán chế độ quầy hiện "Tại quán", không phải
-            // "Mang về"; chỉ đơn khách tự đặt online mới là mang về/giao.
+            // Nhãn do server tính (place-label.ts). Đơn không bàn khách ăn tại quán (chế độ quầy, hoặc nhân viên
+            // chọn "Tại quán" — P35) hiện chữ thường như đơn tại bàn; chỉ đơn mang về / giao mới tô nổi.
             <span
               className={cn(
                 "rounded-md px-sm py-xxs font-semibold text-xl leading-none",

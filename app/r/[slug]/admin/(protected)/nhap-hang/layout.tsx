@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
 import { KhoHangHeader } from "@/components/admin/inventory/KhoHangHeader";
+import { KhoSoStatus } from "@/components/admin/inventory/KhoSoStatus";
 
 /** Nhập hàng (P20, chủ dự án chốt G1 30/09/2026 — mục menu riêng như KiotViet FnB): owner + manager. */
 export default async function PurchaseLayout({
@@ -19,6 +20,7 @@ export default async function PurchaseLayout({
   return (
     <div className="w-full">
       <KhoHangHeader adminBase={`/r/${slug}/admin`} />
+      <KhoSoStatus tenantId={session.tenant.id} adminBase={`/r/${slug}/admin`} />
       <div className="mt-lg">{children}</div>
     </div>
   );

@@ -841,7 +841,9 @@ export async function createTakeawayOrderAction(
   note?: string,
   addToOrderId?: string,
   /** Khóa của lần bấm "Tạo đơn" ở máy POS (0034) — gửi lại cùng khóa trả về đơn cũ. */
-  idempotencyKey?: string
+  idempotencyKey?: string,
+  /** Khách ăn tại quán (P35). Lượt gọi thêm bỏ qua giá trị này — theo đơn gốc. */
+  eatIn?: boolean
 ): Promise<ActionResult> {
   const auth = await authorizePos(slug);
   if ("error" in auth) return { ok: false, error: auth.error };
@@ -849,6 +851,7 @@ export async function createTakeawayOrderAction(
   // Chuẩn hóa về ĐƠN GỐC ở server: bấm "Gọi thêm" trên đơn con vẫn phải trỏ về gốc, và
   // client không được tự quyết cha (nhóm phẳng — QD-011 §3).
   let parentOrderId: string | null = null;
+  let anTaiQuan = eatIn ?? false;
   if (addToOrderId) {
     const supabase = await createClient();
     const root = await resolveGroupRoot(supabase, auth.tenantId, addToOrderId);
@@ -856,6 +859,14 @@ export async function createTakeawayOrderAction(
     if (await groupIsPaid(supabase, auth.tenantId, root.rootId))
       return { ok: false, error: "Đơn đã thu tiền — hãy tạo đơn mới." };
     parentOrderId = root.rootId;
+    // Lượt gọi thêm cùng nơi với đơn gốc: phiếu bếp của lượt sau không được nói khác lượt đầu.
+    const { data: goc } = await supabase
+      .from("orders")
+      .select("eat_in")
+      .eq("tenant_id", auth.tenantId)
+      .eq("id", root.rootId)
+      .maybeSingle();
+    anTaiQuan = Boolean(goc?.eat_in);
   }
 
   const result = await createStaffTakeawayOrder({
@@ -867,6 +878,7 @@ export async function createTakeawayOrderAction(
     actingStaffId: auth.staffId,
     parentOrderId,
     idempotencyKey,
+    eatIn: anTaiQuan,
   });
   if ("error" in result) return { ok: false, error: result.error };
 

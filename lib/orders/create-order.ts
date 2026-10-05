@@ -213,6 +213,8 @@ export async function insertOrderGraph(
     parentOrderId?: string | null;
     /** Bàn GỌI của đơn có bàn (P23): bàn phụ của nhóm thì khác bàn của phiên. */
     tableId?: string | null;
+    /** Đơn không bàn khách ăn tại quán (P35, `orders.eat_in`). */
+    eatIn?: boolean;
     /**
      * Khóa idempotent do CLIENT sinh (0034). Gửi lại cùng khóa ⇒ trả về đúng đơn cũ như một lần
      * THÀNH CÔNG, không đẻ đơn thứ hai. Bỏ trống = giữ nguyên hành vi cũ (luôn tạo đơn mới).
@@ -240,6 +242,7 @@ export async function insertOrderGraph(
       note: args.note,
       parent_order_id: args.parentOrderId ?? null,
       table_id: args.tableId ?? null,
+      eat_in: args.eatIn ?? false,
       idempotency_key: idemKey,
     })
     .select("id")
@@ -479,6 +482,8 @@ export type CreateStaffTakeawayInput = {
   parentOrderId?: string | null;
   /** Khóa idempotent của lần bấm "Tạo đơn" ở máy POS (0034). */
   idempotencyKey?: string;
+  /** Khách ăn tại quán (P35) — quán chế độ bàn chọn "Tại quán" / "Mang về". Lượt gọi thêm theo đơn gốc. */
+  eatIn?: boolean;
 };
 
 /**
@@ -522,5 +527,6 @@ export async function createStaffTakeawayOrder(
     built: validated.built,
     parentOrderId: input.parentOrderId ?? null,
     idempotencyKey: input.idempotencyKey,
+    eatIn: input.eatIn ?? false,
   });
 }

@@ -1,22 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadInventory } from "./data";
 import { addDays } from "./day";
-import { buildDailyClose, daysToClose, type DayRow, type PricePoint } from "./close";
+import { buildDailyClose, daysToClose, firstOpenDay, type DailyClosePayload, type DayRow, type PricePoint } from "./close";
 import { measureYield, yieldSamples } from "./yield";
 
 /**
- * Tự chốt sổ (INV-09): chốt LẦN LƯỢT mọi ngày chưa chốt từ mốc gốc tới HÔM QUA. Gọi khi mở khu
- * Nguyên liệu hoặc Báo cáo. Không chốt hôm nay: quán còn đang bán — chốt lúc này thì đơn sau đó
- * vĩnh viễn nằm ngoài sổ (bản chốt không sửa được).
+ * Tự chốt sổ (INV-09, P34 INV-22): chốt LẦN LƯỢT mọi ngày chưa chốt từ mốc gốc tới hôm nay − 7 (OPEN_DAYS). Gọi khi mở khu
+ * Kho hàng hoặc Báo cáo. 7 ngày gần nhất để mở: phiếu nhập ghi muộn còn vào đúng ngày (QD-034 D4) — chốt rồi thì bản chốt
+ * không sửa được.
  *
  * Tuần tự, không song song: tồn đầu ngày D+1 đọc từ bản chốt ngày D.
  * Nhận client từ ngoài để test chạy được bằng phiên owner thật.
+ *
+ * `openFrom`: ngày đầu tiên CHƯA chốt có số liệu (null = quán chưa có dòng sổ nào) — báo cáo tính tại chỗ từ ngày này.
  */
 export async function ensureClosedThrough(
   supabase: SupabaseClient,
   tenantId: string,
   today: string
-): Promise<{ closed: string[] }> {
+): Promise<{ closed: string[]; openFrom: string | null }> {
   const [{ data: last }, { data: first }] = await Promise.all([
     supabase
       .from("daily_closes")
@@ -31,12 +33,11 @@ export async function ensureClosedThrough(
       .order("business_date", { ascending: true })
       .limit(1),
   ]);
-  const days = daysToClose(
-    (last?.[0]?.business_date as string) ?? null,
-    (first?.[0]?.business_date as string) ?? null,
-    today
-  );
-  if (days.length === 0) return { closed: [] };
+  const lastClosed = (last?.[0]?.business_date as string) ?? null;
+  const firstEntry = (first?.[0]?.business_date as string) ?? null;
+  const days = daysToClose(lastClosed, firstEntry, firstOpenDay(today));
+  const openFrom = (done: string | null) => (done ? addDays(done, 1) : firstEntry);
+  if (days.length === 0) return { closed: [], openFrom: openFrom(lastClosed) };
 
   const statics = await loadStatics(supabase, tenantId, days[days.length - 1]);
   const closed: string[] = [];
@@ -64,7 +65,23 @@ export async function ensureClosedThrough(
       console.error(JSON.stringify({ op: "refreshMeasuredYields", tenant: tenantId, error: String(e) }));
     }
   }
-  return { closed };
+  return { closed, openFrom: openFrom(closed.at(-1) ?? lastClosed) };
+}
+
+/**
+ * Ngày cũ nhất còn sửa được (chưa chốt): hôm nay − 6, hoặc sau bản chốt gần nhất nếu muộn hơn (bản chốt cũ chốt sáng hôm sau,
+ * trước P34). Phiếu nhập lùi được tới ngày này; các danh sách "7 ngày gần đây" bắt đầu từ đây.
+ */
+export async function oldestOpenDay(supabase: SupabaseClient, tenantId: string, today: string): Promise<string> {
+  const { data } = await supabase
+    .from("daily_closes")
+    .select("business_date")
+    .eq("tenant_id", tenantId)
+    .order("business_date", { ascending: false })
+    .limit(1);
+  const after = data?.[0] ? addDays(data[0].business_date as string, 1) : null;
+  const min = firstOpenDay(today);
+  return after && after > min ? after : min;
 }
 
 /** Đọc bản chốt 180 ngày gần nhất đủ cho 14 lần kiểm kê của quán kiểm thưa. */
@@ -111,11 +128,22 @@ export async function refreshMeasuredYields(supabase: SupabaseClient, tenantId: 
   return changed;
 }
 
-/** Bản xem trước chốt của một ngày chưa chốt (hôm nay — "tạm tính"), KHÔNG ghi. */
-export async function previewDay(supabase: SupabaseClient, tenantId: string, day: string) {
-  const statics = await loadStatics(supabase, tenantId, day);
-  return buildDailyClose({ day, rows: await loadDayRows(supabase, tenantId, day), ...statics });
+/** Bản xem trước chốt của các ngày chưa chốt ("tạm tính"), KHÔNG ghi. Danh mục + giá nạp một lần như lúc chốt. */
+export async function previewDays(
+  supabase: SupabaseClient,
+  tenantId: string,
+  days: string[]
+): Promise<Map<string, DailyClosePayload>> {
+  const out = new Map<string, DailyClosePayload>();
+  if (days.length === 0) return out;
+  const sorted = [...days].sort();
+  const statics = await loadStatics(supabase, tenantId, sorted[sorted.length - 1]);
+  for (const day of sorted) {
+    out.set(day, buildDailyClose({ day, rows: await loadDayRows(supabase, tenantId, day), ...statics }));
+  }
+  return out;
 }
+
 
 async function loadDayRows(supabase: SupabaseClient, tenantId: string, day: string): Promise<DayRow[]> {
   const { data, error } = await supabase.rpc("inventory_day", { p_tenant: tenantId, p_date: day });

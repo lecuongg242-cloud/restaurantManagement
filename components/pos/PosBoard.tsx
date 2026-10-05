@@ -281,11 +281,11 @@ export function PosBoard({
         const key = `t${o.kitchenNo}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        // Chế độ quầy: đơn không gắn bàn là khách ăn tại quán, không phải mang về.
+        // Chế độ quầy: đơn không gắn bàn là khách ăn tại quán. Chế độ bàn: theo lựa chọn lúc tạo đơn (P35).
         orders.push({
           key,
           kitchenNo: o.kitchenNo,
-          where: counter ? "Tại quán" : "Mang về",
+          where: counter || o.eatIn ? "Tại quán" : "Mang về",
           orderId: o.id,
         });
       }
@@ -733,7 +733,7 @@ export function PosBoard({
         {/* Dưới 1024 px cột sơ đồ bàn ẩn đi — chọn bàn qua ngăn kéo (ORDER-19). Từ lg nút này ẩn. */}
         {!counter && (
           <TablePickerDrawer
-            label={takeawayMode ? "Mang về" : selectedTable ? `Bàn ${selectedTable.name}` : "Chọn bàn"}
+            label={takeawayMode ? "Không bàn" : selectedTable ? `Bàn ${selectedTable.name}` : "Chọn bàn"}
             areas={initial.areas}
             tables={initial.tables}
             sessions={initial.sessions}
@@ -860,7 +860,7 @@ export function PosBoard({
                 <Icon className="h-4 w-4" aria-hidden />
                 {ten}
                 {id === "mon" && (selectedTable || takeawayMode) && (
-                  <span className="font-normal opacity-80">· {takeawayMode ? "Mang về" : `Bàn ${selectedTable!.name}`}</span>
+                  <span className="font-normal opacity-80">· {takeawayMode ? "Không bàn" : `Bàn ${selectedTable!.name}`}</span>
                 )}
               </button>
             ))}

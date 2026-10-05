@@ -65,7 +65,7 @@ export function PnlPanel({ v, settingsHref, exportHref }: { v: PnlView; settings
         {v.uncostedQty > 0 && (
           <li className="text-status-late">{v.uncostedQty} phần món chưa đủ giá — chưa tính vào giá vốn (lợi nhuận đang cao hơn thực tế).</li>
         )}
-        {v.provisionalQty > 0 && <li>{v.provisionalQty} phần món hôm nay tính tạm (chưa chốt sổ).</li>}
+        {v.provisionalQty > 0 && <li>{v.provisionalQty} phần món của ngày chưa chốt sổ tính tạm (sổ tự chốt sau 7 ngày).</li>}
         {v.excludedA.count > 0 && (
           <li>
             {v.excludedA.count} phiếu chi nguyên liệu ({formatVnd(v.excludedA.amount)}) không cộng vào chi phí — đã nằm trong giá vốn.

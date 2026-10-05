@@ -135,9 +135,9 @@ beforeAll(async () => {
   );
   await must(
     db.from("stock_entries").insert([
-      { ...t, business_date: today, ingredient_id: ids.bo, kind: "receipt", qty: 1000, batch_id: null, created_at: at(0) },
-      { ...t, business_date: today, ingredient_id: ids.trung, kind: "receipt", qty: 10, batch_id: null, created_at: at(0) },
-      { ...t, business_date: today, ingredient_id: ids.nd, kind: "batch_in", qty: 1000, batch_id: ids.ndBatch, created_at: at(0) },
+      { ...t, business_date: today, ingredient_id: ids.bo, kind: "receipt", qty: 1000, batch_id: null, created_at: at(0), occurred_at: at(0) },
+      { ...t, business_date: today, ingredient_id: ids.trung, kind: "receipt", qty: 10, batch_id: null, created_at: at(0), occurred_at: at(0) },
+      { ...t, business_date: today, ingredient_id: ids.nd, kind: "batch_in", qty: 1000, batch_id: ids.ndBatch, created_at: at(0), occurred_at: at(0) },
     ])
   );
 

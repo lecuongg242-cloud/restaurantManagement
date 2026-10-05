@@ -6,7 +6,9 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { KitchenTicketView } from "./adapter";
 import { urlAnh } from "@/lib/storage/public-url";
-import { kitchenTableName } from "@/lib/orders/place-label";
+import { kitchenTableName, orderPlaceLabel } from "@/lib/orders/place-label";
+import { parseSettings } from "@/lib/tenant/settings";
+import type { OrderChannel, OrderSource } from "@/lib/orders/types";
 import { loadGroupRefs } from "@/lib/orders/table-group";
 
 export async function buildKitchenTicket(
@@ -18,7 +20,7 @@ export async function buildKitchenTicket(
   const { data: order } = await supabase
     .from("orders")
     .select(
-      "id, kitchen_no, confirmed_at, tenant_id, table_session_id, table_id, table_sessions(table_id, tables(name)), order_items(name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
+      "id, kitchen_no, confirmed_at, channel, source, eat_in, tenant_id, table_session_id, table_id, table_sessions(table_id, tables(name)), order_items(name_snapshot, qty, note, status, created_at, order_item_modifiers(name_snapshot))"
     )
     .eq("id", orderId)
     .eq("tenant_id", tenantId)
@@ -27,7 +29,7 @@ export async function buildKitchenTicket(
 
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("name, logo_url")
+    .select("name, logo_url, settings")
     .eq("id", tenantId)
     .maybeSingle();
 
@@ -50,6 +52,16 @@ export async function buildKitchenTicket(
       })
     : null;
 
+  const tableName = groupName ?? ts?.tables?.name ?? null;
+  const place = tableName
+    ? null
+    : orderPlaceLabel({
+        serviceMode: parseSettings(tenant?.settings).service_mode,
+        channel: order.channel as OrderChannel,
+        source: order.source as OrderSource,
+        eatIn: order.eat_in as boolean,
+      });
+
   const items = ((order.order_items as Record<string, unknown>[]) ?? [])
     .filter((it) => it.status !== "cancelled")
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
@@ -67,7 +79,8 @@ export async function buildKitchenTicket(
     kitchenNo: (order.kitchen_no as number) ?? null,
     tenantName: tenant?.name ?? "",
     logoUrl: urlAnh(tenant?.logo_url),
-    tableName: groupName ?? ts?.tables?.name ?? "—",
+    tableName: tableName ?? place ?? "—",
+    place,
     confirmedAt: order.confirmed_at,
     ticketNo: order.id.slice(-6).toUpperCase(),
     isReprint: (count ?? 0) > 0,

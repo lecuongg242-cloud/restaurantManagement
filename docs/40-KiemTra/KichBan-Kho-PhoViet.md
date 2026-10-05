@@ -1,9 +1,11 @@
 # Kịch bản thử kho ở quán demo Phở Việt: nhập hàng → định lượng → bán → kiểm kê → hao hụt
 
-> Lập 05/10/2026 (P26 làm 03/10; 05/10 sửa để chạy được mọi ngày). Quán: `pho-viet` trên DB production. Không đụng `qt-food`.
+> Lập 05/10/2026 (P26 làm 03/10; 05/10 sửa để chạy được mọi ngày; P34 05/10: sổ để mở 7 ngày + nhập phiếu muộn). Quán:
+> `pho-viet` trên DB production. Không đụng `qt-food`.
 > Công cụ: `scripts/seed-kho-demo.mjs` (sinh 7 ngày), `scripts/doi-chieu-kho-demo.mjs` (đối chiếu),
-> `tests/e2e/kho-thuc-te.spec.ts` (8 tình huống thao tác hôm nay).
-> Kết quả lượt chạy 03/10: `docs/30-KeHoach/P26/26-01-SUMMARY.md`. Quyết định liên quan: QD-017, QD-027, QD-031.
+> `tests/e2e/kho-thuc-te.spec.ts` (9 tình huống thao tác hôm nay), `tests/rls/p34-nhap-muon.test.ts` (nhập muộn trên DB).
+> Kết quả lượt chạy 03/10: `docs/30-KeHoach/P26/26-01-SUMMARY.md`; P34: `docs/30-KeHoach/P34/34-01-SUMMARY.md`.
+> Quyết định liên quan: QD-017, QD-027, QD-031, QD-034.
 
 ## 1. Thử cái gì, bằng cách nào
 
@@ -16,7 +18,8 @@ Cách thử gồm hai phần:
    lùi ngày giờ về ngày mô phỏng. Song song, script giữ một **"kho thật"** mà hệ thống không thấy: bếp múc dư, gà lọc xương
    hao, mất bia, giò hỏng đổ bỏ không ghi phiếu. Số đếm kiểm kê lấy từ kho thật. Hệ thống phải **tự tìm ra** các khoản hao
    hụt đó. Script cũng tính sẵn **đáp án** (sổ kho từng ngày, tính độc lập bằng JS) để so với bản chốt sổ của app.
-2. **Hôm nay, thao tác bằng giao diện.** 8 tình huống hay gặp khi làm thật: gõ nhầm, sửa phiếu, hủy, kiểm kê. Mỗi bước
+2. **Hôm nay, thao tác bằng giao diện.** 9 tình huống hay gặp khi làm thật: gõ nhầm, sửa phiếu, hủy, kiểm kê, nhập phiếu
+   muộn sau kiểm kê. Mỗi bước
    kiểm sổ kho trong DB, không chỉ nhìn chữ trên màn.
 
 ## 2. Cách chạy lại
@@ -25,19 +28,22 @@ Cách thử gồm hai phần:
 node scripts/seed-kho-demo.mjs --out kho-demo.json
 ```
 
-Lệnh này xóa sạch dữ liệu kho của Phở Việt và đơn `KHO_DEMO` cũ, rồi sinh **7 ngày kết thúc hôm qua** (giờ VN). Muốn cố định
-ngày thì thêm `--den 2026-10-04`.
+Lệnh này xóa sạch dữ liệu kho của Phở Việt và đơn `KHO_DEMO` cũ, rồi sinh **7 ngày kết thúc hôm nay − 7** (giờ VN). Sổ kho để
+mở 7 ngày (QD-034 D4): chỉ ngày ≤ hôm nay − 7 mới tự chốt, nên 7 ngày mô phỏng phải lùi hẳn về trước. Muốn cố định ngày thì
+thêm `--den 2026-09-28` (phải ≤ hôm nay − 7, nếu không các ngày còn mở sẽ không có bản chốt để đối chiếu).
 
 Sau đó:
 
 1. Mở **Quản trị → Kho hàng** một lần. App tự chốt sổ các ngày đã qua.
 2. `node scripts/doi-chieu-kho-demo.mjs kho-demo.json` → phải ra **"lệch 0 ô"**.
 3. **Báo cáo** → chọn đúng 7 ngày đó → khối **Hao hụt** phải bằng số "Đáp án hao hụt" mà lệnh đối chiếu in ra.
-4. `npx playwright test tests/e2e/kho-thuc-te.spec.ts` (cùng ngày với lệnh seed) → 8/8.
+4. `npx playwright test tests/e2e/kho-thuc-te.spec.ts` (cùng ngày với lệnh seed) → 9/9.
 
 Lưu ý:
 
-- Ca 2 hủy phiếu "Nhập sáng" của hôm qua, nên **mỗi lần seed chỉ chạy trọn spec được một lần**. Chạy lại thì seed lại.
+- Ca 2 hủy phiếu "Nhập sáng" của N7 (ngày đã chốt), nên **mỗi lần seed chỉ chạy trọn spec được một lần**. Chạy lại thì seed lại.
+- Phải mở Kho hàng (bước 1) TRƯỚC khi chạy spec: chưa mở thì N7 chưa chốt, ca 2 hủy phiếu theo đường "ngày chưa chốt" (xóa dòng
+  sổ) và làm sai đáp án. Ca 2 tự mở Kho hàng và kiểm có bản chốt N7 trước khi hủy.
 - `scripts/seed-quan-lon.mjs` (bộ 200 bàn của P27) **xóa toàn bộ đơn** của Phở Việt, kể cả đơn `KHO_DEMO`. Chạy nó sau khi
   app đã chốt sổ thì bản chốt không đổi; chạy trước khi chốt thì sổ 7 ngày sai. Muốn thử kho thì chạy `seed-kho-demo` sau cùng.
 
@@ -96,7 +102,7 @@ Các món khác trong thực đơn (Mì Quảng, Chả giò, Trà đá…) khôn
 
 ## 4. Bảy ngày: việc lặp lại mỗi ngày và sự cố cài sẵn
 
-Ngày đặt theo thứ tự N1…N7 (N7 = hôm qua), không theo ngày lịch, nên chạy hôm nào kịch bản cũng như nhau.
+Ngày đặt theo thứ tự N1…N7 (N7 = hôm nay − 7), không theo ngày lịch, nên chạy hôm nào kịch bản cũng như nhau.
 
 ### Mỗi ngày
 
@@ -125,7 +131,7 @@ Ngày đặt theo thứ tự N1…N7 (N7 = hôm qua), không theo ngày lịch, 
 | N5 | Thịt bò lên 285.000₫/kg | Giá vốn ngày đổi theo |
 | N5 | **Mất 3 chai bia**, không ai ghi | Kiểm kê ra lệch −3 chai → "không giải thích được" 45.000₫ |
 | N5 | Kiểm kê thịt bò gõ **17 kg thay 1,7 kg**, rồi đếm lại | Hai dòng lệch cộng lại đúng bằng một lần đếm đúng |
-| N6 | Sửa thông tin phiếu thịt: ngày chứng từ N5, ghi chú "HĐ số 0012" | Ngày vào kho không đổi |
+| N6 | Sửa thông tin phiếu thịt: ghi chú "HĐ số 0012" | Thời gian nhập không sửa được (P34, QD-034 D1) — chỉ ghi chú đổi |
 | N6 | Thịt bò hết sớm, chiều nhập bổ sung 2 kg giá 300.000₫/kg | Giá vốn ngày = **bình quân gia quyền** hai lần nhập |
 | N6 | **Giò hỏng 800 g đổ bỏ, không ghi phiếu** | Kiểm kê giò ra lệch đúng ngày đó |
 | N6 | Cuối tuần, nấu 2 mẻ nước dùng | |
@@ -161,7 +167,20 @@ Khi đã có kiểm kê, hệ thống còn tự tính:
   kho = định lượng ÷ % dùng được, và giá vốn món tính theo lượng thật.
 - Nhãn **"có thể định lượng khai sai"**: lệch cùng một chiều ít nhất 5 lần kiểm liền nhau.
 
-## 6. Kết quả lượt chạy 05/10/2026 (N1 = 28/09 … N7 = 04/10)
+## 6. Kết quả
+
+### Lượt chạy 05/10/2026 trưa, sau P34 (N1 = 22/09 … N7 = 28/09)
+
+```
+node scripts/doi-chieu-kho-demo.mjs kho-demo.json
+Ngày 2026-09-22 → 2026-09-28: so khớp 1575 ô, lệch 0 ô
+```
+
+Báo cáo → 22/09–28/09 (ảnh `docs/30-KeHoach/P34/anh/5-bao-cao-7-ngay-da-chot.png`): **Tổng hao hụt 3.981.291₫ · 5,67%
+doanh thu món · 7 ngày đã chốt** = đáp án (hủy sau khi làm 767.229₫ · hụt mẻ 132.352₫ · xuất hủy 700.000₫ · không giải thích
+được 2.381.710₫). Các số chi tiết dưới đây là của lượt sáng 05/10 (trước P34, ngày 28/09–04/10); cách đọc không đổi.
+
+### Lượt chạy 05/10/2026 sáng, trước P34 (N1 = 28/09 … N7 = 04/10)
 
 ### Bản chốt sổ khớp đáp án
 
@@ -202,26 +221,29 @@ Lưu ý: % dùng được của giò ra 97% và của bia ra 99%, dù kho thật
 phiếu** (800 g giò, 3 chai bia) bị tính gộp vào % dùng được; giò còn thêm sai số khi múc. Đây là cách tính đã chốt (gộp mọi hao hụt khi dùng). Muốn tách riêng thì
 phải ghi phiếu xuất hủy trước khi kiểm kê.
 
-## 7. Tám tình huống thao tác bằng giao diện (ngày hôm nay)
+## 7. Chín tình huống thao tác bằng giao diện (ngày hôm nay)
 
-`tests/e2e/kho-thuc-te.spec.ts`. Lượt chạy 05/10: **8/8**. Ảnh nằm ở `docs/30-KeHoach/P26/anh/`.
+`tests/e2e/kho-thuc-te.spec.ts`. Lượt chạy 05/10 sau P34: **9/9**. Ảnh nằm ở `docs/30-KeHoach/P26/anh/` (ca 9: số 12a–12d).
 
 | # | Thao tác | Số phải ra trong sổ kho |
 |---|---|---|
-| 1 | **Nhập hàng**: Thanh Tuấn, thịt bò **40 kg** (gõ nhầm, đúng là 4) × 285.000 + thịt ngựa 2 kg × 250.000, trả 1.000.000₫ tiền mặt → Hoàn thành. Thấy sai → **Hủy bỏ** → **Sao chép** → sửa 4 → trả 1.000.000₫ → Hoàn thành → sửa ngày chứng từ thành hôm qua, ghi chú "HĐ số 0015" | Sau phiếu sai: tồn bò +40.000 g, phiếu chi 1.000.000₫. Sau Hủy bỏ: dòng sổ của phiếu **bị xóa**, tồn về như cũ, phiếu chi "Đã hủy". Phiếu mới: +4.000 g giá 285₫/g, tổng 1.640.000₫, ghi "sao chép từ" phiếu sai. Sửa ngày chứng từ: ngày vào kho vẫn là hôm nay |
-| 2 | **Phiếu hôm qua sai giá giò** (ngày đã chốt sổ): mở phiếu gà/giò "Nhập sáng" hôm qua → Hủy bỏ → Sao chép → giò 90.000 thay 95.000 → ghi nợ → Hoàn thành | Hủy bỏ: dòng sổ hôm qua **giữ nguyên**, thêm dòng nhập **âm** hôm nay, không giá; bản chốt hôm qua **không đổi một byte**. Nhập lại: tồn giò về như cũ; phiếu mới rẻ hơn đúng (kg giò × 5.000₫); nợ anh Bình giảm đúng số đó |
+| 1 | **Nhập hàng**: Thanh Tuấn, thịt bò **40 kg** (gõ nhầm, đúng là 4) × 285.000 + thịt ngựa 2 kg × 250.000, trả 1.000.000₫ tiền mặt → Hoàn thành. Thấy sai → **Hủy bỏ** → **Sao chép** → sửa 4 → trả 1.000.000₫ → Hoàn thành → ghi chú "HĐ số 0015" | Sau phiếu sai: tồn bò +40.000 g, phiếu chi 1.000.000₫. Sau Hủy bỏ: dòng sổ của phiếu **bị xóa**, tồn về như cũ, phiếu chi "Đã hủy". Phiếu mới: +4.000 g giá 285₫/g, tổng 1.640.000₫, ghi "sao chép từ" phiếu sai. Sửa thông tin: **không còn ô ngày** (P34), ngày chứng từ = ngày vào kho = hôm nay |
+| 2 | **Phiếu N7 sai giá giò** (ngày đã chốt sổ): mở Kho hàng (app chốt tới N7) → mở phiếu gà/giò "Nhập sáng" N7 → Hủy bỏ → Sao chép → giò 90.000 thay 95.000 → ghi nợ → Hoàn thành | Hủy bỏ: dòng sổ N7 **giữ nguyên**, thêm dòng nhập **âm** hôm nay, không giá; bản chốt N7 **không đổi một byte**. Nhập lại: tồn giò về như cũ; phiếu mới rẻ hơn đúng (kg giò × 5.000₫); nợ anh Bình giảm đúng số đó |
 | 3 | **Lưu tạm** phiếu bia 1 thùng (chuyển khoản) → mở lại sửa 2 thùng → Hoàn thành | Lưu tạm: **0** dòng sổ. Hoàn thành: +48 chai; phiếu chi 720.000₫ quỹ ngân hàng, không phát sinh nợ |
 | 4 | "+ Nhập hàng" → **"Lấy hàng lần trước"** → gõ số và giá cho 6 dòng (bánh phở, bún, rau, gà, xương, tôm), để trống các dòng còn lại | Chỉ các dòng đã gõ vào sổ; dòng để trống bị bỏ |
 | 5 | **Nấu 1 mẻ** nước dùng, thực ra 28,5 lít → ghi nhầm thêm 2 mẻ 60 lít → "Mẻ hôm nay" → **Hủy** mẻ nhầm | Mẻ đúng: nước dùng +28,5 l, xương −8 kg, hụt mẻ 1,5 l. Mẻ nhầm: +60 l, xương −16 kg. Sau Hủy: trở lại như chỉ có mẻ đúng |
 | 6 | **Xuất hủy**: rau 0,3 kg "Hỏng", gà 0,5 kg "Cơm nhân viên", tôm **3 kg** (gõ nhầm) → **Hủy** phiếu tôm → ghi lại 0,3 kg | Hủy phiếu tôm: tồn tôm cộng lại 3 kg. Cuối cùng sổ hôm nay chỉ có **một** dòng hủy tôm −300 g |
 | 7 | **Kiểm kê**: tôm gõ "-0,3" → gõ thịt bò 10 lần số thật (thiếu dấu phẩy) → sửa → bia chọn đơn vị **"cái"**, gõ số chai → Hoàn thành | "-0,3": báo **"Số không hợp lệ"**, bấm Hoàn thành không ghi gì. Bò ×10: dòng bôi vàng **"Lệch lớn"**, hỏi lại; bấm Hủy thì 0 dòng ghi. Sau Hoàn thành: tồn bò, tôm, bia **bằng đúng số đếm**; bia đúng số chai, không ra số lẻ thùng |
 | 8 | **Thêm nguyên liệu** "Nước mắm Phú Quốc", đơn vị ml, "1 chai = 500 ml", giá 60.000₫/chai, **tồn kho ban đầu 6 chai**. Thêm "Ớt tươi" không kèm tồn → mở Sửa → khai 0,5 kg | Nước mắm: một dòng nhập 3.000 ml, 120₫/ml, ghi chú "Tồn đầu kỳ", không gắn phiếu nhập; tab Tồn kho "6 chai (3.000 ml)". Ớt: khai sau được **một lần**; lần sau không còn ô. Thịt bò (đã có phát sinh) không có ô khai tồn đầu |
+| 9 | **Nhập phiếu muộn (P34)**: lấy lần kiểm kê thịt bò của ca 7 (giờ T) → "+ Nhập hàng" → **Chọn giờ khác** = T − 30′ → bò 3 kg × 300.000 → Hoàn thành → khung đỏ → **Mở phiếu KK…** → **Hủy** → quay lại phiếu tạm → Hoàn thành → "Kiểm kê & hủy" → **Hoàn thành lại** | Hoàn thành bị chặn: phiếu **Lưu tạm**, khung đỏ nêu "Thịt bò thăn — đã kiểm kê lúc … (phiếu KK…)", **0** dòng sổ, tồn bò = số đếm. Hủy phiếu kiểm kê: tồn về số theo sổ. Phiếu nhập: một dòng +3.000 g, giờ phát sinh = T − 30′. Hoàn thành lại: giữ giờ T, ghi "(giữ nguyên)"; tồn bò = **đúng số đã đếm** (không cộng chồng 3 kg); lệch mới = lệch cũ − 3.000 g |
 
 ## 8. Giới hạn đã biết
 
 - Chỉ chạy trên quán demo `pho-viet`. Script xóa sạch dữ liệu kho của quán trước khi sinh lại.
 - Đáp án tính % dùng được là 100% trong 7 ngày (chưa có lần chốt nào trước đó). Từ ngày thứ 8 trở đi, app trừ kho theo % dùng
   được đã tự tính, nên muốn đối chiếu sổ hôm nay thì phải tính theo % đó.
-- Spec chỉ chạy trọn **một lần** cho mỗi lần seed (ca 2 tiêu phiếu của hôm qua).
+- Spec chỉ chạy trọn **một lần** cho mỗi lần seed (ca 2 tiêu phiếu của N7).
+- Seed ghi kiểm kê thẳng vào sổ (không qua phiếu kiểm kê KK…), vì RPC chỉ cho kiểm kê ở giờ hiện tại. 7 ngày mô phỏng đều đã chốt
+  nên không ảnh hưởng mốc khóa; nhập muộn được thử ở ca 9 và `tests/rls/p34-nhap-muon.test.ts`.
 - Spec không thử: nhiều người cùng kiểm kê một lúc, và kiểm kê cách ngày (2–3 ngày mới kiểm một lần). Phần cách ngày đã có unit
   test ở `tests/inventory/yield.test.ts`.

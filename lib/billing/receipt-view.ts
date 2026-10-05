@@ -90,7 +90,7 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
   if (billMeta?.online_order_id) {
     const { data: order } = await client
       .from("orders")
-      .select("channel, source, customer_contact")
+      .select("channel, source, eat_in, customer_contact")
       .eq("id", billMeta.online_order_id as string)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -99,6 +99,7 @@ export async function buildReceiptView(billId: string, tenantId: string): Promis
       serviceMode: settings.service_mode,
       channel: (ch as OrderChannel) ?? "takeaway",
       source: order?.source as OrderSource,
+      eatIn: order?.eat_in as boolean | undefined,
     });
     const c = (order?.customer_contact ?? {}) as { name?: string; phone?: string; address?: string };
     const parts = [c.name, c.phone].filter(Boolean) as string[];

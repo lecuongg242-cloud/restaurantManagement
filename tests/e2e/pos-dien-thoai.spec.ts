@@ -184,14 +184,14 @@ test("1–3: gọi món có ghi chú → bếp nhận → gọi thêm gom một 
 test("6: bán mang về → tạo đơn → thu tiền & hoàn tất", async ({ page }) => {
   await vaoPos(page);
   await tab(page, "Bàn");
-  await page.getByRole("button", { name: /^Bán mang về/ }).click();
+  await page.getByRole("button", { name: /^Khách không bàn/ }).click();
   await themMon(page, 0);
   // Giỏ đơn không bàn nằm ở thanh giỏ tab Thực đơn — tạo đơn ngay tại đó, không sang tab Đơn.
   await page.getByRole("button", { name: /^Giỏ hàng: [1-9]/ }).click();
   const gio = page.getByRole("dialog", { name: "Giỏ hàng" });
   await expect(gio).toBeVisible();
   await khongTran(page, "ngăn Giỏ hàng");
-  await gio.getByRole("button", { name: /^Tạo đơn mang về/ }).click();
+  await gio.getByRole("button", { name: /^Tạo đơn/ }).click();
   await expect(gio).toBeHidden({ timeout: 15_000 });
   await tab(page, "Đơn");
   await khongTran(page, "tab Đơn mang về");

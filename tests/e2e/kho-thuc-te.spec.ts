@@ -4,11 +4,12 @@ import { config } from "dotenv";
 
 /**
  * Luồng kho THỰC TẾ một ngày ở quán demo `pho-viet`, thao tác bằng giao diện như chủ quán: nhập hàng gõ nhầm → Hủy bỏ →
- * Sao chép → sửa → Hoàn thành; phiếu hôm qua (ngày đã chốt) sai giá → Hủy bỏ (dòng âm hôm nay) → Sao chép sửa giá; Lưu tạm
- * rồi sửa → Hoàn thành; sửa ngày chứng từ; nấu mẻ hụt; xuất hủy; kiểm kê gõ nhầm 82 → hỏi lại → sửa số → Hoàn thành.
+ * Sao chép → sửa → Hoàn thành; phiếu của ngày ĐÃ chốt sai giá → Hủy bỏ (dòng âm hôm nay) → Sao chép sửa giá; Lưu tạm
+ * rồi sửa → Hoàn thành; nấu mẻ hụt; xuất hủy; kiểm kê gõ nhầm 82 → hỏi lại → sửa số → Hoàn thành; P34: phiếu nhập ghi muộn
+ * (giờ trước lần kiểm kê) bị chặn → Hủy phiếu kiểm kê → nhập → Hoàn thành lại.
  *
- * Cần dữ liệu 7 ngày tới HÔM QUA của `node scripts/seed-kho-demo.mjs` (chạy cùng ngày với spec) — bước 2 hủy phiếu gà/giò
- * "Nhập sáng" của hôm qua nên mỗi lượt seed chỉ chạy trọn được một lần (chạy lại: seed lại). Kịch bản:
+ * Cần dữ liệu 7 ngày (tới hôm nay − 7) của `node scripts/seed-kho-demo.mjs` (chạy cùng ngày với spec) — bước 2 hủy phiếu
+ * gà/giò "Nhập sáng" của N7 nên mỗi lượt seed chỉ chạy trọn được một lần (chạy lại: seed lại). Kịch bản:
  * docs/40-KiemTra/KichBan-Kho-PhoViet.md. Mỗi bước kiểm sổ kho trong DB,
  * không chỉ chữ trên màn hình.
  */
@@ -20,8 +21,10 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPAB
   auth: { autoRefreshToken: false, persistSession: false },
 });
 const vnToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
-const vnYesterday = () => new Date(Date.now() + 7 * 3600e3 - 86400e3).toISOString().slice(0, 10);
-const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+/** Ngày VN n ngày trước. Sổ kho để mở 7 ngày (P34): hôm nay − 7 là ngày gần nhất đã chốt. */
+const vnDaysAgo = (n: number) => new Date(Date.now() + 7 * 3600e3 - n * 86400e3).toISOString().slice(0, 10);
+/** ISO → "YYYY-MM-DDTHH:mm" giờ VN (ô ngày + ô giờ của "Thời gian nhập"). */
+const vnInput = (iso: string) => new Date(Date.parse(iso) + 7 * 3600e3).toISOString().slice(0, 16);
 
 test.describe.configure({ mode: "serial" });
 test.setTimeout(300_000);
@@ -151,18 +154,20 @@ test("1. Nhập sáng gõ 40 kg thay 4 kg → Hủy bỏ (xóa dòng sổ, hủy
   const { data: r } = await db.from("purchase_receipts").select("total, pay_now, status, copied_from").eq("id", dung).single();
   expect(r).toMatchObject({ total: 4 * 285000 + 2 * 250000, pay_now: 1_000_000, status: "done", copied_from: sai });
 
-  // Sửa thông tin phiếu đã nhập: ngày chứng từ + ghi chú (không đổi số lượng, giá).
-  await page.locator('input[name="doc_date"]').fill(vnYesterday());
-  await page.locator('input[name="note"]').fill(`HĐ Thanh Tuấn số 0015 — hàng giao tối ${ddmm(vnYesterday())}`);
+  // Sửa thông tin phiếu đã nhập: chỉ ghi chú. Thời gian nhập không sửa được (P34, như KiotViet) — không còn ô ngày.
+  await expect(page.locator('input[name="doc_date"]')).toHaveCount(0);
+  await page.locator('input[name="note"]').fill("HĐ Thanh Tuấn số 0015");
   await thongBao(page, "Đã lưu thông tin phiếu.", () => page.getByRole("button", { name: "Lưu", exact: true }).click());
   const { data: r2 } = await db.from("purchase_receipts").select("doc_date, stock_date, note").eq("id", dung).single();
-  expect(r2).toMatchObject({ doc_date: vnYesterday(), stock_date: vnToday() });
-  await page.screenshot({ path: `${ANH}/04-phieu-dung-da-sua-ngay-chung-tu.png`, fullPage: true });
+  expect(r2).toMatchObject({ doc_date: vnToday(), stock_date: vnToday(), note: "HĐ Thanh Tuấn số 0015" });
+  await page.screenshot({ path: `${ANH}/04-phieu-dung-da-sua-ghi-chu.png`, fullPage: true });
 });
 
-test("2. Phiếu hôm qua (ngày ĐÃ chốt) sai giá giò → Hủy bỏ: dòng âm hôm nay, bản chốt không đổi → Sao chép sửa giá", async ({ page }) => {
+test("2. Phiếu N7 (ngày ĐÃ chốt) sai giá giò → Hủy bỏ: dòng âm hôm nay, bản chốt không đổi → Sao chép sửa giá", async ({ page }) => {
   await dangNhap(page);
-  const homQua = vnYesterday();
+  const homQua = vnDaysAgo(7);
+  // Mở Kho hàng: app tự chốt các ngày ≤ hôm nay − 7 (N7 là ngày gần nhất đã chốt).
+  await page.goto(`/r/${SLUG}/admin/inventory/stock`, { waitUntil: "networkidle" });
   const { data: cu } = await db
     .from("purchase_receipts")
     .select("id, code, total")
@@ -173,8 +178,9 @@ test("2. Phiếu hôm qua (ngày ĐÃ chốt) sai giá giò → Hủy bỏ: dòn
     .order("code");
   const { data: lines } = await db.from("purchase_receipt_lines").select("receipt_id, ingredient_id, qty").in("receipt_id", (cu ?? []).map((x) => x.id));
   const phieu = (cu ?? []).find((x) => (lines ?? []).some((l) => l.receipt_id === x.id && l.ingredient_id === ing["Giò heo"].id))!;
-  expect(phieu, "phiếu gà/giò hôm qua").toBeTruthy();
+  expect(phieu, "phiếu gà/giò N7").toBeTruthy();
   const { data: close } = await db.from("daily_closes").select("payload").eq("tenant_id", tenant).eq("business_date", homQua).single();
+  expect(close, `ngày ${homQua} phải đã chốt`).toBeTruthy();
   const truocGio = await onHand("Giò heo");
   const { data: sum0 } = await db.rpc("supplier_summaries", { p_tenant: tenant });
 
@@ -284,7 +290,7 @@ test("5. Nấu 1 mẻ nước dùng thực 28,5 lít (hụt 1,5); ghi nhầm th�
   expect(await onHand("Nước dùng phở")).toBeCloseTo(truoc + 28.5, 3);
   expect(await onHand("Xương ống bò")).toBeCloseTo(xuong - 8, 3);
 
-  // Ghi nhầm: bấm thêm 2 mẻ 60 lít (thật ra chỉ nấu 1 mẻ) → Hủy ở danh sách "Mẻ hôm nay".
+  // Ghi nhầm: bấm thêm 2 mẻ 60 lít (thật ra chỉ nấu 1 mẻ) → Hủy ở danh sách "Mẻ 7 ngày gần đây".
   await ghiMe("2", "60");
   expect(await onHand("Nước dùng phở")).toBeCloseTo(truoc + 88.5, 3);
   expect(await onHand("Xương ống bò")).toBeCloseTo(xuong - 24, 3);
@@ -377,13 +383,17 @@ test("7. Kiểm kê: số âm bị chặn; gõ 16 thay 1,6 → 'Lệch lớn' h�
   // (tôm sổ âm mà đếm 0 cũng là lệch lớn — đúng luật; ở đây kiểm dòng bò)
   await expect(page.locator("[data-lech-lon]").filter({ hasText: "Thịt bò thăn" })).toHaveCount(1);
   await page.screenshot({ path: `${ANH}/09-kiem-ke-lech-lon.png`, fullPage: true });
+  // P34: dòng tồn sổ ÂM (tôm bán quá số còn) hỏi trước "còn phiếu nhập chưa ghi?" → đồng ý; rồi mới tới "Lệch lớn" → bỏ.
   let msg = "";
-  page.once("dialog", (d) => {
+  const hoiLai = (d: import("@playwright/test").Dialog) => {
+    if (d.message().includes("đang âm trên sổ")) return void d.accept();
     msg = d.message();
     void d.dismiss();
-  });
+  };
+  page.on("dialog", hoiLai);
   await page.getByRole("button", { name: "Hoàn thành" }).click();
   await expect.poll(() => msg).toContain("Lệch lớn — kiểm tra lại số đếm");
+  page.off("dialog", hoiLai);
   expect(await soDongKiemKe()).toBe(0);
   await box("Thịt bò thăn").fill((boThat / 1000).toLocaleString("vi-VN"));
 
@@ -393,8 +403,10 @@ test("7. Kiểm kê: số âm bị chặn; gõ 16 thay 1,6 → 'Lệch lớn' h�
   const lech = Math.round((biaThat - so.bia) * 1000) / 1000;
   await expect(page.getByLabel("SL lệch Bia Hà Nội")).toContainText(`${lech.toLocaleString("vi-VN", { maximumFractionDigits: 3 })} cái`);
   await page.screenshot({ path: `${ANH}/10-kiem-ke-sua-so-bia-theo-chai.png`, fullPage: true });
-  page.once("dialog", (d) => d.accept());
-  await thongBao(page, /Đã ghi kiểm kê \d+ nguyên liệu\./, () => page.getByRole("button", { name: "Hoàn thành" }).click());
+  const dongY = (d: import("@playwright/test").Dialog) => void d.accept();
+  page.on("dialog", dongY);
+  await thongBao(page, /Đã cân bằng kho — phiếu KK\d+, \d+ nguyên liệu\./, () => page.getByRole("button", { name: "Hoàn thành" }).click());
+  page.off("dialog", dongY);
   expect(await onHand("Thịt bò thăn")).toBeCloseTo(boThat, 3);
   expect(await onHand("Tôm sú")).toBeCloseTo(tomThat, 3);
   expect(await onHand("Bia Hà Nội")).toBe(biaThat);
@@ -461,4 +473,73 @@ test("8. Tồn đầu kỳ: thêm nguyên liệu kèm 'Tồn hiện có' → dò
     await db.from("stock_entries").delete().in("ingredient_id", list);
     await db.from("ingredients").delete().in("id", list);
   }
+});
+
+test("9. P34 — phiếu nhập ghi MUỘN (giờ trước lần kiểm kê) bị chặn → Hủy phiếu kiểm kê → nhập → Hoàn thành lại: tồn = số đếm", async ({ page }) => {
+  await dangNhap(page);
+  // Lần kiểm kê thịt bò ở ca 7.
+  const { data: lines } = await db
+    .from("stock_count_lines")
+    .select("count_id, counted_base, diff, stock_counts!inner(code, counted_at, status, tenant_id)")
+    .eq("ingredient_id", ing["Thịt bò thăn"].id)
+    .eq("stock_counts.status", "done")
+    .eq("stock_counts.tenant_id", tenant);
+  const kk = (lines ?? [])
+    .map((l) => ({ ...l, doc: (Array.isArray(l.stock_counts) ? l.stock_counts[0] : l.stock_counts) as { code: string; counted_at: string } }))
+    .sort((a, b) => b.doc.counted_at.localeCompare(a.doc.counted_at))[0];
+  expect(kk, "Chạy ca 7 trước (kiểm kê thịt bò)").toBeTruthy();
+  const dem = Number(kk.counted_base);
+  const gioVe = vnInput(new Date(Date.parse(kk.doc.counted_at) - 30 * 60_000).toISOString()); // hàng về 30′ trước lúc đếm
+  expect(await onHand("Thịt bò thăn")).toBeCloseTo(dem, 3);
+
+  // Nhập 3 kg bò, giờ hàng về trước lúc kiểm kê → Hoàn thành bị chặn, phiếu được Lưu tạm, khung đỏ nêu phiếu KK.
+  await page.goto(`/r/${SLUG}/admin/nhap-hang/moi`, { waitUntil: "networkidle" });
+  await page.getByRole("radio", { name: "Chọn giờ khác" }).check();
+  await page.getByLabel("Ngày nhập").fill(gioVe.slice(0, 10));
+  await page.getByLabel("Giờ nhập").fill(gioVe.slice(11, 16));
+  await dong(page, 0, "Thịt bò thăn", "3", "300000");
+  await page.screenshot({ path: `${ANH}/12a-nhap-muon-chon-gio.png`, fullPage: true });
+  // Thông báo lỗi là role=alert (không phải status) — kiểm thẳng khung đỏ trên phiếu tạm vừa được lưu.
+  await page.getByRole("button", { name: "Hoàn thành" }).click();
+  const id = await receiptIdFromUrl(page);
+  await expect(page.locator("[data-vuong-kiem-ke]")).toContainText(kk.doc.code);
+  expect(await entries(id)).toEqual([]);
+  expect(await onHand("Thịt bò thăn")).toBeCloseTo(dem, 3);
+  await page.screenshot({ path: `${ANH}/12b-nhap-muon-vuong-kiem-ke.png`, fullPage: true });
+
+  // Mở phiếu kiểm kê → Hủy → tồn về số theo sổ.
+  await page.getByRole("link", { name: `Mở phiếu ${kk.doc.code}` }).click();
+  await page.waitForURL(/\/inventory\/count/);
+  const hang = page.locator(`#kk-${kk.count_id}`);
+  page.once("dialog", (d) => d.accept());
+  await thongBao(page, "Đã hủy phiếu kiểm kê", () => hang.getByRole("button", { name: "Hủy" }).click());
+  expect(await onHand("Thịt bò thăn")).toBeCloseTo(dem - Number(kk.diff), 3);
+
+  // Quay lại phiếu tạm → hết vướng → Hoàn thành: dòng sổ mang giờ hàng về.
+  await page.goto(`/r/${SLUG}/admin/nhap-hang/${id}`, { waitUntil: "networkidle" });
+  await expect(page.locator("[data-vuong-kiem-ke]")).toHaveCount(0);
+  const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Hoàn thành" }) });
+  await thongBao(page, /Đã nhập hàng — phiếu PN\d+/, () => form.getByRole("button", { name: "Hoàn thành" }).click());
+  const { data: e } = await db.from("stock_entries").select("qty, occurred_at").eq("purchase_receipt_id", id);
+  expect(e!.map((x) => [Number(x.qty), vnInput(x.occurred_at as string)])).toEqual([[3000, gioVe]]);
+
+  // Hoàn thành lại phiếu kiểm kê: số đếm điền sẵn, giữ giờ cũ → tồn = đúng số đã đếm (không cộng chồng 3 kg).
+  await page.goto(`/r/${SLUG}/admin/inventory/count`, { waitUntil: "networkidle" });
+  await page.locator(`#kk-${kk.count_id}`).getByRole("link", { name: "Hoàn thành lại" }).click();
+  await expect(page.locator("[data-thoi-gian-kiem-ke]")).toContainText("(giữ nguyên)");
+  await page.screenshot({ path: `${ANH}/12c-hoan-thanh-lai-kiem-ke.png`, fullPage: true });
+  const dongY = (d: import("@playwright/test").Dialog) => void d.accept();
+  page.on("dialog", dongY);
+  await thongBao(page, /Đã cân bằng kho — phiếu KK\d+/, () => page.getByRole("button", { name: "Hoàn thành lại" }).click());
+  page.off("dialog", dongY);
+  expect(await onHand("Thịt bò thăn")).toBeCloseTo(dem, 3);
+  const { data: moi } = await db
+    .from("stock_counts")
+    .select("counted_at, stock_count_lines(ingredient_id, diff)")
+    .eq("redo_of", kk.count_id)
+    .single();
+  expect(Date.parse(moi!.counted_at as string)).toBe(Date.parse(kk.doc.counted_at));
+  const lineBo = (moi!.stock_count_lines as { ingredient_id: string; diff: number }[]).find((l) => l.ingredient_id === ing["Thịt bò thăn"].id)!;
+  expect(Number(lineBo.diff)).toBeCloseTo(Number(kk.diff) - 3000, 3);
+  await page.screenshot({ path: `${ANH}/12d-sau-hoan-thanh-lai.png`, fullPage: true });
 });

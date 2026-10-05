@@ -166,8 +166,8 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
   // tenant demo dùng chung (pho-viet đã bị đổi sang "table" → nút thêm món khóa, cùng kiểu lỗi 522963b).
   const modeCu = await getServiceMode(SLUG);
 
-  // Món demo KHÔNG có nhóm tùy chọn (bấm là vào giỏ) và CHƯA có định lượng. Định lượng mới áp cho cả đơn của ngày chưa chốt
-  // (QD-017 D1) — dữ liệu kho demo P26 có đơn trưa nay, nên nhập đủ cho số đã bán hôm nay CỘNG 5 phần → vẫn phải ra "còn ~5".
+  // Món demo KHÔNG có nhóm tùy chọn (bấm là vào giỏ) và CHƯA có định lượng. Định lượng
+  // mới áp cho cả đơn của các ngày chưa chốt (QD-017 D1; P34: 7 ngày) → nhập đủ cho lượng đã dùng CỘNG 5 phần → "còn ~5".
   // (Không tạo món riêng: thực đơn POS qua unstable_cache, món chèn thẳng DB không hiện.)
   const { data: links } = await db.from("menu_item_modifier_groups").select("item_id").eq("tenant_id", tenant);
   const withGroups = new Set((links ?? []).map((l) => l.item_id));
@@ -178,21 +178,14 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     .select("id, name")
     .eq("tenant_id", tenant)
     .eq("active", true)
-    .eq("is_available", true)
-    .order("sort_order");
-  const homNay = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10) + "T00:00:00+07:00";
-  const { data: sold } = await db
-    .from("order_items")
-    .select("menu_item_id, qty, status, orders!inner(confirmed_at)")
-    .eq("tenant_id", tenant)
-    .neq("status", "cancelled")
-    .gte("orders.confirmed_at", new Date(homNay).toISOString());
-  const soldQty = (id: string) => (sold ?? []).filter((r) => r.menu_item_id === id).reduce((a, r) => a + Number(r.qty), 0);
-  const item = (items ?? [])
-    .filter((i) => !withGroups.has(i.id) && !withRecipe.has(i.id))
-    .sort((a, b) => soldQty(a.id) - soldQty(b.id))[0];
+    .eq("is_available", true);
+  // Chỉ chọn món ĐANG hiện trên POS: món chèn thẳng DB (bộ quán lớn P27) không có trên POS vì thực đơn qua cache.
+  await page.goto(`/r/${SLUG}/pos`, { waitUntil: "networkidle" });
+  const onPos = new Set(
+    await page.locator('button[aria-label^="Thêm "]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")!.slice(5)))
+  );
+  const item = (items ?? []).find((i) => onPos.has(i.name) && !withGroups.has(i.id) && !withRecipe.has(i.id))!;
   expect(item, "cần một món demo không có tùy chọn, chưa có định lượng").toBeTruthy();
-  const daBan = soldQty(item.id);
 
   const ingName = `${TAG} Bò POS`;
   const { data: ing } = await db
@@ -201,6 +194,10 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     .select("id")
     .single();
   await db.from("recipe_lines").insert({ tenant_id: tenant, ingredient_id: ing!.id, menu_item_id: item.id, qty: 200 });
+  // Lượng đã dùng theo đơn của mọi ngày chưa chốt — hỏi thẳng sổ (gồm cả món hủy sau khi in bếp), không tự đếm lại.
+  const { data: oh } = await db.rpc("inventory_on_hand", { p_tenant: tenant });
+  const daDung = -Number(((oh ?? []) as { ingredient_id: string; on_hand: number }[]).find((r) => r.ingredient_id === ing!.id)?.on_hand ?? 0);
+  const daBan = daDung / 200;
   const orderIds: string[] = [];
   const receiptIds: string[] = [];
 
@@ -222,11 +219,11 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     await page.goto(`/r/${SLUG}/pos`);
     await expect(card().getByText("còn ~5")).toBeVisible();
 
-    // Bán 5 phần (1.000 g ÷ 200 g) — mốc sau phiếu nhập, trước now().
-    await page.waitForTimeout(1500);
+    // Bán 5 phần (1.000 g ÷ 200 g). Mốc lùi 30 giây: đồng hồ máy chạy test có thể nhanh hơn now() của DB vài giây — đơn mang
+    // giờ "tương lai" thì chưa bị trừ. (Đơn trước phiếu nhập vẫn trừ: tồn cộng dồn, không theo thứ tự.)
     const { data: o } = await db
       .from("orders")
-      .insert({ tenant_id: tenant, channel: "takeaway", source: "staff", status: "confirmed", confirmed_at: new Date(Date.now() - 500).toISOString(), note: TAG })
+      .insert({ tenant_id: tenant, channel: "takeaway", source: "staff", status: "confirmed", confirmed_at: new Date(Date.now() - 30_000).toISOString(), note: TAG })
       .select("id")
       .single();
     orderIds.push(o!.id);
@@ -276,21 +273,21 @@ test("kiểm kê lệch 200 g + phiếu hủy có lý do (INV-08)", async ({ pag
     .insert({ tenant_id: tenant, name, base_unit: "g", purchase_unit: "kg", purchase_factor: 1000, must_count: true })
     .select("id")
     .single();
-  const { businessDate } = await import("@/lib/inventory/day");
   await db.from("stock_entries").insert({
-    tenant_id: tenant, business_date: businessDate(), ingredient_id: ing!.id, kind: "receipt", qty: 1000,
+    tenant_id: tenant, business_date: new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10), ingredient_id: ing!.id,
+    kind: "receipt", qty: 1000,
   });
 
   try {
     await page.goto(`${BASE}/count`);
-    await expect(page.getByText(/tính cho ngày \d{2}\/\d{2}\/\d{4}/)).toBeVisible();
+    await expect(page.locator("[data-thoi-gian-kiem-ke]")).toContainText("lúc bấm Hoàn thành");
     const row = page.locator("li").filter({ hasText: name });
     await expect(row.getByText("1 kg", { exact: true })).toBeVisible(); // cột Tồn kho
     await row.getByRole("textbox").fill("0,8");
     // P25 (INV-11): lệch 20% — không phải lệch lớn, không hỏi lại.
     await expect(page.getByLabel(`SL lệch ${name}`)).toContainText("-0,2 kg");
     await page.getByRole("button", { name: "Hoàn thành" }).click();
-    await expect(page.getByText(/Đã ghi kiểm kê/)).toBeVisible();
+    await expect(page.getByText(/Đã cân bằng kho — phiếu KK\d+/)).toBeVisible();
     const { data: adj } = await db.from("stock_entries").select("qty").eq("ingredient_id", ing!.id).eq("kind", "count_adjust");
     expect(adj!.map((r) => Number(r.qty))).toEqual([-200]);
 
@@ -384,7 +381,7 @@ test("báo cáo: chưa khai nguyên liệu thì không có khối P10; khai rồ
     const row = page.locator("tr", { hasText: item!.name });
     await expect(row.getByText("20.000₫").first()).toBeVisible(); // giá vốn/phần
     await expect(row.getByText("30.000₫").first()).toBeVisible(); // lãi/phần
-    await expect(page.getByText(/phần của hôm nay — tạm tính/)).toBeVisible();
+    await expect(page.getByText(/phần của các ngày chưa chốt sổ — tạm tính/)).toBeVisible();
 
     const kpi = (await page.locator("p", { hasText: /^Doanh thu$/ }).locator("xpath=following-sibling::p[1]").first().innerText()).trim();
     const line = await page.getByText(/^Doanh thu .* = món \(đã trừ giảm giá\)/).innerText();

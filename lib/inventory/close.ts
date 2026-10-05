@@ -73,7 +73,27 @@ export function dayUnitCost(
   return { cost: null, source: "none" };
 }
 
-/** Ngày cần chốt: từ sau bản chốt gần nhất (hoặc ngày có dòng sổ đầu tiên) tới HÔM QUA, tối đa `max`. */
+/**
+ * Sổ kho để mở 7 ngày (P34, QD-034 D4 — chủ dự án chốt "tự chốt sau 1 tuần"): ngày D tự chốt khi hôm nay ≥ D + 7, để phiếu
+ * nhập ghi muộn (cuối ngày, hôm sau) còn vào đúng ngày. Cùng số với `save_purchase_receipt` (0085: `vn_today() - 6`).
+ */
+export const OPEN_DAYS = 7;
+
+/** Ngày cũ nhất còn mở (chưa tới lượt chốt) — hôm nay − 6. Phiếu nhập lùi được tới ngày này. */
+export function firstOpenDay(today: string): string {
+  return addDays(today, 1 - OPEN_DAYS);
+}
+
+/** Các ngày CHƯA chốt (từ `openFrom` tới hôm nay) nằm trong kỳ báo cáo — tính tại chỗ bằng bản xem trước chốt sổ. */
+export function openDaysIn(range: { fromDay: string; toDay: string }, openFrom: string | null, today: string): string[] {
+  if (!openFrom) return [];
+  const out: string[] = [];
+  const end = range.toDay < today ? range.toDay : today;
+  for (let d = range.fromDay > openFrom ? range.fromDay : openFrom; d <= end; d = addDays(d, 1)) out.push(d);
+  return out;
+}
+
+/** Ngày cần chốt: từ sau bản chốt gần nhất (hoặc ngày có dòng sổ đầu tiên) tới TRƯỚC `today`, tối đa `max`. */
 export function daysToClose(
   lastClosed: string | null,
   firstEntry: string | null,

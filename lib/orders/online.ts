@@ -120,10 +120,12 @@ export type OnlineOrderView = {
   parentOrderId: string | null;
   cancelReason: string | null;
   cancelledAt: string | null;
+  /** Đơn không bàn khách ăn tại quán (P35, `orders.eat_in`). */
+  eatIn: boolean;
 };
 
 const ONLINE_ORDER_SELECT =
-  "id, channel, status, kitchen_no, note, customer_contact, created_at, parent_order_id, cancel_reason, cancelled_at, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, created_at, cancel_reason, cancelled_by, cancelled_at, order_item_modifiers(name_snapshot))";
+  "id, channel, status, eat_in, kitchen_no, note, customer_contact, created_at, parent_order_id, cancel_reason, cancelled_at, order_items(id, name_snapshot, unit_price_snapshot, qty, note, status, created_at, cancel_reason, cancelled_by, cancelled_at, order_item_modifiers(name_snapshot))";
 
 /**
  * Map 1 row order (kèm items) → OnlineOrderView.
@@ -168,6 +170,7 @@ function toOnlineOrderView(
     parentOrderId: (o.parent_order_id as string | null) ?? null,
     cancelReason: (o.cancel_reason as string) ?? null,
     cancelledAt: (o.cancelled_at as string) ?? null,
+    eatIn: Boolean(o.eat_in),
   };
 }
 

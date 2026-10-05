@@ -42,10 +42,11 @@ test("A: Nguyên liệu có tab Tồn kho thay Nhập hôm nay; đường cũ �
     .select("id")
     .single();
   try {
-    // Nhập hôm qua → "Lấy hàng lần trước" có nguyên liệu này. Hôm qua đã chốt sổ nên tồn chỉ thấy dòng nhập hôm nay.
+    // Nhập hôm qua → "Lấy hàng lần trước" có nguyên liệu này.
     await db.from("stock_entries").insert([
-      { tenant_id: tenant, business_date: vnDay(1), ingredient_id: ing!.id, kind: "receipt", qty: 500 },
-      { tenant_id: tenant, business_date: vnDay(), ingredient_id: ing!.id, kind: "receipt", qty: 500 },
+      // P34: business_date do trigger tính từ occurred_at — đặt giờ phát sinh hôm qua.
+      { tenant_id: tenant, business_date: vnDay(1), occurred_at: `${vnDay(1)}T05:00:00Z`, ingredient_id: ing!.id, kind: "receipt", qty: 500 },
+      { tenant_id: tenant, business_date: vnDay(), occurred_at: new Date().toISOString(), ingredient_id: ing!.id, kind: "receipt", qty: 500 },
     ]);
     await dangNhap(page);
 
@@ -122,7 +123,7 @@ test("B: sổ 10 kg, đếm 82 kg → lệch +72 kg, +5.040.000₫, 'Lệch lớ
     // Đồng ý → ghi lệch +72 kg = +72.000 g; tồn mới = 82 kg.
     page.once("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Hoàn thành" }).click();
-    await expect(page.getByText(/Đã ghi kiểm kê \d+ nguyên liệu/)).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByText(/Đã cân bằng kho — phiếu KK\d+, \d+ nguyên liệu/)).toBeVisible({ timeout: 90_000 });
     const { data: adj } = await db.from("stock_entries").select("qty").eq("ingredient_id", ing!.id).eq("kind", "count_adjust");
     expect(adj!.map((r) => Number(r.qty))).toEqual([72_000]);
   } finally {

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
 import { KhoHangHeader } from "@/components/admin/inventory/KhoHangHeader";
+import { KhoSoStatus } from "@/components/admin/inventory/KhoSoStatus";
 
 /** Nhà cung cấp (P20, QD-027): owner + manager. Guard một chỗ cho danh sách và chi tiết. */
 export default async function SupplierLayout({
@@ -19,6 +20,7 @@ export default async function SupplierLayout({
   return (
     <div className="w-full">
       <KhoHangHeader adminBase={`/r/${slug}/admin`} />
+      <KhoSoStatus tenantId={session.tenant.id} adminBase={`/r/${slug}/admin`} />
       <div className="mt-lg">{children}</div>
     </div>
   );

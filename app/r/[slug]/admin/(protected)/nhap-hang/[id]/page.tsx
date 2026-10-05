@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { activeSupplierOptions, getReceipt, getSupplier } from "@/lib/purchasing/data";
-import { FUND_LABEL, ngayVn } from "@/lib/purchasing/receipt";
+import { FUND_LABEL } from "@/lib/purchasing/receipt";
 import { formatVnd } from "@/lib/orders/cart";
 import { gioNgayNamVn } from "@/lib/time/vn";
 import { BASE_UNIT_LABEL, type BaseUnit } from "@/lib/inventory/types";
@@ -13,11 +13,38 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { ReceiptForm } from "@/components/admin/inventory/ReceiptForm";
 import { ReceiptStatusBadge } from "@/components/admin/purchasing/ReceiptTable";
+import { LockBox } from "@/components/admin/inventory/LockBox";
+import { businessDate } from "@/lib/inventory/day";
+import { oldestOpenDay } from "@/lib/inventory/close-server";
+import { toConflicts, toVnDateTimeInput, type LockConflict, type LockRow } from "@/lib/inventory/lock";
 import { cancelReceipt, copyReceipt, updateReceiptMeta } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 const fmtQty = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
+
+/** Phiếu tạm đã chọn giờ / phiếu đã nhập ở ngày chưa chốt: lần kiểm kê nào chặn nó (P34 mốc khóa, QD-034 D2). */
+async function receiptConflicts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tenantId: string,
+  r: { status: string; received_at: string | null; stock_date: string | null; lines: { ingredient_id: string }[] }
+): Promise<LockConflict[]> {
+  if (!r.received_at || r.status === "cancelled") return [];
+  if (r.status === "done") {
+    const { count } = await supabase
+      .from("daily_closes")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenantId)
+      .gte("business_date", r.stock_date!);
+    if ((count ?? 0) > 0) return []; // ngày đã chốt: Hủy bỏ ghi dòng âm lúc hủy, không vướng
+  }
+  const { data } = await supabase.rpc("inventory_lock_conflicts", {
+    p_tenant: tenantId,
+    p_ingredients: [...new Set(r.lines.map((l) => l.ingredient_id))],
+    p_at: r.received_at,
+  });
+  return toConflicts((data ?? []) as LockRow[]);
+}
 
 /** Chi tiết phiếu nhập (PURCH-02..04). Phiếu đã nhập không sửa số — "Hủy bỏ" rồi "Sao chép" (như KiotViet). */
 export default async function ReceiptDetailPage({ params }: { params: Promise<{ slug: string; id: string }> }) {
@@ -27,10 +54,18 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
   const supabase = await createClient();
   const r = await getReceipt(supabase, tenantId, id);
   if (!r) notFound();
-  const [supplier, suppliers] = await Promise.all([
+  const [supplier, suppliers, conflicts, completer] = await Promise.all([
     r.supplier_id ? getSupplier(supabase, tenantId, r.supplier_id) : Promise.resolve(null),
     activeSupplierOptions(supabase, tenantId),
+    receiptConflicts(supabase, tenantId, r),
+    r.completed_by
+      ? supabase.from("memberships").select("display_name").eq("id", r.completed_by).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+  const countHref = `/r/${slug}/admin/inventory/count`;
+  // Phiếu ghi muộn (bấm Hoàn thành cách giờ hàng về hơn 5 phút) → nói ra, để thấy phiếu nào nhập bù.
+  const late =
+    r.received_at && r.completed_at && Date.parse(r.completed_at) - Date.parse(r.received_at) > 5 * 60_000;
   const base = `/r/${slug}/admin/nhap-hang`;
   const paid = r.paid;
   const hidden = (
@@ -61,8 +96,11 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
           pay_now: r.pay_now,
           pay_fund: r.pay_fund,
           note: r.note,
+          received_at: r.received_at ? toVnDateTimeInput(r.received_at) : null,
           lines: r.lines.map((l) => ({ ingredient_id: l.ingredient_id, qty: l.qty, unit_price: l.unit_price })),
         }}
+        nowVn={toVnDateTimeInput(new Date().toISOString())}
+        minDay={await oldestOpenDay(supabase, tenantId, businessDate())}
       />
     );
   }
@@ -79,8 +117,17 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
             <ReceiptStatusBadge status={r.status} />
           </h2>
           <p className="mt-xxs text-sm text-steel">
-            Ngày chứng từ {ngayVn(r.doc_date)}
-            {r.stock_date && <> · vào kho {ngayVn(r.stock_date)}</>}
+            {r.received_at ? (
+              <>Thời gian nhập {gioNgayNamVn(r.received_at)}</>
+            ) : (
+              <>Thời gian nhập: lúc bấm Hoàn thành</>
+            )}
+            {late && (
+              <>
+                {" "}· ghi lúc {gioNgayNamVn(r.completed_at)}
+                {completer.data?.display_name ? <> bởi {completer.data.display_name as string}</> : null}
+              </>
+            )}
             {" · "}
             {supplier ? (
               <Link href={`/r/${slug}/admin/nha-cung-cap/${supplier.id}`} className="text-primary">
@@ -101,6 +148,10 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
           </form>
         )}
       </header>
+
+      {r.status === "draft" && (
+        <LockBox title="Chưa nhập kho được vào thời gian này:" conflicts={conflicts} countHref={countHref} />
+      )}
 
       {r.status === "draft" ? (
         <Card>{draftForm}</Card>
@@ -169,13 +220,11 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
       {r.status === "done" && (
         <Card>
           <h3 className="text-base font-medium text-ink">Sửa thông tin</h3>
-          <p className="mt-xxs text-sm text-steel">Phiếu đã nhập không sửa số lượng, giá. Sai số thì Hủy bỏ rồi Sao chép thành phiếu mới.</p>
+          <p className="mt-xxs text-sm text-steel">
+            Phiếu đã nhập không sửa số lượng, giá, thời gian nhập. Sai thì Hủy bỏ rồi Sao chép thành phiếu mới.
+          </p>
           <form action={updateReceiptMeta} className="mt-md grid gap-md sm:grid-cols-3">
             {hidden}
-            <label className="flex flex-col gap-xxs text-sm text-slate">
-              Ngày chứng từ
-              <Input type="date" name="doc_date" defaultValue={r.doc_date} />
-            </label>
             {!r.supplier_id && suppliers.length > 0 && (
               <label className="flex flex-col gap-xxs text-sm text-slate">
                 Nhà cung cấp
@@ -198,7 +247,11 @@ export default async function ReceiptDetailPage({ params }: { params: Promise<{ 
         </Card>
       )}
 
-      {r.status !== "cancelled" && (
+      {r.status === "done" && conflicts.length > 0 && (
+        <LockBox title="Không hủy bỏ được phiếu này lúc này:" conflicts={conflicts} countHref={countHref} />
+      )}
+
+      {r.status !== "cancelled" && !(r.status === "done" && conflicts.length > 0) && (
         <form action={cancelReceipt} className="flex flex-wrap items-center gap-md border-t border-hairline-soft pt-md text-sm">
           {hidden}
           {r.status === "done" && r.vouchers.some((v) => v.status === "active") && (

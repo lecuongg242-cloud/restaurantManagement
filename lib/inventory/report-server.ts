@@ -1,8 +1,9 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type { ReportRange } from "@/lib/billing/report-range";
-import { ensureClosedThrough, previewDay } from "./close-server";
+import { ensureClosedThrough, previewDays } from "./close-server";
 import { businessDate } from "./day";
+import { openDaysIn } from "./close";
 import { mergeMargin, type MarginItem, type MarginRpcRow, type MarginTotals, type OpenLine } from "./margin";
 import { rowWaste, suspectRecipe, wasteBreakdown, type WasteRow, type WasteSource, type WasteSummary } from "./waste";
 
@@ -25,7 +26,8 @@ export type WasteIngredient = {
 export type InventoryReport = {
   margin: { items: MarginItem[]; totals: MarginTotals };
   reconcile: { netItem: number; service: number; vat: number; kpi: number; gap: number };
-  waste: WasteSummary & { ingredients: WasteIngredient[]; closedDays: number };
+  /** `openDays`: số ngày CHƯA chốt trong kỳ (P34 — 7 ngày gần nhất để mở), tính tại chỗ, có thể đổi khi nhập phiếu muộn. */
+  waste: WasteSummary & { ingredients: WasteIngredient[]; closedDays: number; openDays: number };
 };
 
 export type InventoryReportBlock = { ok: true; data: InventoryReport } | { ok: false; message: string } | null;
@@ -40,27 +42,28 @@ export async function getInventoryReportBlock(tenantId: string, range: ReportRan
 
   try {
     const today = businessDate();
-    await ensureClosedThrough(supabase, tenantId, today);
+    const { openFrom } = await ensureClosedThrough(supabase, tenantId, today);
     const args = { p_tenant: tenantId, p_from: range.fromUtc, p_to: range.toUtc };
-    const includesToday = range.fromDay <= today && today <= range.toDay;
+    const openDays = openDaysIn(range, openFrom, today);
 
-    const [margin, reconcile, waste, open] = await Promise.all([
+    const [margin, reconcile, waste, ...open] = await Promise.all([
       supabase.rpc("report_gross_margin", args),
       supabase.rpc("report_margin_reconcile", args),
       supabase.rpc("report_waste", args),
-      includesToday
-        ? supabase.rpc("report_margin_open_lines", { ...args, p_day: today })
-        : Promise.resolve({ data: [], error: null }),
+      ...openDays.map((d) => supabase.rpc("report_margin_open_lines", { ...args, p_day: d })),
     ]);
-    for (const r of [margin, reconcile, waste, open]) if (r.error) throw new Error(r.error.message);
+    for (const r of [margin, reconcile, waste, ...open]) if (r.error) throw new Error(r.error.message);
 
-    const openLines = ((open.data ?? []) as OpenLine[]).map((l) => ({
-      ...l,
-      qty: Number(l.qty),
-      net_revenue: Number(l.net_revenue),
-    }));
-    const preview = openLines.length > 0 ? await previewDay(supabase, tenantId, today) : null;
-    const merged = mergeMargin((margin.data ?? []) as MarginRpcRow[], openLines, preview);
+    const openLines = open.flatMap((r, i) =>
+      ((r.data ?? []) as Omit<OpenLine, "day">[]).map((l) => ({
+        ...l,
+        day: openDays[i],
+        qty: Number(l.qty),
+        net_revenue: Number(l.net_revenue),
+      }))
+    );
+    const previews = await previewDays(supabase, tenantId, openDays);
+    const merged = mergeMargin((margin.data ?? []) as MarginRpcRow[], openLines, previews);
 
     const rec = ((reconcile.data ?? []) as Record<string, number>[])[0] ?? {};
     const netItem = Number(rec.net_item_revenue ?? 0);
@@ -68,7 +71,7 @@ export async function getInventoryReportBlock(tenantId: string, range: ReportRan
     const vat = Number(rec.vat ?? 0);
     const kpi = Number(rec.kpi_revenue ?? 0);
 
-    const wasteRows = ((waste.data ?? []) as Record<string, unknown>[]).map((r) => ({
+    const closedRows = ((waste.data ?? []) as Record<string, unknown>[]).map((r) => ({
       business_date: String(r.business_date),
       ingredient_id: String(r.ingredient_id),
       name: String(r.name),
@@ -82,6 +85,24 @@ export async function getInventoryReportBlock(tenantId: string, range: ReportRan
       waste_khac: Number(r.waste_khac),
       adjust: Number(r.adjust),
     }));
+    // Ngày chưa chốt: cùng các trường, lấy từ bản xem trước chốt sổ.
+    const openRows = [...previews].flatMap(([day, p]) =>
+      p.ingredients.map((i) => ({
+        business_date: day,
+        ingredient_id: i.id,
+        name: i.name,
+        unit_cost: i.unit_cost,
+        counted: i.counted,
+        cancel_usage: i.cancel_usage,
+        batch_shortfall: i.batch_shortfall,
+        waste_hong: i.waste_hong,
+        waste_do_bo: i.waste_do_bo,
+        waste_com_nv: i.waste_com_nv,
+        waste_khac: i.waste_khac,
+        adjust: i.adjust,
+      }))
+    );
+    const wasteRows = [...closedRows, ...openRows];
 
     return {
       ok: true,
@@ -91,7 +112,8 @@ export async function getInventoryReportBlock(tenantId: string, range: ReportRan
         waste: {
           ...wasteBreakdown(wasteRows, merged.totals.netRevenue),
           ingredients: perIngredient(wasteRows),
-          closedDays: new Set(wasteRows.map((r) => r.business_date)).size,
+          closedDays: new Set(closedRows.map((r) => r.business_date)).size,
+          openDays: previews.size,
         },
       },
     };

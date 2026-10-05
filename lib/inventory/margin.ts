@@ -2,8 +2,8 @@ import type { DailyClosePayload } from "./close";
 import { foodCostPct } from "./cost";
 
 /**
- * Gộp lãi gộp theo món (REPORT-13): số của các ngày đã chốt (RPC) + phần "tạm tính" của hôm nay
- * (chưa chốt) định giá bằng bản xem trước chốt sổ. Lãi gộp CHỈ trên phần có giá vốn — thiếu giá
+ * Gộp lãi gộp theo món (REPORT-13): số của các ngày đã chốt (RPC) + phần "tạm tính" của các ngày
+ * chưa chốt (P34: 7 ngày gần nhất) định giá bằng bản xem trước chốt sổ của ĐÚNG ngày đó. Lãi gộp CHỈ trên phần có giá vốn — thiếu giá
  * thì loại khỏi tổng và nói ra, không đoán (QD-017 D6).
  */
 export type MarginRpcRow = {
@@ -17,7 +17,7 @@ export type MarginRpcRow = {
   uncosted_qty: number;
 };
 
-export type OpenLine = { menu_item_id: string | null; qty: number; net_revenue: number; option_ids: string[] };
+export type OpenLine = { day: string; menu_item_id: string | null; qty: number; net_revenue: number; option_ids: string[] };
 
 export type MarginItem = {
   key: string;
@@ -61,7 +61,7 @@ function lineCost(line: OpenLine, preview: DailyClosePayload): number | null {
 export function mergeMargin(
   rows: MarginRpcRow[],
   open: OpenLine[],
-  preview: DailyClosePayload | null
+  previews: Map<string, DailyClosePayload>
 ): { items: MarginItem[]; totals: MarginTotals } {
   const byKey = new Map<string, MarginItem>();
   for (const r of rows) {
@@ -83,18 +83,17 @@ export function mergeMargin(
     });
   }
 
-  if (preview) {
-    for (const l of open) {
-      const m = l.menu_item_id ? byKey.get(l.menu_item_id) : undefined;
-      if (!m) continue;
-      const c = lineCost(l, preview);
-      if (c === null) continue;
-      m.costTotal += c;
-      m.costedQty += l.qty;
-      m.uncostedQty -= l.qty;
-      m.costedRevenue += Number(l.net_revenue);
-      m.provisionalQty += l.qty;
-    }
+  for (const l of open) {
+    const preview = previews.get(l.day);
+    const m = l.menu_item_id ? byKey.get(l.menu_item_id) : undefined;
+    if (!preview || !m) continue;
+    const c = lineCost(l, preview);
+    if (c === null) continue;
+    m.costTotal += c;
+    m.costedQty += l.qty;
+    m.uncostedQty -= l.qty;
+    m.costedRevenue += Number(l.net_revenue);
+    m.provisionalQty += l.qty;
   }
 
   const items = [...byKey.values()].map((m) => {

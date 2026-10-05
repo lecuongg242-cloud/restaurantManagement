@@ -170,7 +170,8 @@ function buildKitchenTicket(ticket) {
 
   cmd(CMD.alignLeft);
   text("-".repeat(CHARS));
-  text(row(`Ban: ${ticket.tableName ?? "-"}`, `#${ticket.ticketNo ?? ""}`));
+  // Đơn không bàn (P35): in thẳng nơi phục vụ ("Tai quan" / "Mang ve"), không "Ban: ...".
+  text(row(ticket.place ? ticket.place : `Ban: ${ticket.tableName ?? "-"}`, `#${ticket.ticketNo ?? ""}`));
   const qty = (ticket.items ?? []).reduce((acc, i) => acc + (i.qty ?? 0), 0);
   text(row(timeVN(ticket.confirmedAt), `${qty} phan`));
   text("-".repeat(CHARS));

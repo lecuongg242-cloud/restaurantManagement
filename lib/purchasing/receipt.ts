@@ -68,6 +68,9 @@ export function purchaseErrorMessage(raw: string | undefined | null): string {
     ["da_huy", "Phiếu đã hủy trước đó."],
     ["da_co_ncc", "Phiếu đã có nhà cung cấp — không đổi được."],
     ["chi_sua_phieu_da_nhap", "Chỉ sửa được thông tin của phiếu đã nhập."],
+    ["thoi_gian_tuong_lai", "Thời gian nhập không được sau bây giờ."],
+    ["ngay_da_chot", "Ngày này đã chốt sổ (sổ kho tự chốt sau 7 ngày) — chọn ngày gần hơn."],
+    ["vuong_kiem_ke", "Vướng phiếu kiểm kê đã hoàn thành sau thời gian này — hủy phiếu kiểm kê trước."],
     ["khong du quyen", "Không đủ quyền."],
   ];
   return map.find(([k]) => m.includes(k))?.[1] ?? `Lưu phiếu lỗi: ${m}`;
