@@ -7,8 +7,9 @@ import { config } from "dotenv";
  * Sao chép → sửa → Hoàn thành; phiếu hôm qua (ngày đã chốt) sai giá → Hủy bỏ (dòng âm hôm nay) → Sao chép sửa giá; Lưu tạm
  * rồi sửa → Hoàn thành; sửa ngày chứng từ; nấu mẻ hụt; xuất hủy; kiểm kê gõ nhầm 82 → hỏi lại → sửa số → Hoàn thành.
  *
- * Cần dữ liệu 7 ngày của `node scripts/seed-kho-demo.mjs` (26/09–02/10), chạy ngày 03/10/2026 — bước 2 hủy phiếu gà/giò
- * "Nhập sáng" của hôm qua nên mỗi lượt seed chỉ chạy trọn được một lần (chạy lại: seed lại). Mỗi bước kiểm sổ kho trong DB,
+ * Cần dữ liệu 7 ngày tới HÔM QUA của `node scripts/seed-kho-demo.mjs` (chạy cùng ngày với spec) — bước 2 hủy phiếu gà/giò
+ * "Nhập sáng" của hôm qua nên mỗi lượt seed chỉ chạy trọn được một lần (chạy lại: seed lại). Kịch bản:
+ * docs/40-KiemTra/KichBan-Kho-PhoViet.md. Mỗi bước kiểm sổ kho trong DB,
  * không chỉ chữ trên màn hình.
  */
 config({ path: ".env.local" });
@@ -19,6 +20,8 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPAB
   auth: { autoRefreshToken: false, persistSession: false },
 });
 const vnToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+const vnYesterday = () => new Date(Date.now() + 7 * 3600e3 - 86400e3).toISOString().slice(0, 10);
+const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 
 test.describe.configure({ mode: "serial" });
 test.setTimeout(300_000);
@@ -68,6 +71,9 @@ async function chonNcc(page: Page, ten: string) {
 
 /** Chờ thông báo MỚI chứa `re` sau thao tác `act` — thông báo cũ vẫn xếp chồng trên màn nên không tìm chữ trơn được. */
 async function thongBao(page: Page, re: RegExp | string, act: () => Promise<unknown>) {
+  // Toast cũ CÙNG chữ còn trên màn (sống 4 giây) mà tắt đúng lúc toast mới hiện thì số toast không đổi → tưởng không có
+  // toast mới. Chờ toast cũ cùng chữ tắt hẳn rồi mới thao tác.
+  await expect(page.getByRole("status").filter({ hasText: re })).toHaveCount(0, { timeout: 10_000 });
   const before = await page.getByRole("status").allInnerTexts();
   await act();
   // Trừ từng thông báo cũ một lần (hai thông báo cùng chữ — "Đã ghi hủy Tôm sú." hai lần — vẫn nhận ra cái mới).
@@ -146,17 +152,17 @@ test("1. Nhập sáng gõ 40 kg thay 4 kg → Hủy bỏ (xóa dòng sổ, hủy
   expect(r).toMatchObject({ total: 4 * 285000 + 2 * 250000, pay_now: 1_000_000, status: "done", copied_from: sai });
 
   // Sửa thông tin phiếu đã nhập: ngày chứng từ + ghi chú (không đổi số lượng, giá).
-  await page.locator('input[name="doc_date"]').fill("2026-10-02");
-  await page.locator('input[name="note"]').fill("HĐ Thanh Tuấn số 0015 — hàng giao tối 02/10");
+  await page.locator('input[name="doc_date"]').fill(vnYesterday());
+  await page.locator('input[name="note"]').fill(`HĐ Thanh Tuấn số 0015 — hàng giao tối ${ddmm(vnYesterday())}`);
   await thongBao(page, "Đã lưu thông tin phiếu.", () => page.getByRole("button", { name: "Lưu", exact: true }).click());
   const { data: r2 } = await db.from("purchase_receipts").select("doc_date, stock_date, note").eq("id", dung).single();
-  expect(r2).toMatchObject({ doc_date: "2026-10-02", stock_date: vnToday() });
+  expect(r2).toMatchObject({ doc_date: vnYesterday(), stock_date: vnToday() });
   await page.screenshot({ path: `${ANH}/04-phieu-dung-da-sua-ngay-chung-tu.png`, fullPage: true });
 });
 
 test("2. Phiếu hôm qua (ngày ĐÃ chốt) sai giá giò → Hủy bỏ: dòng âm hôm nay, bản chốt không đổi → Sao chép sửa giá", async ({ page }) => {
   await dangNhap(page);
-  const homQua = new Date(Date.now() + 7 * 3600e3 - 86400e3).toISOString().slice(0, 10);
+  const homQua = vnYesterday();
   const { data: cu } = await db
     .from("purchase_receipts")
     .select("id, code, total")
@@ -180,7 +186,10 @@ test("2. Phiếu hôm qua (ngày ĐÃ chốt) sai giá giò → Hủy bỏ: dòn
   const am = e.filter((x) => Number(x.qty) < 0);
   expect(am.length).toBeGreaterThan(0);
   for (const x of am) expect(x).toMatchObject({ business_date: vnToday(), unit_cost: null });
-  expect(await onHand("Giò heo")).toBeCloseTo(truocGio - 3500, 3);
+  // Lượng giò của phiếu (đơn vị gốc g) — lấy từ dòng sổ dương của phiếu, không gắn cứng theo một lượt seed.
+  const gio = e.filter((x) => x.ingredient_id === ing["Giò heo"].id && Number(x.qty) > 0).reduce((s2, x) => s2 + Number(x.qty), 0);
+  expect(gio).toBeGreaterThan(0);
+  expect(await onHand("Giò heo")).toBeCloseTo(truocGio - gio, 3);
   const { data: close2 } = await db.from("daily_closes").select("payload").eq("tenant_id", tenant).eq("business_date", homQua).single();
   expect(close2!.payload).toEqual(close!.payload);
 
@@ -198,12 +207,13 @@ test("2. Phiếu hôm qua (ngày ĐÃ chốt) sai giá giò → Hủy bỏ: dòn
   expect(await onHand("Giò heo")).toBeCloseTo(truocGio, 3);
   const moi = page.url().split("/").pop()!;
   const { data: r } = await db.from("purchase_receipts").select("total").eq("id", moi).single();
-  expect(phieu.total - r!.total).toBe(3.5 * 5000);
-  // Công nợ anh Bình giảm đúng 17.500đ.
+  // Giò 95.000 → 90.000đ/kg: phiếu mới rẻ hơn đúng (số kg giò) × 5.000đ, nợ anh Bình giảm đúng chừng ấy.
+  const chenh = Math.round((gio / 1000) * 5000);
+  expect(phieu.total - r!.total).toBe(chenh);
   const { data: sum1 } = await db.rpc("supplier_summaries", { p_tenant: tenant });
   const binh = (await db.from("suppliers").select("id").eq("tenant_id", tenant).like("name", "Gà ta Sóc Sơn%").single()).data!.id;
   const debt = (arr: unknown) => Number((arr as { supplier_id: string; debt: number }[]).find((x) => x.supplier_id === binh)!.debt);
-  expect(debt(sum0) - debt(sum1)).toBe(17_500);
+  expect(debt(sum0) - debt(sum1)).toBe(chenh);
   await page.screenshot({ path: `${ANH}/05-nhap-lai-phieu-hom-qua-sua-gia.png`, fullPage: true });
 });
 

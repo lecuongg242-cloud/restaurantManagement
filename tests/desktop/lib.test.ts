@@ -7,6 +7,7 @@ import { moiTruongCauIn, chuoiMayQuay, doiTruocKhiChayLai } from "../../desktop/
 import { laTienTrinhCauInCu, mayInTuEnvCu } from "../../desktop/lib/cau-in-cu.mjs";
 import { duocCaiBanMoi, YEN_TOI_THIEU_GIAY } from "../../desktop/lib/cap-nhat.mjs";
 import { QuanLyCauIn } from "../../desktop/lib/cau-in.mjs";
+import { phanLoaiMayIn, giuMayDaLuu } from "../../desktop/lib/may-in-usb.mjs";
 import { doiDen } from "./gia-lap";
 
 /** DESK-01/02/05/06/08/10 — phần thuần của app máy quầy (không mở Electron). */
@@ -219,5 +220,44 @@ describe("QuanLyCauIn", () => {
     const ql = new QuanLyCauIn({ node: process.execPath, tepCauIn: "khong-co.mjs", thuMucLog: os.tmpdir(), taoMoiTruong: () => null });
     ql.batDau();
     expect(ql.dangChay).toBe(false);
+  });
+});
+
+describe("danh sách máy in USB (P33 DESK-14)", () => {
+  const windows = [
+    { ten: "OneNote", cong: "Microsoft.Office.OneNote_16001_x64__8wekyb3d8bbwe_microsoft.onenoteim_S-1-5-21" },
+    { ten: "Microsoft XPS Document Writer", cong: "PORTPROMPT:" },
+    { ten: "Microsoft Print to PDF", cong: "PORTPROMPT:" },
+    { ten: "Fax", cong: "SHRFAX:" },
+    { ten: "XP-58 cũ", cong: "USB001" },
+    { ten: "Canon TS6300 series", cong: "WSD-6c8969c2" },
+    { ten: "XP-80C", cong: "USB002" },
+  ];
+
+  it("ẩn máy in ảo, máy USB đang kết nối lên đầu, máy rút ghi chưa kết nối, máy khác không ghi trạng thái", () => {
+    expect(phanLoaiMayIn(windows, ["usb002"])).toEqual([
+      { ten: "XP-80C", nhan: "XP-80C — đang kết nối (USB002)", ketNoi: true },
+      { ten: "XP-58 cũ", nhan: "XP-58 cũ — chưa kết nối", ketNoi: false },
+      { ten: "Canon TS6300 series", nhan: "Canon TS6300 series", ketNoi: null },
+    ]);
+  });
+
+  it("không đọc được cổng (null) → chỉ ẩn máy ảo, không đoán trạng thái", () => {
+    expect(phanLoaiMayIn(windows, null).map((d) => [d.nhan, d.ketNoi])).toEqual([
+      ["XP-58 cũ", null],
+      ["Canon TS6300 series", null],
+      ["XP-80C", null],
+    ]);
+  });
+
+  it("chỉ có máy ảo → danh sách trống", () => {
+    expect(phanLoaiMayIn(windows.slice(0, 4), [])).toEqual([]);
+  });
+
+  it("máy đã lưu Windows không còn thấy → vẫn giữ, ghi chưa kết nối; đã có thì không thêm trùng", () => {
+    const ds = phanLoaiMayIn(windows, []);
+    expect(giuMayDaLuu(ds, "XP-80 đã gỡ").at(-1)).toEqual({ ten: "XP-80 đã gỡ", nhan: "XP-80 đã gỡ — chưa kết nối", ketNoi: false });
+    expect(giuMayDaLuu(ds, "XP-80C")).toBe(ds);
+    expect(giuMayDaLuu(ds, null)).toBe(ds);
   });
 });

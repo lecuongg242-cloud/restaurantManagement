@@ -61,6 +61,8 @@ Thay cho cả 5a và 5b: một app trên máy quầy gồm POS, Màn bếp và c
    → **Lưu**. Máy đang chạy cầu in cũ: app hỏi gỡ → đồng ý → bấm **Yes** ở hộp thoại Windows; IP / máy in cũ được điền sẵn.
 5. Admin → Máy in: "Nguồn — TechMenu Thu ngân x.y.z" (cần migration 0075), "Đang kết nối". Bấm ✕ thì app xuống khay, vẫn in.
 6. Sửa máy in sau này: ☰ Menu → **Cài đặt máy in**. Log cầu in: `%APPDATA%\TechMenu Thu ngân\logs\`.
+7. Máy in USB ghi **"chưa kết nối"** / không ra giấy dù đã cắm (Windows đổi cổng USB001 ↔ USB002): làm theo
+   `/huong-dan-cai-dat#loi-cong-usb` (P33) — chọn lại cổng ở Printer properties → Ports.
 
 ### 5a. Quán chọn "Trình duyệt"
 

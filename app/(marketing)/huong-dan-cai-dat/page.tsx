@@ -298,6 +298,49 @@ export default async function HuongDanCaiDat() {
         </section>
       )}
 
+      {/* ---- P33 DESK-14: Windows tự đổi cổng USB001 ↔ USB002 (sau cập nhật / cắm lỗ khác) → máy in USB không ra giấy.
+           Như bài "Chọn lại cổng máy in" của KiotViet. App Thu ngân trỏ link tới #loi-cong-usb — luôn hiện. ---- */}
+      <section id="loi-cong-usb" className="mx-auto max-w-4xl scroll-mt-lg px-lg py-section-sm" data-loi-cong-usb>
+        <h2 className="font-display text-3xl text-ink">Máy in USB không ra giấy</h2>
+        <p className="mt-md text-lg text-slate">
+          Máy in hóa đơn cắm USB vào máy tính bỗng không in, trong <strong className="text-ink">Cài đặt máy in</strong> ghi{" "}
+          <strong className="text-ink">&quot;chưa kết nối&quot;</strong> dù đã cắm dây và bật nguồn. Thường do Windows cập nhật
+          hoặc dây được cắm sang lỗ USB khác, làm Windows đổi cổng của máy in (ví dụ USB001 sang USB002).
+        </p>
+        <ol className="mt-xl flex flex-col gap-md text-lg text-ink">
+          <DongBatBuoc so={1}>
+            Kiểm tra máy in bật nguồn, còn giấy. Rút dây USB ở máy tính ra, cắm lại <strong>đúng lỗ cũ</strong>, chờ 10 giây. Trong
+            app: <strong>☰ → Cài đặt máy in</strong> → bấm <strong>Tải lại</strong>. Máy in ghi{" "}
+            <strong>&quot;đang kết nối&quot;</strong> → bấm <strong>In thử</strong> → <strong>Lưu</strong>. Ra giấy là xong.
+          </DongBatBuoc>
+          <DongBatBuoc so={2}>
+            Vẫn &quot;chưa kết nối&quot;: bấm phím <strong>Windows + R</strong>, gõ <code>control printers</code>, bấm{" "}
+            <strong>Enter</strong>. Cửa sổ <strong>Devices and Printers</strong> (Thiết bị và máy in) mở ra.
+          </DongBatBuoc>
+          <DongBatBuoc so={3}>
+            Bấm chuột phải vào máy in hóa đơn (đúng tên đang chọn trong app, ví dụ XP-80C) → chọn{" "}
+            <strong>Printer properties</strong> (Thuộc tính máy in).
+          </DongBatBuoc>
+          <DongBatBuoc so={4}>
+            Sang tab <strong>Ports</strong> (Cổng). Nếu các ô mờ, không bấm được: sang tab <strong>General</strong> bấm{" "}
+            <strong>Change Properties</strong> (có hình khiên), Windows hỏi thì bấm <strong>Yes</strong>, rồi quay lại tab Ports.
+          </DongBatBuoc>
+          <DongBatBuoc so={5}>
+            Trong danh sách có các dòng <strong>USB001, USB002, USB003…</strong> (Virtual printer port for USB). Chọn một dòng USB{" "}
+            <strong>khác dòng đang chọn</strong>, ưu tiên dòng có cột Printer còn trống → bấm <strong>Apply</strong> →{" "}
+            <strong>OK</strong>.
+          </DongBatBuoc>
+          <DongBatBuoc so={6}>
+            Quay lại app → <strong>Cài đặt máy in</strong> → <strong>Tải lại</strong> → <strong>In thử</strong>. Ra giấy → bấm{" "}
+            <strong>Lưu</strong>. Chưa ra giấy → làm lại bước 5 với dòng USB tiếp theo, mỗi lần thử một dòng.
+          </DongBatBuoc>
+        </ol>
+        <Luu>
+          Để không bị lại: luôn cắm dây máy in vào cùng một lỗ USB trên máy tính. Thử hết các dòng USB mà vẫn không in thì gọi
+          TechMenu để được hỗ trợ từ xa.
+        </Luu>
+      </section>
+
       {/* ---- TechMenu hỗ trợ gì ---- */}
       <section id="ho-tro" className="mx-auto max-w-4xl scroll-mt-lg px-lg py-section-sm" data-ho-tro>
         <h2 className="font-display text-3xl text-ink">TechMenu hỗ trợ gì</h2>

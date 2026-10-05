@@ -23,6 +23,61 @@ function capNhatHien() {
   $("quay-thu").classList.toggle("an", q === "khong");
 }
 
+// ── Máy in USB (P33): danh sách từ main.mjs đã ẩn máy in ảo, máy đang kết nối lên đầu ──
+let dsUsb = [];
+let huongDanCongUsb = null;
+
+/** Một máy USB đang kết nối duy nhất → chọn sẵn (khi chưa lưu máy USB nào). */
+const motMayKetNoi = () => {
+  const co = dsUsb.filter((d) => d.ketNoi === true);
+  return co.length === 1 ? co[0].ten : null;
+};
+
+function veDsUsb(ds, chonTen) {
+  dsUsb = ds.map((d) => (typeof d === "string" ? { ten: d, nhan: d, ketNoi: null } : d));
+  const sel = $("quay-ten");
+  const tuy = (value, chu) => Object.assign(document.createElement("option"), { value, textContent: chu });
+  sel.replaceChildren(...(dsUsb.length ? dsUsb.map((d) => tuy(d.ten, d.nhan)) : [tuy("", "(Không thấy máy in USB)")]));
+  if (chonTen && dsUsb.some((d) => d.ten === chonTen)) sel.value = chonTen;
+  capNhatCanhUsb();
+}
+
+function capNhatCanhUsb() {
+  const o = $("usb-canh");
+  const d = dsUsb.find((x) => x.ten === $("quay-ten").value);
+  const phan = !dsUsb.length
+    ? ["Cắm dây USB và bật nguồn máy in rồi bấm Tải lại. Vẫn không thấy thì cần cài driver máy in (Xprinter, Epson…) cho Windows."]
+    : d?.ketNoi === false
+      ? ["Máy in này đang chưa kết nối — kiểm tra dây USB và nguồn máy in."]
+      : [];
+  if (phan.length && huongDanCongUsb) {
+    const a = Object.assign(document.createElement("a"), { href: huongDanCongUsb, target: "_blank", rel: "noopener" });
+    a.textContent = "Đã cắm mà vẫn không in được? Xem hướng dẫn";
+    phan.push(" ", a);
+  }
+  o.replaceChildren(...phan);
+  o.classList.toggle("an", !phan.length);
+}
+
+$("quay-ten").addEventListener("change", capNhatCanhUsb);
+
+$("tai-lai-usb").addEventListener("click", async () => {
+  const b = $("tai-lai-usb");
+  const dangChon = $("quay-ten").value;
+  b.disabled = true;
+  b.textContent = "Đang tải…";
+  try {
+    veDsUsb(await window.techmenu.dsMayInUsb(), dangChon);
+    if (!dangChon) {
+      const mot = motMayKetNoi();
+      if (mot) veDsUsb(dsUsb, mot);
+    }
+  } finally {
+    b.disabled = false;
+    b.textContent = "Tải lại";
+  }
+});
+
 /** Cấu hình nháp trên màn — main.mjs kiểm lại từng trường trước khi dùng. */
 function nhap() {
   const bep = chon("bep") === "lan" ? { kieu: "lan", host: $("bep-ip").value.trim(), port: Number($("bep-cong").value || 9100) } : null;
@@ -43,16 +98,10 @@ async function napLai() {
     return;
   }
   $("quan").textContent = `Quán: ${d.tenantName}${lanDau ? " — cài máy in rồi bấm Lưu. Làm lại được bất cứ lúc nào ở ☰ Menu → Cài đặt máy in." : ""}`;
-  const sel = $("quay-ten");
-  sel.replaceChildren(
-    ...(d.usb.length ? d.usb : ["(Không thấy máy in nào trên Windows)"]).map((ten) => {
-      const o = document.createElement("option");
-      o.value = d.usb.length ? ten : "";
-      o.textContent = ten;
-      return o;
-    })
-  );
   const { bep, quay, kho } = d.mayIn;
+  huongDanCongUsb = d.huongDanCongUsb ?? null;
+  veDsUsb(d.usb, null);
+  veDsUsb(dsUsb, quay?.kieu === "usb" ? quay.ten : motMayKetNoi());
   // App Android (P24): không có máy in USB của Windows; có ô "Giữ màn hình sáng". App Windows không gửi `nenTang`.
   const android = d.nenTang === "android";
   $("chon-usb").classList.toggle("an", android);
@@ -64,7 +113,6 @@ async function napLai() {
     $("bep-cong").value = bep.port;
   }
   dat("quay", quay ? quay.kieu : lanDau ? (android ? "lan" : "usb") : "khong");
-  if (quay?.kieu === "usb") sel.value = quay.ten;
   if (quay?.kieu === "lan") {
     $("quay-ip").value = quay.host;
     $("quay-cong").value = quay.port;

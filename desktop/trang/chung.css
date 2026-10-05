@@ -11,6 +11,8 @@
   --ok-bg: #ecfdf3;
   --bad: #b42318;
   --bad-bg: #fef3f2;
+  --warn: #93370d;
+  --warn-bg: #fef0c7;
   font-family: "Segoe UI", system-ui, sans-serif;
   color: var(--ink);
 }
@@ -48,6 +50,8 @@ fieldset.nhom legend { font-weight: 600; font-size: 14px; padding: 0; }
 .thong-bao { margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 14px; }
 .thong-bao.loi { background: var(--bad-bg); color: var(--bad); }
 .thong-bao.tot { background: var(--ok-bg); color: var(--ok); }
+.thong-bao.canh { background: var(--warn-bg); color: var(--warn); }
+.thong-bao a { color: inherit; font-weight: 600; }
 .nut-cuoi { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
 .an { display: none !important; }
 .ds-chi-nhanh { display: grid; gap: 8px; }

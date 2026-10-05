@@ -16,6 +16,7 @@ import { moiTruongCauIn } from "./lib/moi-truong.mjs";
 import { QuanLyCauIn, inThu } from "./lib/cau-in.mjs";
 import { phatHienCauInCu, goCauInCu, mayInTuEnvCu } from "./lib/cau-in-cu.mjs";
 import { duocCaiBanMoi, KIEM_MOI_MS } from "./lib/cap-nhat.mjs";
+import { docMayInWindows, phanLoaiMayIn, giuMayDaLuu } from "./lib/may-in-usb.mjs";
 import fs from "node:fs";
 
 const { autoUpdater } = electronUpdater;
@@ -703,11 +704,27 @@ xuLy("kich-hoat", async (vao) => {
   return { ok: true };
 });
 
+/** Máy in cho ô "Cắm USB vào máy này" (P33): PowerShell lỗi → tên máy in Electron, không ghi trạng thái. */
+async function dsMayInUsb() {
+  const win = await docMayInWindows();
+  const ds = win
+    ? phanLoaiMayIn(win.may, win.congCo)
+    : phanLoaiMayIn((await cuaSo.webContents.getPrintersAsync()).map((p) => ({ ten: p.name })), null);
+  const daLuu = cauHinh?.mayIn?.quay;
+  return giuMayDaLuu(ds, daLuu?.kieu === "usb" ? daLuu.ten : null);
+}
+
 xuLy("may-in:doc", async () => {
   if (!cauHinh?.coMayIn) return null;
-  const usb = (await cuaSo.webContents.getPrintersAsync()).map((p) => p.name);
-  return { mayIn: cauHinh.mayIn, usb, tenantName: cauHinh.tenantName };
+  return {
+    mayIn: cauHinh.mayIn,
+    usb: await dsMayInUsb(),
+    tenantName: cauHinh.tenantName,
+    huongDanCongUsb: `${new URL(cauHinh.apiBase ?? API_BASE).origin}/huong-dan-cai-dat#loi-cong-usb`,
+  };
 });
+
+xuLy("may-in:ds-usb", async () => (cauHinh?.coMayIn ? dsMayInUsb() : []));
 
 xuLy("may-in:do-lan", () =>
   new Promise((resolve) => {

@@ -142,6 +142,15 @@ test("máy quầy có máy in → Cài đặt máy in, In thử ra giấy, Lưu 
     await trang.check('input[name="bep"][value="lan"]');
     await trang.fill("#bep-ip", "127.0.0.1");
     await trang.fill("#bep-cong", String(mayIn.port));
+    // P33 DESK-14: USB → máy in Windows thật của máy chạy test, đã ẩn máy in ảo; "Tải lại" đọc lại được.
+    await trang.check('input[name="quay"][value="usb"]');
+    const laMayAo = (t: string) => /Print to PDF|XPS Document Writer|OneNote|^Fax$/.test(t);
+    expect((await trang.locator("#quay-ten option").allTextContents()).some(laMayAo)).toBe(false);
+    await trang.click("#tai-lai-usb");
+    await expect(trang.locator("#tai-lai-usb")).toHaveText("Tải lại");
+    await expect(trang.locator("#tai-lai-usb")).toBeEnabled();
+    expect((await trang.locator("#quay-ten option").allTextContents()).some(laMayAo)).toBe(false);
+
     await trang.check('input[name="quay"][value="khong"]');
     await trang.locator('[data-in-thu="bep"]').click();
     await expect(trang.locator("#kq-bep")).toHaveText("Đã gửi — kiểm tra giấy ra ở máy in.");

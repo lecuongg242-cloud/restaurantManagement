@@ -62,6 +62,18 @@ test("điện thoại 360px: không tràn ngang", async ({ page }) => {
   await page.screenshot({ path: "docs/30-KeHoach/MKT-04/anh/2-dien-thoai-360.png", fullPage: true });
 });
 
+// P33 DESK-14: app Thu ngân trỏ link "Xem hướng dẫn" tới #loi-cong-usb — mục luôn hiện, đủ các bước đổi cổng.
+test("mục Máy in USB không ra giấy: đủ các bước đổi cổng USB", async ({ page }) => {
+  await page.goto(`${TRANG}#loi-cong-usb`);
+  const muc = page.locator("[data-loi-cong-usb]");
+  await expect(muc.getByRole("heading", { level: 2 })).toHaveText("Máy in USB không ra giấy");
+  await expect(muc.locator("ol > li")).toHaveCount(6);
+  for (const y of ["Tải lại", "control printers", "Printer properties", "Ports", "Change Properties", "USB001, USB002", "In thử"]) {
+    await expect(muc).toContainText(y);
+  }
+  await expect(muc).toBeInViewport();
+});
+
 // P21 DESK-11: mục cài app máy quầy, có bước qua SmartScreen (app chưa ký số — QD-026 D3). Mục chỉ hiện khi máy chủ đã cấu
 // hình nơi phát hành (DESKTOP_RELEASE_BASE) và có bản phát hành — chạy test này với dev server có biến đó.
 test("có bản phát hành → mục Cài TechMenu Thu ngân đủ các bước", async ({ page }) => {

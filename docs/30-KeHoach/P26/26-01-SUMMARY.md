@@ -3,7 +3,8 @@
 > Chạy 03/10/2026 trên DB production, chỉ quán demo `pho-viet` (không đụng qt-food). Yêu cầu: INV-13..17, PURCH-07. QD-031.
 > Số liệu dưới đây là lượt chạy **sau 26-02** (dữ liệu sinh lại, bia tồn đầu khai bằng "Tồn đầu kỳ"). Lượt trước 26-02 (bia
 > tồn đầu bằng kiểm kê) ra tổng 4.259.854₫ — bia −405.000₫ — là bằng chứng của chỗ hở P1.
-> Kế hoạch và các phát hiện: `00-TongQuan.md`.
+> Kế hoạch và các phát hiện: `00-TongQuan.md`. **Kịch bản chi tiết (danh mục, 7 ngày, cách tính, 8 tình huống, cách chạy lại):
+> `docs/40-KiemTra/KichBan-Kho-PhoViet.md`** — từ 05/10 dữ liệu sinh theo "7 ngày tới hôm qua", chạy lại được mọi ngày.
 
 ## File đã đổi
 

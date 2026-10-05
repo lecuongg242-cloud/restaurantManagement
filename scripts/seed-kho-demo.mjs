@@ -2,7 +2,11 @@
 // phiếu nhập (kể cả nhập nhầm → hủy → sao chép, phiếu tạm sửa hôm sau, nhập bổ sung khác giá, phiếu không giá), mẻ nước
 // dùng hụt, xuất hủy, kiểm kê cuối ngày (kể cả gõ nhầm rồi đếm lại) — để thử luồng nhập kho → bán → hao hụt từ đầu tới cuối.
 //
-//   node scripts/seed-kho-demo.mjs            (mặc định pho-viet)
+//   node scripts/seed-kho-demo.mjs --out kho-demo.json      7 ngày tính tới HÔM QUA (giờ VN), đáp án ra kho-demo.json
+//   node scripts/seed-kho-demo.mjs --den 2026-10-02         7 ngày kết thúc ngày chỉ định
+//   node scripts/doi-chieu-kho-demo.mjs kho-demo.json       đối chiếu bản chốt sổ với đáp án (sau khi mở khu Kho hàng)
+//
+// Kịch bản từng ngày + cách đọc kết quả: docs/40-KiemTra/KichBan-Kho-PhoViet.md.
 //
 // "Kho thật" được MÔ PHỎNG song song (bếp múc dư, gà lọc xương, mất bia, giò hỏng không ghi…) — số đếm kiểm kê lấy từ kho
 // thật, nên hệ thống phải tự tìm ra hao hụt. Đáp án (sổ từng ngày tính ĐỘC LẬP bằng JS) ghi ra file JSON (tham số --out) để
@@ -22,9 +26,17 @@ config({ path: ".env.local", quiet: true });
 
 const SLUG = "pho-viet";
 const MARK = "KHO_DEMO";
-const DAYS = ["2026-09-26", "2026-09-27", "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"];
-const outArg = process.argv.indexOf("--out");
-const OUT = outArg > 0 ? process.argv[outArg + 1] : null;
+const arg = (name) => {
+  const i = process.argv.indexOf(name);
+  return i > 0 ? process.argv[i + 1] : null;
+};
+const OUT = arg("--out");
+// 7 ngày kết thúc HÔM QUA (giờ VN) → hôm nay còn trống cho thao tác tay / E2E kho-thuc-te, và app tự chốt đủ 7 ngày.
+const addDay = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+const END = arg("--den") ?? addDay(new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10), -1);
+const DAYS = [-6, -5, -4, -3, -2, -1, 0].map((n) => addDay(END, n));
+// Sự kiện đặt theo THỨ TỰ ngày (N1…N7), không theo ngày lịch — chạy hôm nào kịch bản cũng như nhau.
+const [N1, N2, , N4, N5, N6, N7] = DAYS;
 
 const client = new pg.Client({
   connectionString: process.env.POSTGRES_URL_NON_POOLING.replace(/[?&]sslmode=[^&]*/, ""),
@@ -98,11 +110,11 @@ const SUPPLIERS = [
 ];
 const SUP_OF = { bo: "thit", ngua: "thit", banhpho: "cho", bun: "cho", rau: "cho", cam: "cho", hanh: "cho", banhtrang: "cho",
   ga: "ga", gio: "ga", tom: "ga", xuong: "ga", gao: "ga", bia: "bia" };
-// Giá theo ngày (đ / đơn vị nhập) — thịt bò lên giá giữa tuần.
+// Giá theo ngày (đ / đơn vị nhập) — thịt bò lên giá từ N5, tôm từ N6.
 const PRICE_ON = (k, day) => {
   const base = byK[k].price;
-  if (k === "bo") return day >= "2026-09-30" ? 285000 : base;
-  if (k === "tom") return day >= "2026-10-01" ? 230000 : base;
+  if (k === "bo") return day >= N5 ? 285000 : base;
+  if (k === "tom") return day >= N6 ? 230000 : base;
   return base;
 };
 
@@ -128,7 +140,7 @@ if (oldSessions.length) await q("delete from table_sessions where id = any($1::u
 await q("commit");
 
 // ---- 2. Danh mục: nguyên liệu, định lượng, NCC ---------------------------------------------------------------------
-const setupAt = at("2026-09-25", 20, 0);
+const setupAt = at(addDay(N1, -1), 20, 0);
 const ingId = {};
 for (const i of ING) {
   const id = uuid();
@@ -506,7 +518,7 @@ for (const day of DAYS) {
 
   // Thịt — Thanh Tuấn, nợ một phần.
   const thit = [["bo", buy("bo"), PRICE_ON("bo", day)], ["ngua", buy("ngua"), PRICE_ON("ngua", day)]].filter((l) => l[1] > 0);
-  if (day === "2026-09-27") {
+  if (day === N2) {
     // E1: gõ 45 thay 4,5 kg → phát hiện lúc 06:50 → Hủy bỏ (hủy luôn phiếu chi) → Sao chép → sửa → Hoàn thành.
     const real = thit.find((l) => l[0] === "bo");
     const wrongLines = thit.map((l) => (l[0] === "bo" ? ["bo", real[1] * 10, l[2]] : l));
@@ -518,33 +530,33 @@ for (const day of DAYS) {
     await receipt(day, 6, 55, { id: copy.id, sup: "thit", lines: thit, payNow: 1000000, note: "Nhập sáng (sửa SL thịt bò)" });
   } else if (thit.length) {
     const total = thit.reduce((s, [, q2, p]) => s + Math.round(q2 * p), 0);
-    const disc = day === "2026-09-29" ? Math.round(total * 0.02 / 1000) * 1000 : 0;
+    const disc = day === N4 ? Math.round(total * 0.02 / 1000) * 1000 : 0;
     const rec = await receipt(day, 6, 30, { sup: "thit", lines: thit, discount: disc, payNow: Math.round((total - disc) / 2 / 1000) * 1000, note: "Nhập sáng" });
     physReceive(thit);
-    if (day === "2026-10-01") {
+    if (day === N6) {
       // E3: sửa thông tin phiếu đã nhập — ngày chứng từ theo hóa đơn NCC ghi hôm trước, thêm ghi chú.
-      await asOwner(() => q("select update_purchase_receipt_meta($1, $2, $3, $4)", [rec.id, "HĐ số 0012 của Thanh Tuấn", "2026-09-30", null]));
-      log.push(`${day} 09:00 Sửa thông tin ${rec.code}: ngày chứng từ 30/09, ghi chú "HĐ số 0012"`);
+      await asOwner(() => q("select update_purchase_receipt_meta($1, $2, $3, $4)", [rec.id, "HĐ số 0012 của Thanh Tuấn", N5, null]));
+      log.push(`${day} 09:00 Sửa thông tin ${rec.code}: ngày chứng từ ${N5}, ghi chú "HĐ số 0012"`);
     }
   }
 
-  // Chợ — trả đủ tiền mặt. E2: phiếu tạm tối 29/09 cho sáng 30/09, sáng 30/09 sửa số rồi Hoàn thành.
+  // Chợ — trả đủ tiền mặt. E2: phiếu tạm tối N4 cho sáng N5, sáng N5 sửa số rồi Hoàn thành.
   const choLines = [["banhpho", buy("banhpho"), PRICE_ON("banhpho", day)], ["bun", buy("bun"), PRICE_ON("bun", day)],
     ["rau", buy("rau", 1.3), PRICE_ON("rau", day)], ["cam", buy("cam"), PRICE_ON("cam", day)],
     ["hanh", phys.hanh < 800 * batches ? Math.ceil((800 * batches * 1.5 - phys.hanh) / 1000) : 0, PRICE_ON("hanh", day)],
     ["banhtrang", phys.banhtrang < (need.banhtrang ?? 0) * 1.1 ? Math.ceil(((need.banhtrang ?? 0) * 1.5 - phys.banhtrang) / 50) : 0, PRICE_ON("banhtrang", day)]].filter((l) => l[1] > 0);
-  if (day === "2026-09-30") {
+  if (day === N5) {
     const draftLines = choLines.map(([k, q2, p]) => [k, Math.max(0.5, q2 - 1), p]).filter(([k]) => k !== "cam");
-    const draft = await receipt("2026-09-29", 20, 0, { sup: "cho", lines: draftLines, payNow: 0, note: "Đặt trước cho sáng mai", draft: true });
+    const draft = await receipt(N4, 20, 0, { sup: "cho", lines: draftLines, payNow: 0, note: "Đặt trước cho sáng mai", draft: true });
     await receipt(day, 6, 15, { id: draft.id, sup: "cho", lines: choLines, note: "Đặt trước cho sáng mai — đã sửa SL khi hàng về" });
-  } else if (day === "2026-10-02") {
+  } else if (day === N7) {
     // E6: cô Hoa cho thêm 0,5 kg rau, không tính tiền → dòng không giá.
     await receipt(day, 6, 15, { sup: "cho", lines: [...choLines, ["rau", 0.5, null]], note: "Nhập sáng (cô Hoa cho thêm 0,5 kg rau)" });
   } else {
     await receipt(day, 6, 15, { sup: "cho", lines: choLines, note: "Nhập sáng" });
   }
   physReceive(choLines);
-  if (day === "2026-10-02") phys.rau = r3(phys.rau + 500);
+  if (day === N7) phys.rau = r3(phys.rau + 500);
 
   // Gà, giò, tôm, xương, gạo — anh Bình, ghi nợ hết.
   const gaLines = [["ga", buy("ga", 1.25), PRICE_ON("ga", day)], ["gio", buy("gio"), PRICE_ON("gio", day)], ["tom", buy("tom"), PRICE_ON("tom", day)],
@@ -569,8 +581,8 @@ for (const day of DAYS) {
   // Bán buổi trưa.
   physSell(lines, Date.parse(at(day, 15, 0)));
 
-  // E5: thịt bò hết sớm chiều 01/10 → nhập bổ sung 2 kg giá cao hơn (bình quân gia quyền trong ngày).
-  if (day === "2026-10-01") {
+  // E5: thịt bò hết sớm chiều N6 → nhập bổ sung 2 kg giá cao hơn (bình quân gia quyền trong ngày).
+  if (day === N6) {
     await receipt(day, 15, 30, { sup: "thit", lines: [["bo", 2, 300000]], payNow: "all", note: "Nhập bổ sung buổi chiều" });
     physReceive([["bo", 2]]);
   }
@@ -583,17 +595,17 @@ for (const day of DAYS) {
   await waste(day, 14, 0, "gao", 600, "com_nhan_vien", "Cơm trưa nhân viên");
   const rauHong = int(2, 4) * 100;
   if (phys.rau >= rauHong) await waste(day, 21, 30, "rau", rauHong, "hong", "Rau héo cuối ngày");
-  if (day === "2026-09-28") await waste(day, 19, 10, "bia", 1, "do_bo", "Khách làm vỡ chai");
-  if (day === "2026-09-29") await waste(day, 21, 30, "tom", 300, "hong", "Tôm ươn");
+  if (day === DAYS[2]) await waste(day, 19, 10, "bia", 1, "do_bo", "Khách làm vỡ chai");
+  if (day === N4) await waste(day, 21, 30, "tom", 300, "hong", "Tôm ươn");
 
-  // Hao hụt KHÔNG ghi: mất 3 chai bia (30/09), giò hỏng đổ bỏ không ghi phiếu (01/10).
-  if (day === "2026-09-30") phys.bia -= 3;
-  if (day === "2026-10-01") phys.gio = r3(phys.gio - 800);
+  // Hao hụt KHÔNG ghi: mất 3 chai bia (N5), giò hỏng đổ bỏ không ghi phiếu (N6).
+  if (day === N5) phys.bia -= 3;
+  if (day === N6) phys.gio = r3(phys.gio - 800);
 
-  // Kiểm kê cuối ngày 21:45 — nguyên liệu "cần kiểm". E4: 30/09 gõ 82 kg thịt bò (thay 8,2) rồi đếm lại.
+  // Kiểm kê cuối ngày 21:45 — nguyên liệu "cần kiểm". E4: N5 gõ 82 kg thịt bò (thay 8,2) rồi đếm lại.
   for (const i of ING.filter((x) => x.count)) {
     const real = roundStep(i.k, phys[i.k]);
-    if (day === "2026-09-30" && i.k === "bo") {
+    if (day === N5 && i.k === "bo") {
       await count(day, 21, 45, "bo", r3(real * 10), "gõ nhầm dấu phẩy");
       await count(day, 21, 50, "bo", real, "đếm lại, sửa số");
     } else {

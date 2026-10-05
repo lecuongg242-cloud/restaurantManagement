@@ -14,6 +14,7 @@ if (location.protocol === "file:") {
     kichHoat: (vao) => ipcRenderer.invoke("kich-hoat", vao),
     docMayIn: () => ipcRenderer.invoke("may-in:doc"),
     doMayInLan: () => ipcRenderer.invoke("may-in:do-lan"),
+    dsMayInUsb: () => ipcRenderer.invoke("may-in:ds-usb"),
     inThu: (nhap, vai) => ipcRenderer.invoke("may-in:in-thu", nhap, vai),
     luuMayIn: (nhap) => ipcRenderer.invoke("may-in:luu", nhap),
     moManHinh: () => ipcRenderer.invoke("mo-man-hinh"),
