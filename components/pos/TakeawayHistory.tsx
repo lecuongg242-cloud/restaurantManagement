@@ -56,8 +56,11 @@ const rangeLabel = (from: string, to: string) =>
 /** Chip lọc — dùng chung cho preset và nút "Tùy chọn" để hai thứ trông đúng một họ. */
 const chip = (active: boolean) =>
   active
-    ? "inline-flex h-8 items-center rounded-full bg-primary px-md text-xs font-semibold text-primary-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-    : "inline-flex h-8 items-center rounded-full border border-hairline-strong bg-canvas px-md text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
+    ? "inline-flex h-8 items-center justify-center rounded-full bg-primary px-xs text-xs font-semibold text-primary-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+    : "inline-flex h-8 items-center justify-center rounded-full border border-hairline-strong bg-canvas px-xs text-xs font-medium text-ink hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
+
+/** Hai hàng chip dùng CÙNG một lưới cột → chip nào cũng rộng bằng nhau và thẳng cột giữa hai hàng. */
+const CHIP_GRID = "grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-xs";
 
 type Preset = { key: string; label: string; from: () => string; to: () => string };
 
@@ -314,7 +317,7 @@ export function TakeawayHistory({
           preset lẫn hai ô ngày thì cụm lọc cao gần bằng một thẻ đơn — đẩy đơn xuống khỏi tầm mắt
           và bắt nhân viên đọc hai lần cùng một khoảng ngày. */}
       <div className="flex flex-col gap-sm pb-md">
-        <div className="flex flex-wrap items-center gap-xs">
+        <div className={CHIP_GRID}>
           {PRESETS.map((p) => (
             <button
               key={p.key}
@@ -336,7 +339,7 @@ export function TakeawayHistory({
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-xs" role="group" aria-label="Lọc theo trạng thái">
+        <div className={CHIP_GRID} role="group" aria-label="Lọc theo trạng thái">
           {STATUS_CHIPS.map((s) => (
             <button
               key={s.key}
@@ -531,7 +534,10 @@ export function TakeawayHistory({
                   </>
                 )}
 
-                <div className="mt-sm flex flex-wrap items-center justify-between gap-x-sm gap-y-md border-t border-hairline-soft pt-sm">
+                {/* Luôn xếp dọc: tiền + dòng hóa đơn ở trên, hàng nút ở dưới. Để flex-wrap thì thẻ
+                    có dòng hóa đơn ngắn đặt nút cạnh tiền, thẻ dài lại đẩy nút xuống — các thẻ lệch
+                    nhau. */}
+                <div className="mt-sm flex flex-col gap-sm border-t border-hairline-soft pt-sm">
                   <span className="flex min-w-0 flex-col gap-xxs">
                     <span className="text-base font-semibold tabular-nums text-ink">
                       {formatVnd(bill && bill.status === "paid" ? bill.total : g.total)}
@@ -550,14 +556,14 @@ export function TakeawayHistory({
                           : "Chưa có hóa đơn"}
                     </span>
                   </span>
-                  {/* Điện thoại: hàng nút xuống dòng riêng — trải hết bề ngang, "N món" sát trái (bù px-sm),
-                      "In lại hóa đơn" sát phải, thay vì dồn cục ở giữa-trái. */}
-                  <div className="flex items-center gap-xs max-sm:w-full max-sm:justify-between">
+                  {/* Hàng nút trải hết bề ngang: "N món" thẳng mép trái với số tiền (bù px-sm),
+                      "In lại hóa đơn" sát phải. */}
+                  <div className="flex items-center justify-between gap-xs">
                     <button
                       type="button"
                       onClick={() => toggle(g.root.id)}
                       aria-expanded={open}
-                      className="inline-flex h-9 items-center gap-xxs rounded-md px-sm text-xs font-medium text-steel max-sm:-ml-sm hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      className="-ml-sm inline-flex h-9 items-center gap-xxs rounded-md px-sm text-xs font-medium text-steel hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
                       {lineCount} món
                       <ChevronDown
