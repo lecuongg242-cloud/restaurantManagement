@@ -95,12 +95,14 @@ export function uocLuongChieuCao(p: PhieuAnh, kho: Kho): number {
     const [base, name, dong] = [d(s.base), d(s.name), (co: number) => co * s.lh];
     const ke = 2 + 2 * d(Math.round(s.base / 2));
     const t = p.phieu;
-    h += soDong(t.tenantName, d(s.tenant), W) * dong(d(s.tenant)) + dong(base) + d(2) + dong(d(s.no)) + d(4);
-    h += ke + soDong(`${t.place} #${t.ticketNo}`, base, W) * dong(base) + soDong(t.contactName, base, W) * dong(base) + dong(base) + ke;
-    h += d(4);
-    for (const l of t.items) {
-      const rongTen = W - formatVnd(l.unitPrice * l.qty).length * base * 0.6 - d(8);
-      h += soDong(`${l.qty}x ${l.name}`, name, rongTen) * dong(name);
+    h += soDong(t.tenantName, d(s.tenant), W) * dong(d(s.tenant)) + dong(base) + d(2);
+    h += soDong(`ĐƠN #${t.kitchenNo ?? ""} ${t.place}`, d(s.no), W) * dong(d(s.no)) + d(4);
+    h += ke + soDong(t.contactName, base, W) * dong(base) + dong(base) + ke;
+    h += dong(base) + ke + d(4);
+    for (const [i, l] of t.items.entries()) {
+      if (i > 0) h += d(1) + d(Math.round(s.base / 2));
+      const rongTen = W - Math.max(10, formatVnd(l.unitPrice * l.qty).length) * base * 0.6 - Math.max(3, `x${l.qty}`.length) * name * 0.6 - 2 * d(8);
+      h += soDong(l.name, name, rongTen) * dong(name);
       for (const m of l.modifiers) h += soDong(`+ ${m}`, base, W - base) * dong(base);
       h += soDong(l.note ? `>> ${l.note}` : null, base, W) * dong(base) + d(Math.round(s.base / 2));
     }
@@ -166,29 +168,55 @@ function Hang({ trai, phai, style }: { trai: React.ReactNode; phai?: React.React
 /** Y hệt `CustomerTicketDoc`. */
 function PhieuKhach({ t, gio, kho }: { t: CustomerTicketView; gio: string; kho: Kho }) {
   const s = CO_PHIEU_KHACH[kho];
-  const soPhan = t.items.reduce((acc, i) => acc + i.qty, 0);
   return (
     <Cot>
       <Cot>
         <Giua style={{ fontWeight: 700, fontSize: d(s.tenant) }}>{t.tenantName}</Giua>
         <Giua style={{ fontWeight: 700, letterSpacing: d(1), marginTop: d(2) }}>PHIẾU KHÁCH</Giua>
-        {t.kitchenNo != null && <Giua style={{ fontWeight: 800, fontSize: d(s.no), marginTop: d(4) }}>{`ĐƠN #${t.kitchenNo}`}</Giua>}
+        {/* `.ct-no` + hai `.ct-chunk` inline-block: Satori không có inline-block ⇒ flex xuống dòng, khe = một dấu cách (0,6 em). */}
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", width: "100%", columnGap: Math.round(d(s.no) * 0.6), fontWeight: 800, fontSize: d(s.no), marginTop: d(4) }}>
+          {t.kitchenNo != null && <span>{`ĐƠN #${t.kitchenNo}`}</span>}
+          <span>{t.place.toUpperCase()}</span>
+        </div>
       </Cot>
 
       <Ke base={s.base} />
-      <Hang trai={<b style={{ fontWeight: 700 }}>{t.place}</b>} phai={`#${t.ticketNo}`} />
       {t.contactName && <Hang trai={t.contactName} />}
-      <Hang trai={gio} phai={`${soPhan} phần`} />
+      <Hang trai={`Ngày: ${gio}`} />
+      <Ke base={s.base} />
+
+      {/* `.ct-head`: tiêu đề cột, cùng bề rộng cột với dòng món. */}
+      <div style={{ display: "flex", justifyContent: "space-between", width: "100%", gap: d(8) }}>
+        <span style={{ flexGrow: 1 }}>Món</span>
+        <span style={{ display: "flex", justifyContent: "flex-end", minWidth: Math.round(d(s.name) * 0.6 * 3) }}>SL</span>
+        <span style={{ display: "flex", justifyContent: "flex-end", minWidth: Math.round(d(s.base) * 0.6 * 10) }}>Thành tiền</span>
+      </div>
       <Ke base={s.base} />
 
       <Cot style={{ margin: `${d(2)}px 0` }}>
         {t.items.map((it, i) => (
           <Cot key={i} style={{ marginBottom: d(Math.round(s.base / 2)) }}>
+            {/* `.ct-item + .ct-item`: kẻ chấm giữa hai món. Satori không vẽ viền dotted ⇒ dải gạch lặp. */}
+            {i > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  width: "100%",
+                  height: d(1),
+                  marginBottom: d(Math.round(s.base / 2)),
+                  backgroundImage: `repeating-linear-gradient(to right, #000 0px, #000 ${d(1)}px, transparent ${d(1)}px, transparent ${d(3)}px)`,
+                }}
+              />
+            )}
             {/* `align-items: baseline` của trình duyệt = ngang DÒNG ĐẦU tên món; Satori canh theo dòng cuối ⇒ canh trên
                 rồi bù chênh đường chân chữ: (lh/2 + 0,36) em với JetBrains Mono (ascent 1,02 − nửa hộp chữ 0,66). */}
+            {/* Tên món trước, cột SL "x2" (min 3ch, canh phải), tiền (min 10ch, canh phải) — như `.ct-item-*`. */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%", gap: d(8) }}>
-              <span style={{ fontWeight: 700, fontSize: d(s.name), flexShrink: 1, wordBreak: "break-word" }}>{`${it.qty}x ${it.name}`}</span>
-              <span style={{ fontWeight: 700, flexShrink: 0, whiteSpace: "nowrap", marginTop: Math.round((d(s.name) - d(s.base)) * (s.lh / 2 + 0.36)) }}>
+              <span style={{ fontWeight: 700, fontSize: d(s.name), flexGrow: 1, flexShrink: 1, wordBreak: "break-word" }}>{it.name}</span>
+              <span style={{ display: "flex", justifyContent: "flex-end", fontWeight: 700, fontSize: d(s.name), flexShrink: 0, whiteSpace: "nowrap", minWidth: Math.round(d(s.name) * 0.6 * 3) }}>
+                {`x${it.qty}`}
+              </span>
+              <span style={{ display: "flex", justifyContent: "flex-end", fontWeight: 700, flexShrink: 0, whiteSpace: "nowrap", minWidth: Math.round(d(s.base) * 0.6 * 10), marginTop: Math.round((d(s.name) - d(s.base)) * (s.lh / 2 + 0.36)) }}>
                 {formatVnd(it.unitPrice * it.qty)}
               </span>
             </div>

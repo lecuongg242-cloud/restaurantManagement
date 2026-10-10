@@ -40,11 +40,18 @@ export function gioVn(iso: string | null | undefined): string {
   return p ? `${p.hour}:${p.minute}` : "";
 }
 
-/** "13:34 24/09" — phiếu bếp, phiếu khách. */
+/** "13:34 24/09" */
 export function gioNgayVn(iso: string | null | undefined): string {
   if (!iso) return "";
   const p = phan(iso, ["hour", "minute", "day", "month"]);
   return p ? `${p.hour}:${p.minute} ${p.day}/${p.month}` : "";
+}
+
+/** "24/09/2026 13:34" — phiếu bếp, phiếu khách (chủ dự án 10/10/2026: ngày trước, có năm, dòng "Ngày: …"). */
+export function ngayGioNamVn(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const p = phan(iso, ["hour", "minute", "day", "month", "year"]);
+  return p ? `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}` : "";
 }
 
 /** "13:34 24/09/2026" — hóa đơn. */

@@ -17,7 +17,7 @@ const SANG_24 = "2026-09-24T06:34:00.000Z"; // 13:34 giờ VN
 const KHUYA_23 = "2026-09-23T18:00:00.000Z"; // 01:00 ngày 24 giờ VN — qua ngày khác
 
 // Nạp sau khi đã đặt TZ.
-const { gioVn, gioNgayVn, gioNgayNamVn, thoiGianNgoi } = await import("@/lib/time/vn");
+const { gioVn, gioNgayVn, gioNgayNamVn, ngayGioNamVn, thoiGianNgoi } = await import("@/lib/time/vn");
 
 describe("đối chứng: TZ=UTC thật sự có hiệu lực", () => {
   it("cách định dạng CŨ (không nêu timeZone) cho ra giờ UTC — đây chính là lỗi", () => {
@@ -67,6 +67,20 @@ describe("gioNgayNamVn", () => {
 
   it("không có mốc thời gian → chuỗi rỗng", () => {
     expect(gioNgayNamVn(null)).toBe("");
+  });
+});
+
+describe("ngayGioNamVn", () => {
+  it("ngày trước, có năm, giờ sau — dạng dùng trên phiếu bếp / phiếu khách", () => {
+    expect(ngayGioNamVn(SANG_24)).toBe("24/09/2026 13:34");
+  });
+
+  it("qua nửa đêm theo giờ Việt Nam thì sang ngày mới", () => {
+    expect(ngayGioNamVn(KHUYA_23)).toBe("24/09/2026 01:00");
+  });
+
+  it("không có mốc thời gian → chuỗi rỗng", () => {
+    expect(ngayGioNamVn(null)).toBe("");
   });
 });
 

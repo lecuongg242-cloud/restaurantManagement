@@ -39,7 +39,7 @@ const hoaDon: PhieuAnh = {
 
 const phieuKhach: PhieuAnh = {
   loai: "customer_ticket",
-  gio: "12:30 27/09",
+  gio: "27/09/2026 12:30",
   phieu: {
     orderId: "o1",
     kitchenNo: 17,

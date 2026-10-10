@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
-import { gioNgayVn } from "@/lib/time/vn";
+import { ngayGioNamVn } from "@/lib/time/vn";
 import { canAccess } from "@/lib/auth/rbac";
 import { buildKitchenTicket } from "@/lib/print/kitchen-ticket";
 import type { KitchenWidth } from "@/lib/print/adapter";
@@ -37,7 +37,7 @@ export default async function KitchenPrintPage({
     );
   }
 
-  const time = gioNgayVn(ticket.confirmedAt);
+  const time = ngayGioNamVn(ticket.confirmedAt);
 
   return <KitchenTicketDoc slug={slug} ticket={ticket} width={width} time={time} />;
 }
