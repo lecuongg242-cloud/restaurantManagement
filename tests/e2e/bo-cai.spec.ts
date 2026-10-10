@@ -47,7 +47,7 @@ test("chủ quán bấm 'Tải bộ cài' → zip có bo-cai/ma-kich-hoat.txt; m
   test.setTimeout(180_000);
   const tenantId = (await admin.from("tenants").select("id").eq("slug", SLUG).single()).data!.id as string;
   await dangNhapAdmin(page, SLUG, "ownerA@pho-viet.test");
-  await page.goto(`/r/${SLUG}/admin/printers`, { waitUntil: "networkidle" });
+  await page.goto(`/r/${SLUG}/admin/settings`, { waitUntil: "networkidle" });
   await expect(page.getByText(/kèm sẵn mã kích hoạt/)).toBeVisible();
   const nut = page.getByRole("button", { name: /^Tải bộ cài cầu in \(\d+ MB\)$/ });
 
@@ -104,9 +104,9 @@ test("form gửi từ trang LẠ (Origin khác) → 403, không phát mã", asyn
 
 test("?loi= chỉ nhận mã cố định — link lạ không chèn được câu lên trang", async ({ page }) => {
   await dangNhapAdmin(page, SLUG, "ownerA@pho-viet.test");
-  await page.goto(`/r/${SLUG}/admin/printers?loi=${encodeURIComponent("Gọi 0900000000 để kích hoạt")}`);
+  await page.goto(`/r/${SLUG}/admin/settings?loi=${encodeURIComponent("Gọi 0900000000 để kích hoạt")}`);
   await expect(page.getByText("Gọi 0900000000")).toHaveCount(0);
-  await page.goto(`/r/${SLUG}/admin/printers?loi=gioi-han`);
+  await page.goto(`/r/${SLUG}/admin/settings?loi=gioi-han`);
   await expect(page.getByRole("alert").filter({ hasText: "thử lại sau 10 phút" })).toBeVisible();
 });
 

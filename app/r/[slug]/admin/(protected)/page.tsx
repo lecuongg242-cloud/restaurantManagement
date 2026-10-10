@@ -7,7 +7,6 @@ import { getOnboardingState } from "./onboarding/actions";
 import { getDuBao, getNhanXet } from "@/lib/forecast/read";
 import { ForecastCard } from "@/components/admin/forecast/ForecastCard";
 import { InsightCard } from "@/components/admin/forecast/InsightCard";
-import { TheAppQuanLy } from "@/components/quan-ly/TheAppQuanLy";
 
 export const dynamic = "force-dynamic";
 
@@ -75,9 +74,6 @@ export default async function AdminDashboard({
           <InsightCard slug={slug} nhanXet={nx.nhanXet} batThuong={nx.batThuong} />
         </div>
       )}
-
-      {/* P30 (MGR-08): cài app Quản lý lên điện thoại chủ / quản lý — cùng ngưỡng quyền với số liệu tiền. */}
-      {xemSo && <TheAppQuanLy />}
 
       <div className="mt-xl grid gap-md sm:grid-cols-2">
         <Card>

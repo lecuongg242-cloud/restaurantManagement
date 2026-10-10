@@ -12,15 +12,23 @@ import { BANKS } from "@/lib/payments/banks";
 import Link from "next/link";
 import { daysLeft, homNayHanDung, ngayVnHienThi, subscriptionState } from "@/lib/tenant/subscription";
 import { urlAnh } from "@/lib/storage/public-url";
+import { CAU_LOI } from "@/lib/print/ma-chu-quan";
+import { CaiAppThuNgan } from "@/components/admin/CaiAppThuNgan";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ loi?: string }>;
 }) {
   const { slug } = await params;
+  // Lỗi do route tải bộ cài cầu in gửi về — URL chỉ mang MÃ lỗi; câu hiển thị tra từ bảng cố định, mã lạ bỏ qua
+  // (không để link lạ chèn câu tùy ý lên trang quản trị).
+  const maLoi = (await searchParams).loi;
+  const loi = maLoi && Object.hasOwn(CAU_LOI, maLoi) ? CAU_LOI[maLoi as keyof typeof CAU_LOI] : null;
 
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/admin/login`);
@@ -329,6 +337,9 @@ export default async function SettingsPage({
             </div>
           </form>
         </Card>
+
+        {/* Tải app thu ngân + cầu in — chuyển từ trang Máy in (10/10/2026). */}
+        <CaiAppThuNgan slug={slug} loi={loi} />
       </div>
     </div>
   );

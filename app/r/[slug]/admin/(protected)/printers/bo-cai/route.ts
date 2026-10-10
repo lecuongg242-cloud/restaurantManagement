@@ -23,14 +23,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const session = await getSessionMembership(slug);
   if (!session) return NextResponse.json({ error: "Chưa đăng nhập." }, { status: 401 });
   if (!canManage(session.role, "printers")) return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
-  // Form của chính trang Máy in — chặn trang lạ tự gửi form để phát mã.
+  // Form của chính trang Cài đặt — chặn trang lạ tự gửi form để phát mã.
   const origin = req.headers.get("origin");
   if (origin && new URL(origin).host !== new URL(req.url).host) {
     return NextResponse.json({ error: "Không có quyền." }, { status: 403 });
   }
 
   const veTrang = (loi: keyof typeof CAU_LOI) =>
-    NextResponse.redirect(new URL(`/r/${slug}/admin/printers?loi=${loi}`, req.url), 303);
+    NextResponse.redirect(new URL(`/r/${slug}/admin/settings?loi=${loi}`, req.url), 303);
 
   const admin = createAdminClient();
   let link: string | null;

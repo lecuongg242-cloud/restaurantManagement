@@ -184,13 +184,11 @@ test.describe("tải app Quản lý (30-03, MGR-08)", () => {
 
   test.describe("chủ quán", () => {
     test.use({ storageState: statePath, viewport: { width: 1280, height: 900 } });
-    test("Tổng quan admin có thẻ 'App quản lý trên điện thoại' với mã QR tới trang tải", async ({ page }) => {
+    // Chủ dự án bỏ thẻ "App quản lý trên điện thoại" khỏi Tổng quan (10/10/2026); trang /tai-app-quan-ly vẫn giữ.
+    test("Tổng quan admin không còn thẻ 'App quản lý trên điện thoại'", async ({ page }) => {
       await page.goto(`/r/${SLUG}/admin`);
-      const the = page.locator("[data-the-app-quan-ly]");
-      await expect(the.getByText("App quản lý trên điện thoại")).toBeVisible();
-      await expect(the.getByRole("img", { name: /Mã QR mở .*\/tai-app-quan-ly$/ })).toBeVisible();
-      await expect(the.getByRole("link", { name: "Hướng dẫn cho iPhone" })).toHaveAttribute("href", "/tai-app-quan-ly#iphone");
-      await the.screenshot({ path: ANH("11-admin-the-app-quan-ly.png") });
+      await expect(page.getByRole("heading", { name: /^Chào / })).toBeVisible();
+      await expect(page.getByText("App quản lý trên điện thoại")).toHaveCount(0);
     });
   });
 });
