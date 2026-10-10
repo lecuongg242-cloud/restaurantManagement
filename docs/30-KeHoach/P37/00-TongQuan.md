@@ -1,6 +1,6 @@
 # P37 — In theo bếp/bar, số liên, in riêng từng món, phiếu hủy món
 
-> Lập 10/10/2026. **Trạng thái: WEB + APP WINDOWS XONG 10/10/2026, APP ANDROID CHƯA LÀM** (chủ dự án chốt phạm vi + giao diện A + B cùng ngày). Tổng kết `37-01-SUMMARY.md`. Migration 0087 đã áp DB dùng chung. Web phát hành `dev` + `main` 10/10/2026; app Windows 1.0.6 chưa build; Android: `37-02-PLAN.md`.
+> Lập 10/10/2026. **Trạng thái: WEB + APP WINDOWS XONG 10/10/2026, APP ANDROID CHƯA LÀM** (chủ dự án chốt phạm vi + giao diện A + B cùng ngày). Tổng kết `37-01-SUMMARY.md`. Migration 0087 đã áp DB dùng chung. Web phát hành `dev` + `main` 10/10/2026; app Windows 1.0.6 hoãn phát hành (chủ dự án 10/10) — `37-03-PLAN.md`; Android: `37-02-PLAN.md`.
 > Chủ dự án (10/10): "giao diện cài máy in ở hệ thống khác như nào — có khác cách hệ thống của chúng ta vận hành không?" →
 > "giờ phần giao diện cài máy in và chức năng cần chỉnh gì?"
 
