@@ -1,6 +1,6 @@
 # P36 — Trang Bàn & QR làm lại: thêm hàng loạt, nhập Excel, thao tác nhiều bàn
 
-> Lập 10/10/2026. **Trạng thái: CODE XONG 10/10/2026** (chủ dự án chốt giao diện cùng ngày). Tổng kết `36-01-SUMMARY.md`. Không migration; chưa phát hành.
+> Lập 10/10/2026. **Trạng thái: CODE XONG 10/10/2026** (chủ dự án chốt giao diện cùng ngày). Tổng kết `36-01-SUMMARY.md`. Không migration. **Phát hành `main` 10/10/2026** (commit 532d1fe, merge 8716faf).
 > Chủ dự án (10/10): "giao diện bàn này không chuyên nghiệp — 1 khu có 100 bàn thì setup 100 lần à?"
 
 ## Hiện trạng

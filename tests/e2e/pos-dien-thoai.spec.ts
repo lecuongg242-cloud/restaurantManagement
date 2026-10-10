@@ -179,6 +179,8 @@ test("1–3: gọi món có ghi chú → bếp nhận → gọi thêm gom một 
   await page.getByRole("button", { name: /^(Tính tiền|Xem hóa đơn)/ }).click();
   await khongTran(page, "hộp Hóa đơn");
   await thuTienChuyenKhoan(page);
+  // Thu xong + bấm Xong → về sơ đồ bàn, màn Hóa đơn đóng luôn (không phải bấm ✕ thêm).
+  await expect(page.getByRole("dialog", { name: "Hóa đơn" })).toBeHidden();
 });
 
 test("6: bán mang về → tạo đơn → thu tiền & hoàn tất", async ({ page }) => {
@@ -268,6 +270,8 @@ test("món thêm vào TRONG LÚC đang gửi không bị mất (lỗi tìm ra �
 async function thuHetHoaDon(page: Page) {
   const hopBill = page.getByRole("dialog", { name: "Hóa đơn" });
   for (let lan = 0; lan < 4; lan++) {
+    // Thu hết → màn Hóa đơn tự đóng sau "Xong".
+    if (lan > 0 && (await hopBill.isHidden())) return;
     const thu = hopBill.getByRole("button", { name: /Thu tiền/ });
     // Hộp tải lại sau gộp/tách (vòng xoay) — chờ tải xong rồi mới kết luận "đã thu hết".
     await expect(

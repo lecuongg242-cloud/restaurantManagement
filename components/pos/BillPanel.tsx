@@ -66,6 +66,8 @@ export function BillPanel({
   const [splitFor, setSplitFor] = useState<BillView | null>(null);
   const [adjustFor, setAdjustFor] = useState<BillView | null>(null);
   const [payFor, setPayFor] = useState<BillView | null>(null);
+  /** Hộp Thu tiền vừa thu thành công — đóng hộp thì đóng luôn màn Hóa đơn (nếu không còn hóa đơn nào phải thu). */
+  const [daThu, setDaThu] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
 
   // Giữ lựa chọn hợp lệ khi danh sách đổi (sau tách/gộp).
@@ -320,11 +322,19 @@ export function BillPanel({
         <PaymentDialog
           bill={payFor}
           busy={busy}
-          onPay={(method, amountReceived, _receivedAt, idempotencyKey) =>
-            onPay(payFor.id, method, amountReceived, idempotencyKey)
-          }
+          onPay={async (method, amountReceived, _receivedAt, idempotencyKey) => {
+            const res = await onPay(payFor.id, method, amountReceived, idempotencyKey);
+            if (res.ok) setDaThu(true);
+            return res;
+          }}
           onPrint={() => onPrintReceipt(payFor.id)}
-          onClose={() => setPayFor(null)}
+          onClose={() => {
+            setPayFor(null);
+            setDaThu(false);
+            // Thu xong → về sơ đồ bàn, khỏi phải bấm ✕ thêm lần nữa. Còn hóa đơn tách chưa thu thì ở lại để thu tiếp.
+            const conPhaiThu = bills.some((b) => b.status === "open" && b.splitCount == null);
+            if (daThu && !conPhaiThu) onClose();
+          }}
         />
       )}
 

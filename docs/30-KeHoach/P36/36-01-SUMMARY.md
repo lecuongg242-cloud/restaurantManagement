@@ -1,7 +1,7 @@
 # P36-01 — Tổng kết: Bàn & QR làm lại (10/10/2026)
 
 Chủ dự án chốt giao diện 10/10/2026 (bố cục như mô tả trong `00-TongQuan.md` + chọn nhiều bàn + Nhập Excel; không làm
-"Ngừng hoạt động"). Không có migration, không đổi schema. Chưa commit, chưa phát hành `dev` / `main`.
+"Ngừng hoạt động"). Không có migration, không đổi schema. Phát hành `dev` + `main` 10/10/2026 (commit 532d1fe, merge 8716faf); `next build` xanh trước khi đẩy.
 
 ## File đã đổi
 
