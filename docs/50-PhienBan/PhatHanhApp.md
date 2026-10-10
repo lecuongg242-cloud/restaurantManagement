@@ -1,7 +1,7 @@
 # Phát hành app — Thu ngân (Windows, Android) và Quản lý (Android)
 
-> Lập 04/10/2026 (P30). Lần phát hành gần nhất: **04/10/2026** — Thu ngân Windows **1.0.4**, Thu ngân Android **1.0.1**,
-> Quản lý Android **1.0.0**. Quyết định: QD-026 (Windows), QD-030 (Android), QD-033 (Quản lý).
+> Lập 04/10/2026 (P30). Lần phát hành gần nhất: Thu ngân Windows **1.0.6** (10/10/2026 — P37 bếp/bar + bố cục phiếu mới,
+> cầu in bản 6), Thu ngân Android **1.0.1** (04/10/2026), Quản lý Android **1.0.0**. Quyết định: QD-026 (Windows), QD-030 (Android), QD-033 (Quản lý).
 
 Web (Vercel) **không** cần phát hành app: giao diện POS / Màn bếp / Quản trị / Quản lý ở máy chủ. Chỉ phát hành app khi đổi
 code trong `desktop/` hoặc `android/` (vỏ app, cầu in, menu ☰, tự cập nhật…).
