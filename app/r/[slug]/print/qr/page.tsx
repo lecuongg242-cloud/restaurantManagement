@@ -16,10 +16,14 @@ export const dynamic = "force-dynamic";
  */
 export default async function PrintQrPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ ids?: string }>;
 }) {
   const { slug } = await params;
+  // ?ids=a,b,c → chỉ in các bàn đã chọn ở Bàn & QR (P36, TABLE-09); không có → mọi bàn.
+  const ids = ((await searchParams).ids ?? "").split(",").filter((s) => /^[0-9a-f-]{36}$/i.test(s)).slice(0, 500);
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/admin/login`);
   const allowed = ["owner", "manager", "station"];
@@ -30,14 +34,11 @@ export default async function PrintQrPage({
   const proto = h.get("x-forwarded-proto") ?? "https";
 
   const supabase = await createClient();
+  let tq = supabase.from("tables").select("*").eq("tenant_id", session.tenant.id);
+  if (ids.length > 0) tq = tq.in("id", ids);
   const [{ data: areas }, { data: tables }] = await Promise.all([
     supabase.from("areas").select("id, name, sort_order").eq("tenant_id", session.tenant.id),
-    supabase
-      .from("tables")
-      .select("*")
-      .eq("tenant_id", session.tenant.id)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
+    tq.order("sort_order", { ascending: true }).order("created_at", { ascending: true }),
   ]);
 
   const areaName = new Map<string, string>();

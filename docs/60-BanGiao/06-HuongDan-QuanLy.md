@@ -11,7 +11,7 @@ Thực đơn · Nguyên liệu · Bàn & QR · Báo cáo · Máy in · Cài đ�
 | Sửa giá, thêm món, bật/tắt món | **Thực đơn** |
 | Thêm/tắt nhân viên, đặt lại PIN | **Nhân viên** (quản lý tạo được Thu ngân/Phục vụ/Bếp; chủ quán tạo thêm được Quản lý) |
 | Xem cầu in/máy in bếp còn chạy không, phiếu lỗi hôm nay | **Máy in** (tự làm mới 30 giây) |
-| Thêm bàn, in lại QR | **Bàn & QR** → Xuất QR → In (khổ A4) |
+| Thêm bàn, in lại QR | **Bàn & QR** → **+ Thêm bàn** / **Thêm hàng loạt** / **Nhập Excel**; in QR: **In QR** (mọi bàn), **Xem / In** (một bàn) hoặc tích nhiều bàn → **In QR** |
 | Nhập nguyên liệu buổi sáng, kiểm kê cuối ngày (nếu quán dùng) | **Nguyên liệu** |
 | Phí phục vụ, VAT, footer hóa đơn, cách in phiếu, chế độ phục vụ | **Cài đặt** (chủ quán) |
 | Tài khoản nhận chuyển khoản (in QR lên hóa đơn), bật/tắt in QR | **Cài đặt → Tài khoản nhận chuyển khoản** (chủ quán). Để trống số TK rồi lưu = gỡ |

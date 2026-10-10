@@ -36,7 +36,7 @@ Sau đó vào **Cài đặt** (chỉ chủ quán thấy):
 
 - **Thực đơn**: sửa tên/giá món mẫu, thêm danh mục, thêm **Nhóm tùy chọn** (size, topping…). Bấm
   "Xem thử thực đơn" để xem như khách thấy. **Đối chiếu giá với menu giấy của quán từng món.**
-- **Bàn & QR**: khai báo khu vực + bàn đúng tên quán đang gọi → **Xuất QR** → **In (khổ A4)** → dán QR lên bàn.
+- **Bàn & QR**: thêm khu vực (nút **+** cột trái), tạo bàn bằng **Thêm hàng loạt** (vd Bàn 1 → Bàn 20) hoặc **Nhập Excel** (tải file mẫu) → **In QR** → **In (khổ A4)** → dán QR lên bàn.
   Quét thử 1 QR bằng điện thoại: phải ra đúng "Bàn X".
 
 ## 4. Nhân viên

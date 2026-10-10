@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
 import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
 import { AreaTableManager } from "./AreaTableManager";
 import type { Area, Table } from "@/lib/tables/types";
 
@@ -41,39 +39,8 @@ export default async function TablesPage({
       .order("created_at", { ascending: true }),
   ]);
 
-  const areaList = (areas ?? []) as Area[];
-  const tableList = (tables ?? []) as Table[];
-  const byArea = new Map<string | null, Table[]>();
-  for (const t of tableList) {
-    const key = t.area_id;
-    const arr = byArea.get(key) ?? [];
-    arr.push(t);
-    byArea.set(key, arr);
-  }
-
-  const groups = [
-    ...areaList.map((area) => ({ area, tables: byArea.get(area.id) ?? [] })),
-    ...(byArea.get(null)?.length ? [{ area: null, tables: byArea.get(null)! }] : []),
-  ];
-
   return (
-    <div className="w-full">
-      <div className="flex flex-wrap items-end justify-between gap-md">
-        <div>
-          <h1 className="font-semibold text-2xl text-ink">Bàn & QR</h1>
-          <p className="mt-xxs text-sm text-steel">
-            Khai báo khu vực và bàn. Mỗi bàn có mã QR riêng trỏ tới menu gọi món.
-          </p>
-        </div>
-        {tableList.length > 0 && (
-          <Button asChild variant="primary" size="sm">
-            <Link href={`/r/${slug}/print/qr`} target="_blank" rel="noopener">
-              Xuất QR ({tableList.length} bàn)
-            </Link>
-          </Button>
-        )}
-      </div>
-
+    <AreaTableManager slug={slug} areas={(areas ?? []) as Area[]} tables={(tables ?? []) as Table[]}>
       {error && (
         <p
           role="alert"
@@ -90,8 +57,6 @@ export default async function TablesPage({
           {ok}
         </p>
       )}
-
-      <AreaTableManager slug={slug} areas={areaList} groups={groups} />
-    </div>
+    </AreaTableManager>
   );
 }
