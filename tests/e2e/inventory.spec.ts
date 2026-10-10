@@ -243,6 +243,14 @@ test("nhập 1 kg → POS 'còn ~5'; dùng hết → nhãn vàng, vẫn thêm đ
     const { data: still } = await db.from("menu_items").select("is_available").eq("id", item.id).single();
     expect(still!.is_available).toBe(true);
 
+    // Hỏi bếp xong → bấm ✕: nhãn ẩn, tải lại vẫn ẩn (tới hết ngày, chỉ máy này); món vẫn bấm được.
+    await card().getByRole("button", { name: "Ẩn cảnh báo tới hết ngày" }).click();
+    await expect(card().getByText("Có thể đã hết — hãy hỏi bếp")).toHaveCount(0);
+    await page.reload();
+    await expect(card().getByRole("button", { name: `Thêm ${item.name}` })).toBeEnabled();
+    await expect(card().getByText("Có thể đã hết — hãy hỏi bếp")).toHaveCount(0);
+    await page.evaluate(() => localStorage.clear()); // để kiểm hồi quy INV-10 cuối bài không bị nhãn ẩn che
+
     // Trang khách không lộ số phần (QD-017 C4)
     const html = await (await page.request.get(`/r/${SLUG}/menu`)).text();
     expect(html).not.toContain("còn ~");

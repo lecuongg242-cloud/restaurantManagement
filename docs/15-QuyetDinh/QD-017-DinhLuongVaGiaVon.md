@@ -84,6 +84,9 @@ cảnh báo kêu suốt ngày là cảnh báo không ai đọc. Nguyên liệu v
 - Số phần ≤ 0 → **nhãn vàng** "Có thể đã hết — hãy hỏi bếp". Món **vẫn bấm được, vẫn thêm vào
   giỏ được**. Không tự đổi `is_available`.
 - Khóa món vẫn là việc của người, qua nút "hết món" sẵn có (MENU-04).
+- Nhãn vàng có nút **✕** ("Ẩn cảnh báo tới hết ngày"): thu ngân hỏi bếp xong, bếp bảo còn → bấm ✕, nhãn món đó ẩn
+  **tới hết ngày, chỉ trên máy đó** (localStorage). Không đổi sổ kho; mai sổ tính lại, vẫn hết thì nhãn hiện lại. Chủ dự án
+  chốt 08/10/2026 (chọn giữa: ẩn tới hết ngày / tắt hẳn cho món / tắt mọi cảnh báo).
 - Trang khách `/menu` **không** hiện số phần, không đổi gì.
 
 Ngưỡng 5 là hằng số trong P10; đổi thành cài đặt theo quán chỉ khi có quán thật yêu cầu.

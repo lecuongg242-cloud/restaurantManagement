@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Ban, Plus, Search, UtensilsCrossed } from "lucide-react";
 import type { CustomerMenu, CustomerMenuItem } from "@/lib/orders/customer-menu";
@@ -11,6 +11,17 @@ import { AvailabilityToggle } from "@/components/menu/AvailabilityToggle";
 import { cn } from "@/lib/utils";
 import { ScrollRow } from "@/components/ui/scroll-row";
 import { PortionBadge } from "./PortionBadge";
+import { businessDate } from "@/lib/inventory/day";
+import { hideWarning, readHiddenWarnings } from "@/lib/inventory/hidden-warnings";
+
+/** `localStorage` hoặc null khi trình duyệt chặn (đọc biến đã có thể ném lỗi). */
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * MenuPanel (POS cột phải) — thực đơn luôn hiển thị + Ô TÌM KIẾM. Chạm một món: có tùy chọn thì
@@ -68,6 +79,20 @@ export function MenuPanel({
     }
     setActiveItem(it);
     setModifierOpen(true);
+  };
+
+  // Nhãn "Có thể đã hết" thu ngân đã ẩn hôm nay (máy này). Đọc sau khi gắn: server không có
+  // localStorage. So ngày lúc vẽ để POS mở qua nửa đêm thì nhãn tự hiện lại.
+  const [hidden, setHidden] = useState<{ day: string; ids: Set<string> }>({ day: "", ids: new Set() });
+  useEffect(() => {
+    const store = browserStorage();
+    if (store) setHidden({ day: businessDate(), ids: readHiddenWarnings(store, slug, businessDate()) });
+  }, [slug]);
+  const today = businessDate();
+  const hide = (id: string) => {
+    const store = browserStorage();
+    if (store) hideWarning(store, slug, today, id);
+    setHidden((h) => ({ day: today, ids: new Set(h.day === today ? h.ids : []).add(id) }));
   };
 
   // Lọc theo tìm kiếm (không dấu); ẩn danh mục rỗng.
@@ -161,55 +186,66 @@ export function MenuPanel({
                       key={it.id}
                       className="flex h-full flex-col overflow-hidden rounded-lg border border-hairline-soft shadow-card"
                     >
-                      <button
-                        type="button"
-                        onClick={() => tap(it)}
-                        disabled={!addable}
-                        aria-label={
-                          it.is_available ? `Thêm ${it.name}` : `${it.name} — hết món`
-                        }
-                        className={cn(
-                          "group flex min-h-[76px] flex-1 items-center gap-md p-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
-                          addable
-                            ? "hover:bg-cream active:bg-cream-deeper"
-                            : "cursor-not-allowed opacity-50"
-                        )}
-                      >
-                        <span className="flex min-w-0 flex-1 flex-col gap-xxs">
-                          <span className="line-clamp-2 text-sm font-medium leading-snug text-ink [text-wrap:balance]">
-                            {it.name}
-                          </span>
-                          <span className="text-sm font-semibold tabular-nums text-primary">
-                            {formatVnd(it.base_price)}
-                          </span>
-                          <PortionBadge portions={portions?.[it.id]} />
-                        </span>
-                        <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-hairline-soft bg-surface">
-                          {/* sizes = 2× bề rộng ô (xem admin/menu/page.tsx): tránh ảnh ngang
-                              bị phóng to khi object-cover crop theo chiều cao. */}
-                          {it.image_url ? (
-                            <Image src={it.image_url} alt="" fill sizes="128px" className="object-cover" />
-                          ) : (
-                            <span className="grid h-full w-full place-items-center text-stone/70">
-                              <UtensilsCrossed className="h-5 w-5" aria-hidden />
-                            </span>
+                      {/* Nút thêm món PHỦ cả vùng trên (absolute), nội dung vẽ đè lên nhưng không nhận
+                          chạm (pointer-events-none) — để nút ✕ của nhãn "Có thể đã hết" nằm đúng chỗ nhãn
+                          mà không phải nút trong nút. */}
+                      <div className="group relative flex min-h-[76px] flex-1">
+                        <button
+                          type="button"
+                          onClick={() => tap(it)}
+                          disabled={!addable}
+                          aria-label={
+                            it.is_available ? `Thêm ${it.name}` : `${it.name} — hết món`
+                          }
+                          className={cn(
+                            "absolute inset-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary",
+                            addable ? "hover:bg-cream active:bg-cream-deeper" : "cursor-not-allowed"
                           )}
-                        </span>
+                        />
                         <span
                           className={cn(
-                            "grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-card transition-transform group-active:scale-95",
-                            it.is_available
-                              ? "bg-primary text-primary-fg"
-                              : "bg-hairline-strong text-canvas"
+                            "pointer-events-none relative flex flex-1 items-center gap-md p-sm text-left",
+                            !addable && "opacity-50"
                           )}
                         >
-                          {it.is_available ? (
-                            <Plus className="h-4 w-4" strokeWidth={2.5} />
-                          ) : (
-                            <Ban className="h-4 w-4" strokeWidth={2.5} aria-hidden />
-                          )}
+                          <span className="flex min-w-0 flex-1 flex-col gap-xxs">
+                            <span className="line-clamp-2 text-sm font-medium leading-snug text-ink [text-wrap:balance]">
+                              {it.name}
+                            </span>
+                            <span className="text-sm font-semibold tabular-nums text-primary">
+                              {formatVnd(it.base_price)}
+                            </span>
+                            {!(hidden.day === today && hidden.ids.has(it.id)) && (
+                              <PortionBadge portions={portions?.[it.id]} onHide={() => hide(it.id)} />
+                            )}
+                          </span>
+                          <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-hairline-soft bg-surface">
+                            {/* sizes = 2× bề rộng ô (xem admin/menu/page.tsx): tránh ảnh ngang
+                                bị phóng to khi object-cover crop theo chiều cao. */}
+                            {it.image_url ? (
+                              <Image src={it.image_url} alt="" fill sizes="128px" className="object-cover" />
+                            ) : (
+                              <span className="grid h-full w-full place-items-center text-stone/70">
+                                <UtensilsCrossed className="h-5 w-5" aria-hidden />
+                              </span>
+                            )}
+                          </span>
+                          <span
+                            className={cn(
+                              "grid h-10 w-10 shrink-0 place-items-center rounded-full shadow-card transition-transform group-has-[>button:active]:scale-95",
+                              it.is_available
+                                ? "bg-primary text-primary-fg"
+                                : "bg-hairline-strong text-canvas"
+                            )}
+                          >
+                            {it.is_available ? (
+                              <Plus className="h-4 w-4" strokeWidth={2.5} />
+                            ) : (
+                              <Ban className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                            )}
+                          </span>
                         </span>
-                      </button>
+                      </div>
 
                       <div className="flex items-center justify-between gap-xs border-t border-hairline-soft bg-surface px-sm">
                         <span className="text-xs text-steel">Còn/Hết</span>
