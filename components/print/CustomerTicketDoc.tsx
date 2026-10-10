@@ -40,7 +40,6 @@ export function CustomerTicketDoc({
   }, [slug, ticket.orderId]);
 
   const s = SIZE[kho];
-  const qtyTotal = ticket.items.reduce((acc, i) => acc + i.qty, 0);
 
   return (
     <div className="ct-wrap">
@@ -69,34 +68,33 @@ export function CustomerTicketDoc({
         <div className="ct-center">
           <div className="ct-tenant">{ticket.tenantName}</div>
           <div className="ct-title">PHIẾU KHÁCH</div>
-          {ticket.kitchenNo != null && <div className="ct-no">ĐƠN #{ticket.kitchenNo}</div>}
+          {/* Số đơn + chỗ IN TO cùng dòng, khớp phiếu bếp: "ĐƠN #40 BÀN B2" / "ĐƠN #40 MANG VỀ" (chủ dự án 10/10/2026). */}
+          <div className="ct-no">
+            {ticket.kitchenNo != null && <span className="ct-chunk">ĐƠN #{ticket.kitchenNo}</span>}{" "}
+            <span className="ct-chunk">{ticket.place.toUpperCase()}</span>
+          </div>
         </div>
 
         <div className="ct-line" />
-        <div className="ct-row">
-          <span>
-            <b>{ticket.place}</b>
-          </span>
-          <span>#{ticket.ticketNo}</span>
-        </div>
-        {ticket.contactName && (
-          <div className="ct-row">
-            <span>{ticket.contactName}</span>
-          </div>
-        )}
-        <div className="ct-row">
-          <span>{time}</span>
-          <span>{qtyTotal} phần</span>
+        {ticket.contactName && <div>{ticket.contactName}</div>}
+        <div>Ngày: {time}</div>
+        <div className="ct-line" />
+
+        {/* Bảng món: tiêu đề cột + kẻ chấm giữa từng món (chủ dự án 10/10/2026, như hóa đơn KiotViet/Sapo). */}
+        <div className="ct-item-row ct-head">
+          <span className="ct-item-name">Món</span>
+          <span className="ct-item-qty">SL</span>
+          <span className="ct-item-amt">Thành tiền</span>
         </div>
         <div className="ct-line" />
 
         <div className="ct-items">
           {ticket.items.map((it, idx) => (
             <div key={idx} className="ct-item">
+              {/* Tên món trước, cột SL "x2" thẳng hàng, tiền bên phải (chủ dự án 10/10/2026, như hóa đơn KiotViet/Sapo). */}
               <div className="ct-item-row">
-                <span className="ct-item-name">
-                  {it.qty}x {it.name}
-                </span>
+                <span className="ct-item-name">{it.name}</span>
+                <span className="ct-item-qty">x{it.qty}</span>
                 <span className="ct-item-amt">{formatVnd(it.unitPrice * it.qty)}</span>
               </div>
               {it.modifiers.map((m, i) => (
@@ -142,13 +140,17 @@ export function CustomerTicketDoc({
         .ct-tenant { font-weight: 700; font-size: ${s.tenant}px; }
         .ct-title { font-weight: 700; letter-spacing: 1px; margin-top: 2px; }
         .ct-no { font-weight: 800; font-size: ${s.no}px; margin-top: 4px; }
+        .ct-chunk { display: inline-block; }
         .ct-line { border-top: 1px dashed #000; margin: ${Math.round(s.base / 2)}px 0; }
         .ct-row { display: flex; justify-content: space-between; gap: 8px; }
         .ct-items { margin: 2px 0; }
         .ct-item { margin-bottom: ${Math.round(s.base / 2)}px; }
+        .ct-item + .ct-item { border-top: 1px dotted #000; padding-top: ${Math.round(s.base / 2)}px; }
+        .ct-head > span { font-weight: 400; font-size: ${s.base}px; }
         .ct-item-row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-        .ct-item-name { font-weight: 700; font-size: ${s.name}px; word-break: break-word; }
-        .ct-item-amt { font-weight: 700; white-space: nowrap; }
+        .ct-item-name { flex: 1; font-weight: 700; font-size: ${s.name}px; word-break: break-word; }
+        .ct-item-qty { font-weight: 700; font-size: ${s.name}px; white-space: nowrap; min-width: 3ch; text-align: right; }
+        .ct-item-amt { font-weight: 700; white-space: nowrap; min-width: 10ch; text-align: right; }
         .ct-mod { padding-left: ${Math.round(s.base)}px; }
         .ct-note { font-weight: 700; word-break: break-word; }
         .ct-total { font-weight: 800; font-size: ${s.name}px; }
@@ -158,7 +160,8 @@ export function CustomerTicketDoc({
           .no-print { display: none !important; }
           @page { size: ${s.page}; margin: ${s.margin}; }
           html, body { background: #fff !important; }
-          .ct-ticket { width: auto; margin: 0 auto; padding: 0; }
+          /* Giấy to hơn khổ đã chọn (A4, PDF) thì phiếu vẫn đúng bề ngang khổ, không giãn hết trang. */
+          .ct-ticket { width: auto; max-width: ${s.w}px; margin: 0 auto; padding: 0; }
         }
       `}</style>
     </div>

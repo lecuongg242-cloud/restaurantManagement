@@ -153,11 +153,11 @@ test("ORDER-27/28/29: đơn không bàn chọn Tại quán / Mang về, gọi th
   await ve(don2.kitchen_no).screenshot({ path: `${ANH}/03b-ve-bep-mang-ve.png` });
   await bep.close();
 
-  // ---- Phiếu bếp in: đơn không bàn in thẳng nơi phục vụ, không "Bàn: —" ----
+  // ---- Phiếu bếp in: đơn không bàn in thẳng nơi phục vụ ("ĐƠN #N TẠI QUÁN"), không "Bàn: —" ----
   const phieu = await context.newPage();
   await phieu.goto(`/r/${SLUG}/print/kitchen/${don1.id}?w=80`);
   await expect(phieu.getByText(/PHIẾU BẾP/)).toBeVisible();
-  await expect(phieu.getByText("Tại quán", { exact: true })).toBeVisible();
+  await expect(phieu.getByText("TẠI QUÁN", { exact: true })).toBeVisible();
   await expect(phieu.getByText(/Bàn:/)).toHaveCount(0);
   await phieu.screenshot({ path: `${ANH}/04-phieu-bep-tai-quan.png`, fullPage: true });
   await phieu.close();

@@ -60,15 +60,8 @@ object EscPos {
         return ra.ifEmpty { listOf("") }
     }
 
-    /** Một dòng hai đầu. */
-    fun hang(trai: String, phai: String, rong: Int): String {
-        val l = ascii(trai)
-        val r = ascii(phai)
-        return l + " ".repeat(maxOf(1, rong - l.length - r.length)) + r
-    }
-
-    /** "20:47 01-10" — đúng chuỗi `toLocaleString("vi-VN", …)` của cầu in Node in ra (đã đo). */
-    private val GIO_VN = DateTimeFormatter.ofPattern("HH:mm dd-MM").withZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+    /** "01/10/2026 20:47" — đúng chuỗi `timeVN` của cầu in Node. */
+    private val GIO_VN = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.of("Asia/Ho_Chi_Minh"))
 
     fun gioVn(iso: String?): String = try {
         if (iso.isNullOrBlank()) "" else GIO_VN.format(Instant.parse(iso.replace(Regex("\\+00:00$"), "Z")))
@@ -88,29 +81,30 @@ object EscPos {
         ngatDong(phieu.optString("tenantName"), rong).forEach(::chu)
         chu("PHIEU BEP" + if (phieu.optBoolean("isReprint")) " (IN LAI)" else "")
         lenh(HET_DAM)
-        if (phieu.has("kitchenNo") && !phieu.isNull("kitchenNo")) {
-            lenh(CO_LON)
-            lenh(DAM)
-            chu("DON #${phieu.opt("kitchenNo")}")
-            lenh(HET_DAM)
-            lenh(CO_THUONG)
-        }
+        // Số đơn + chỗ IN TO cùng dòng: "DON #40 BAN B2" / "DON #40 TAI QUAN" (chủ dự án 10/10/2026). Đơn không bàn in
+        // thẳng nơi phục vụ (P35). Cỡ to = rộng gấp đôi ⇒ mỗi dòng còn nửa số ký tự.
+        val tenBan = if (phieu.isNull("tableName")) "-" else phieu.optString("tableName", "-")
+        val noi = (if (phieu.isNull("place")) "" else phieu.optString("place", "")).ifEmpty { "Ban $tenBan" }.uppercase()
+        val coSo = phieu.has("kitchenNo") && !phieu.isNull("kitchenNo")
+        lenh(CO_LON)
+        lenh(DAM)
+        ngatDong(if (coSo) "DON #${phieu.opt("kitchenNo")} $noi" else noi, rong / 2).forEach(::chu)
+        lenh(HET_DAM)
+        lenh(CO_THUONG)
         lenh(TRAI)
         chu("-".repeat(rong))
-        val tenBan = if (phieu.isNull("tableName")) "-" else phieu.optString("tableName", "-")
-        // Đơn không bàn (P35): in thẳng nơi phục vụ ("Tai quan" / "Mang ve"), không "Ban: ...".
-        val noi = if (phieu.isNull("place")) "" else phieu.optString("place", "")
-        chu(hang(if (noi.isNotEmpty()) noi else "Ban: $tenBan", "#${phieu.optString("ticketNo")}", rong))
+        chu("Ngay: ${gioVn(phieu.optString("confirmedAt"))}")
         val mon = phieu.optJSONArray("items")
-        var phan = 0
-        for (i in 0 until (mon?.length() ?: 0)) phan += mon!!.optJSONObject(i)?.optInt("qty") ?: 0
-        chu(hang(gioVn(phieu.optString("confirmedAt")), "$phan phan", rong))
         chu("-".repeat(rong))
         for (i in 0 until (mon?.length() ?: 0)) {
             val m = mon!!.optJSONObject(i) ?: continue
+            // Kẻ chấm giữa hai món (chủ dự án 10/10/2026) — khác gạch "-" phân đoạn.
+            if (i > 0) chu(". ".repeat(rong / 2).trimEnd())
             lenh(DAM)
             lenh(CO_CAO)
-            ngatDong("${m.optInt("qty")}x ${m.optString("name")}", rong).forEach(::chu)
+            // Tên món trước, SL "x2" sát lề phải dòng đầu (chủ dự án 10/10/2026).
+            val sl = "x${m.optInt("qty")}"
+            ngatDong(m.optString("name"), rong - sl.length - 1).forEachIndexed { i, l -> chu(if (i == 0) l.padEnd(rong - sl.length) + sl else l) }
             lenh(CO_THUONG)
             lenh(HET_DAM)
             val tc = m.optJSONArray("modifiers")

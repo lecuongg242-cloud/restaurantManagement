@@ -75,28 +75,25 @@ export function KitchenTicketDoc({
           )}
           <div className="kt-tenant">{ticket.tenantName}</div>
           <div className="kt-title">PHIẾU BẾP{ticket.isReprint ? " (IN LẠI)" : ""}</div>
-          {ticket.kitchenNo != null && <div className="kt-no">ĐƠN #{ticket.kitchenNo}</div>}
+          {/* Số đơn + chỗ IN TO cùng dòng: "ĐƠN #40 BÀN B2" / "ĐƠN #40 TẠI QUÁN" (chủ dự án 10/10/2026). Đơn không
+              bàn in thẳng nơi phục vụ, không "Bàn: —" (P35). Hai cụm là inline-block ⇒ khổ hẹp thì xuống dòng giữa hai cụm. */}
+          <div className="kt-no">
+            {ticket.kitchenNo != null && <span className="kt-chunk">ĐƠN #{ticket.kitchenNo}</span>}{" "}
+            <span className="kt-chunk">{(ticket.place ?? `Bàn ${ticket.tableName}`).toUpperCase()}</span>
+          </div>
         </div>
 
         <div className="kt-line" />
-        <div className="kt-row">
-          {/* Đơn không bàn: in thẳng nơi phục vụ ("Tại quán" / "Mang về"), không "Bàn: —" (P35). */}
-          <span>
-            {ticket.place ? <b>{ticket.place}</b> : <>Bàn: <b>{ticket.tableName}</b></>}
-          </span>
-          <span>#{ticket.ticketNo}</span>
-        </div>
-        <div className="kt-row">
-          <span>{time}</span>
-          <span>{ticket.items.reduce((acc, i) => acc + i.qty, 0)} phần</span>
-        </div>
+        <div>Ngày: {time}</div>
         <div className="kt-line" />
 
         <div className="kt-items">
           {ticket.items.map((it, idx) => (
             <div key={idx} className="kt-item">
-              <div className="kt-item-name">
-                {it.qty}x {it.name}
+              {/* Tên món trước, cột SL "x2" bên phải (chủ dự án 10/10/2026). */}
+              <div className="kt-item-row">
+                <span className="kt-item-name">{it.name}</span>
+                <span className="kt-item-qty">x{it.qty}</span>
               </div>
               {it.modifiers.map((m, i) => (
                 <div key={i} className="kt-mod">
@@ -134,11 +131,14 @@ export function KitchenTicketDoc({
         .kt-tenant { font-weight: 700; font-size: ${s.tenant}px; }
         .kt-title { font-weight: 700; letter-spacing: 1px; margin-top: 2px; }
         .kt-no { font-weight: 800; font-size: ${s.no}px; margin-top: 4px; }
+        .kt-chunk { display: inline-block; }
         .kt-line { border-top: 1px dashed #000; margin: ${Math.round(s.base / 2)}px 0; }
-        .kt-row { display: flex; justify-content: space-between; gap: 8px; }
         .kt-items { margin: 2px 0; }
         .kt-item { margin-bottom: ${Math.round(s.base / 2)}px; }
-        .kt-item-name { font-weight: 700; font-size: ${s.name}px; word-break: break-word; }
+        .kt-item + .kt-item { border-top: 1px dotted #000; padding-top: ${Math.round(s.base / 2)}px; }
+        .kt-item-row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+        .kt-item-name { flex: 1; font-weight: 700; font-size: ${s.name}px; word-break: break-word; }
+        .kt-item-qty { font-weight: 700; font-size: ${s.name}px; white-space: nowrap; }
         .kt-mod { padding-left: ${Math.round(s.base)}px; }
         .kt-note { font-weight: 700; word-break: break-word; }
         .kt-foot { margin-top: 4px; }
@@ -147,7 +147,8 @@ export function KitchenTicketDoc({
           .no-print { display: none !important; }
           @page { size: ${s.page}; margin: ${s.margin}; }
           html, body { background: #fff !important; }
-          .kt-ticket { width: auto; margin: 0 auto; padding: 0; }
+          /* Giấy to hơn khổ đã chọn (A4, PDF) thì phiếu vẫn đúng bề ngang khổ, không giãn hết trang. */
+          .kt-ticket { width: auto; max-width: ${s.w}px; margin: 0 auto; padding: 0; }
         }
       `}</style>
     </div>

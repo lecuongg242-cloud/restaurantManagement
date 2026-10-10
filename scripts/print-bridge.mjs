@@ -140,15 +140,22 @@ function row(left, right) {
   return `${l}${" ".repeat(gap)}${r}`;
 }
 
+/** "10/10/2026 21:09" giờ VN — khớp `ngayGioNamVn` (lib/time/vn.ts) của phiếu trình duyệt. */
 function timeVN(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString("vi-VN", {
+  const t = new Date(iso ?? "");
+  if (!iso || Number.isNaN(t.getTime())) return "";
+  const p = {};
+  for (const { type, value } of new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Ho_Chi_Minh",
+    hour12: false,
     hour: "2-digit",
     minute: "2-digit",
     day: "2-digit",
     month: "2-digit",
-  });
+    year: "numeric",
+  }).formatToParts(t))
+    p[type] = value;
+  return `${p.day}/${p.month}/${p.year} ${p.hour === "24" ? "00" : p.hour}:${p.minute}`;
 }
 
 /**
@@ -174,26 +181,28 @@ export function buildKitchenTicket(ticket) {
   text(`PHIEU BEP${ticket.isReprint ? " (IN LAI)" : ""}`);
   cmd(CMD.boldOff);
 
-  if (ticket.kitchenNo != null) {
-    cmd(CMD.sizeBig);
-    cmd(CMD.boldOn);
-    text(`DON #${ticket.kitchenNo}`);
-    cmd(CMD.boldOff);
-    cmd(CMD.sizeNormal);
-  }
+  // Số đơn + chỗ IN TO cùng dòng: "DON #40 BAN B2" / "DON #40 TAI QUAN" (chủ dự án 10/10/2026). Đơn không bàn
+  // in thẳng nơi phục vụ (P35). Cỡ to = rộng gấp đôi ⇒ mỗi dòng còn nửa số ký tự.
+  const noi = (ticket.place ? ticket.place : `Ban ${ticket.tableName ?? "-"}`).toUpperCase();
+  cmd(CMD.sizeBig);
+  cmd(CMD.boldOn);
+  for (const l of wrap(ticket.kitchenNo != null ? `DON #${ticket.kitchenNo} ${noi}` : noi, Math.floor(CHARS / 2))) text(l);
+  cmd(CMD.boldOff);
+  cmd(CMD.sizeNormal);
 
   cmd(CMD.alignLeft);
   text("-".repeat(CHARS));
-  // Đơn không bàn (P35): in thẳng nơi phục vụ ("Tai quan" / "Mang ve"), không "Ban: ...".
-  text(row(ticket.place ? ticket.place : `Ban: ${ticket.tableName ?? "-"}`, `#${ticket.ticketNo ?? ""}`));
-  const qty = (ticket.items ?? []).reduce((acc, i) => acc + (i.qty ?? 0), 0);
-  text(row(timeVN(ticket.confirmedAt), `${qty} phan`));
+  text(`Ngay: ${timeVN(ticket.confirmedAt)}`);
   text("-".repeat(CHARS));
 
-  for (const item of ticket.items ?? []) {
+  for (const [i, item] of (ticket.items ?? []).entries()) {
+    // Kẻ chấm giữa hai món (chủ dự án 10/10/2026) — khác gạch "-" phân đoạn.
+    if (i > 0) text(". ".repeat(Math.floor(CHARS / 2)).trimEnd());
     cmd(CMD.boldOn);
     cmd(CMD.sizeTall);
-    for (const l of wrap(`${item.qty}x ${item.name}`)) text(l);
+    // Tên món trước, SL "x2" sát lề phải dòng đầu (chủ dự án 10/10/2026).
+    const sl = `x${item.qty}`;
+    wrap(item.name, CHARS - sl.length - 1).forEach((l, i) => text(i === 0 ? `${l.padEnd(CHARS - sl.length)}${sl}` : l));
     cmd(CMD.sizeNormal);
     cmd(CMD.boldOff);
     for (const m of item.modifiers ?? []) {
@@ -362,7 +371,7 @@ if (TEST_MODE) {
     stationName: process.env.TEST_STATION_NAME || null,
     isReprint: false,
     kitchenNo: 12,
-    tableName: "Ban 5",
+    tableName: "5",
     ticketNo: "TEST01",
     confirmedAt: new Date().toISOString(),
     items: [

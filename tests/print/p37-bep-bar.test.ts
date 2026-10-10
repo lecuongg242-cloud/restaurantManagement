@@ -42,12 +42,12 @@ describe("P37 phiếu bếp (PRINT-20/22)", () => {
     expect(soTo(giayPhieuBep({ ...phieu, copies: 2 }))).toBe(2);
     expect(soTo(giayPhieuBep({ ...phieu, perItem: true }))).toBe(n);
     expect(soTo(giayPhieuBep({ ...phieu, perItem: true, copies: 3 }))).toBe(n * 3);
-    // mỗi tờ in riêng chỉ có đúng một món: tách theo lệnh cắt, mỗi tờ đúng một dòng "<sl>x <tên>"
+    // mỗi tờ in riêng chỉ có đúng một món: tách theo lệnh cắt, mỗi tờ đúng một dòng "<tên> … x<sl>"
     const to = giayPhieuBep({ ...phieu, perItem: true }).toString("latin1").split("\x1dVB\x00").filter((t) => t.includes("PHIEU BEP"));
     expect(to).toHaveLength(n);
     for (const [i, t] of to.entries()) {
-      expect(t.match(/\d+x \S/g)).toHaveLength(1);
-      expect(t).toContain(`${phieu.items[i].qty}x `);
+      expect(t.match(/ x\d+\n/g)).toHaveLength(1);
+      expect(t).toContain(` x${phieu.items[i].qty}\n`);
     }
   });
 

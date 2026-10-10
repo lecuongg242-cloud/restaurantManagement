@@ -10,7 +10,7 @@ import type { OrderPrintState } from "@/lib/print/adapter";
 import { daInGanDay } from "@/lib/print/dedupe";
 import { cauInConSongCua, thayTheLuotDangCho, trangThaiQuay } from "@/lib/print/cau-in-db";
 import { buildReceiptView } from "@/lib/billing/receipt-view";
-import { gioNgayNamVn, gioNgayVn } from "@/lib/time/vn";
+import { gioNgayNamVn, ngayGioNamVn } from "@/lib/time/vn";
 import type { PhieuAnh } from "@/lib/print/anh-phieu";
 import { toState, CHUA_IN, type JobRow } from "@/lib/print/trang-thai";
 import { cauInConSong, loiDonDap, trangThaiMayIn, CUA_SO_LOI_MS, type NhipTim } from "@/lib/print/cau-in";
@@ -154,7 +154,7 @@ async function xepPhieuQuay(
     const phieu = await buildCustomerTicket(id, session.tenant.id);
     if (!phieu) return { ok: false, lyDo: "loi" };
     if (await daInGanDay(supabase, session.tenant.id, "customer_ticket", "orderId", id)) return { ok: true };
-    const anh: PhieuAnh = { loai: "customer_ticket", phieu, gio: gioNgayVn(phieu.createdAt) };
+    const anh: PhieuAnh = { loai: "customer_ticket", phieu, gio: ngayGioNamVn(phieu.createdAt) };
     payload = { ...phieu, anh };
   }
 
