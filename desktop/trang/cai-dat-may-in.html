@@ -15,6 +15,9 @@
   <section class="the" aria-labelledby="t-bep">
     <h2 id="t-bep">Máy in bếp</h2>
     <p class="phu">Bếp gần quầy thì dùng chung máy in quầy.</p>
+    <p id="noi-goi-y" class="phu an">Thêm bếp/bar và gán nhóm món ở Quản trị › Máy in › Bếp / Bar.</p>
+    <p id="noi-loi" class="thong-bao canh an" role="status">Không tải được danh sách bếp/bar — kiểm tra mạng rồi mở lại màn này. Máy in đã lưu của từng bếp/bar vẫn giữ nguyên.</p>
+    <h3 id="ten-bep-chinh" class="ten-noi an"></h3>
     <div class="lua-chon">
       <label><input type="radio" name="bep" value="lan"><span><b>Máy in mạng (LAN)</b></span></label>
       <label><input type="radio" name="bep" value="khong"><span><b>Không có — in phiếu bếp ra máy in quầy</b></span></label>
@@ -28,6 +31,26 @@
       <div class="nut-cuoi"><button type="button" data-in-thu="bep">In thử</button></div>
     </div>
     <div id="kq-bep" class="thong-bao an" role="status"></div>
+    <!-- P37: các bếp/bar khác (khai trên web) — cai-dat-may-in.js dựng từ mẫu dưới. -->
+    <div id="ds-noi"></div>
+    <template id="mau-noi">
+      <div class="noi">
+        <h3 class="ten-noi"></h3>
+        <div class="lua-chon">
+          <label><input type="radio" value="lan"><span><b>Máy in mạng (LAN)</b></span></label>
+          <label><input type="radio" value="khong"><span><b>Không có — in ra máy in quầy</b></span></label>
+        </div>
+        <div class="noi-lan">
+          <div class="hang">
+            <div class="co-gian"><label class="o-nhap">Địa chỉ IP</label><input class="noi-ip" type="text" inputmode="decimal" placeholder="192.168.1.102" list="ds-ip"></div>
+            <div class="hep"><label class="o-nhap">Cổng</label><input class="noi-cong" type="number" value="9100" min="1" max="65535"></div>
+            <button type="button" class="noi-do">Dò máy in</button>
+          </div>
+          <div class="nut-cuoi"><button type="button" class="noi-thu">In thử</button></div>
+        </div>
+        <div class="thong-bao an" role="status"></div>
+      </div>
+    </template>
   </section>
 
   <section class="the" aria-labelledby="t-quay">
@@ -39,7 +62,7 @@
     </div>
     <div id="quay-usb">
       <div class="hang">
-        <div class="co-gian"><label class="o-nhap" for="quay-ten">Máy in</label><select id="quay-ten"></select></div>
+        <div class="co-gian rong"><label class="o-nhap" for="quay-ten">Máy in</label><select id="quay-ten"></select></div>
         <button id="tai-lai-usb" type="button">Tải lại</button>
       </div>
       <p id="usb-canh" class="thong-bao canh an" role="status"></p>
@@ -49,6 +72,11 @@
         <div class="co-gian"><label class="o-nhap" for="quay-ip">Địa chỉ IP</label><input id="quay-ip" type="text" inputmode="decimal" placeholder="192.168.1.101" list="ds-ip"></div>
         <div class="hep"><label class="o-nhap" for="quay-cong">Cổng</label><input id="quay-cong" type="number" value="9100" min="1" max="65535"></div>
         <button type="button" data-do="quay-ip">Dò máy in</button>
+      </div>
+    </div>
+    <div id="khoi-lien" class="hang an">
+      <div class="hep"><label class="o-nhap" for="lien-hoa-don">Số liên hóa đơn</label>
+        <select id="lien-hoa-don"><option value="1">1 liên</option><option value="2">2 liên</option><option value="3">3 liên</option></select>
       </div>
     </div>
     <div id="quay-thu" class="nut-cuoi"><button type="button" data-in-thu="quay">In thử</button></div>

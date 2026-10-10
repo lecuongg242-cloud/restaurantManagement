@@ -11,7 +11,9 @@ import net from "node:net";
 
 export type NhipTim = Record<string, unknown>;
 
-export async function mayChuGia(opts: { serverCu?: boolean; cong?: number; phieu?: Record<string, unknown>[] } = {}) {
+export async function mayChuGia(
+  opts: { serverCu?: boolean; cong?: number; phieu?: Record<string, unknown>[]; noi?: Record<string, unknown>[] } = {}
+) {
   const nhipTim: NhipTim[] = [];
   const choIn = [...(opts.phieu ?? [])];
   const danhDau: Record<string, unknown>[] = [];
@@ -43,6 +45,11 @@ export async function mayChuGia(opts: { serverCu?: boolean; cong?: number; phieu
     }
     if (url.pathname.startsWith("/rest/v1/memberships")) return json(200, [{ tenant_id: "00000000-0000-0000-0000-000000000001" }]);
     if (url.pathname === "/rest/v1/print_jobs" && req.method === "GET") return json(200, choIn);
+    // P37: bếp/bar của quán (màn Cài đặt máy in đọc bằng tài khoản printer).
+    if (url.pathname === "/rest/v1/kitchen_stations" && req.method === "GET") {
+      if (req.headers.authorization !== "Bearer tok") return json(401, { message: "JWT" });
+      return json(200, opts.noi ?? []);
+    }
     if (url.pathname === "/rest/v1/print_jobs" && req.method === "PATCH") {
       const id = (url.searchParams.get("id") ?? "").replace(/^eq\./, "");
       danhDau.push({ id, ...JSON.parse(body || "{}") });

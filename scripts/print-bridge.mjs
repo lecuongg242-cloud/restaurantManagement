@@ -77,6 +77,11 @@ const COUNTER_WIDTH = process.env.COUNTER_WIDTH === "58" ? "58" : "80";
 // PRINT-18: "counter" = không có máy in bếp riêng, phiếu bếp in ra máy in QUẦY (quán một máy in, bếp gần quầy).
 // Khi đó PRINTER_HOST/PORT bỏ qua. Không khai máy in quầy thì vô nghĩa — phiếu bếp vẫn gửi PRINTER_HOST như cũ.
 const KITCHEN_PRINTER = process.env.KITCHEN_PRINTER || "";
+// P37: máy in RIÊNG của từng bếp/bar ngoài Bếp chính — JSON {"<id bếp/bar>": "lan:<ip>[:cổng]"}. Bếp/bar không có ở đây
+// (chưa cài máy in trên máy này) → ra máy in quầy, không có máy quầy thì ra máy in Bếp chính: không mất phiếu.
+const KITCHEN_STATIONS = docMayNoi(process.env.KITCHEN_STATIONS);
+// P37: số liên hóa đơn / phiếu khách ở máy quầy (1–3).
+const COUNTER_COPIES = soLien(process.env.COUNTER_COPIES);
 
 // ── ESC/POS ────────────────────────────────────────────────────────────────────
 const ESC = 0x1b;
@@ -150,7 +155,7 @@ function timeVN(iso) {
  * Dựng buffer ESC/POS từ payload print_jobs (KitchenTicketView trong lib/print/adapter.ts).
  * Bố cục KHỚP phiếu trình duyệt (components/print/KitchenTicketDoc.tsx) để bếp đọc quen mắt.
  */
-function buildKitchenTicket(ticket) {
+export function buildKitchenTicket(ticket) {
   const parts = [];
   const text = (s) => parts.push(Buffer.from(`${s}\n`, "latin1"));
   const cmd = (b) => parts.push(b);
@@ -160,6 +165,12 @@ function buildKitchenTicket(ticket) {
 
   cmd(CMD.boldOn);
   for (const l of wrap(ticket.tenantName)) text(l);
+  // P37: quán nhiều bếp/bar → tên nơi nhận to, đầu phiếu (không có thì phiếu y hệt bản cũ, từng byte).
+  if (ticket.stationName) {
+    cmd(CMD.sizeTall);
+    for (const l of wrap(String(ticket.stationName).toUpperCase())) text(l);
+    cmd(CMD.sizeNormal);
+  }
   text(`PHIEU BEP${ticket.isReprint ? " (IN LAI)" : ""}`);
   cmd(CMD.boldOff);
 
@@ -202,6 +213,94 @@ function buildKitchenTicket(ticket) {
   cmd(CMD.cut);
 
   return Buffer.concat(parts);
+}
+
+/** Số liên 1–3 (sai / thiếu = 1). */
+export function soLien(v) {
+  const n = Math.trunc(Number(v));
+  return Number.isFinite(n) && n >= 1 ? Math.min(n, 3) : 1;
+}
+
+/** Lặp `giay` N liên — một lần gửi, mỗi liên tự cắt giấy. */
+function lapLien(giay, n) {
+  return Buffer.concat(Array.from({ length: soLien(n) }, () => giay));
+}
+
+/**
+ * Giấy cho MỘT job phiếu bếp (P37): in riêng từng món → mỗi món một tờ (cùng đầu phiếu); rồi nhân số liên.
+ * Payload cũ (không có perItem/copies) → đúng một tờ như trước.
+ */
+export function giayPhieuBep(ticket) {
+  const items = ticket.items ?? [];
+  const to =
+    ticket.perItem && items.length > 1
+      ? items.map((it) => buildKitchenTicket({ ...ticket, items: [it] }))
+      : [buildKitchenTicket(ticket)];
+  return lapLien(Buffer.concat(to), ticket.copies);
+}
+
+/** Phiếu HỦY MÓN (P37, PRINT-23): bếp đọc thấy ngay "HUY MON", món + số lượng hủy, lý do, người hủy. */
+export function buildCancelTicket(t) {
+  const parts = [];
+  const text = (s) => parts.push(Buffer.from(`${s}\n`, "latin1"));
+  const cmd = (b) => parts.push(b);
+
+  cmd(CMD.init);
+  cmd(CMD.alignCenter);
+  cmd(CMD.boldOn);
+  if (t.stationName) for (const l of wrap(String(t.stationName).toUpperCase())) text(l);
+  cmd(CMD.sizeBig);
+  text("HUY MON");
+  if (t.kitchenNo != null) text(`DON #${t.kitchenNo}`);
+  cmd(CMD.sizeNormal);
+  cmd(CMD.boldOff);
+
+  cmd(CMD.alignLeft);
+  text("-".repeat(CHARS));
+  text(row(`Ban: ${t.tableName ?? "-"}`, `#${t.ticketNo ?? ""}`));
+  text(row("Huy luc", timeVN(t.cancelledAt)));
+  text("-".repeat(CHARS));
+  for (const item of t.items ?? []) {
+    cmd(CMD.boldOn);
+    cmd(CMD.sizeTall);
+    for (const l of wrap(`HUY ${item.qty}x ${item.name}`)) text(l);
+    cmd(CMD.sizeNormal);
+    cmd(CMD.boldOff);
+    for (const m of item.modifiers ?? []) for (const l of wrap(`+ ${m}`, CHARS - 2)) text(`  ${l}`);
+  }
+  text("-".repeat(CHARS));
+  for (const l of wrap(`Ly do: ${t.reason ?? ""}`)) text(l);
+  if (t.cancelledBy) for (const l of wrap(`Nguoi huy: ${t.cancelledBy}`)) text(l);
+  cmd(CMD.alignCenter);
+  text("-- het phieu --");
+  text("");
+  cmd(CMD.cut);
+  return lapLien(Buffer.concat(parts), t.copies);
+}
+
+/** `KITCHEN_STATIONS` (JSON id → "lan:ip[:cổng]") → { id: máy in }. Sai / thiếu → {}. Chỉ nhận máy LAN. */
+export function docMayNoi(s) {
+  if (!s) return {};
+  try {
+    const o = JSON.parse(s);
+    const out = {};
+    for (const [id, v] of Object.entries(o ?? {})) {
+      const m = docCauHinhMayIn(v);
+      if (m?.kieu === "lan") out[id] = m;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Máy in cho phiếu bếp / phiếu hủy theo `target_station` (P37). "kitchen" / thiếu = Bếp chính (máy bếp, hoặc máy quầy khi
+ * PRINT-18). Bếp/bar có máy riêng trên máy này → máy đó. Bếp/bar chưa cài → máy quầy, không có máy quầy → Bếp chính.
+ */
+export function mayChoNoi(target, { noi, quay, bep }) {
+  if (target && target !== "kitchen") return noi[target] ?? quay ?? bep;
+  return bep;
 }
 
 // ── Gửi tới máy in ─────────────────────────────────────────────────────────────
@@ -259,6 +358,8 @@ function inQuaWindows(buffer, ten) {
 if (TEST_MODE) {
   const demo = {
     tenantName: "QUAN THU NGHIEM",
+    // P37: In thử của một bếp/bar ghi tên nơi đó để biết tờ nào ra máy nào.
+    stationName: process.env.TEST_STATION_NAME || null,
     isReprint: false,
     kitchenNo: 12,
     tableName: "Ban 5",
@@ -384,7 +485,7 @@ export const MA_THOAT_DA_CHAY = 3;
  * deploy (`lib/print/bridge-release.ts`) để công bố bản mới; cầu in ở quán so với nó để biết có bản
  * mới. Bản 1 = mọi cầu in trước 11-06 (không báo phiên bản).
  */
-export const BRIDGE_VERSION = 4;
+export const BRIDGE_VERSION = 5;
 
 /** Mã thoát sau khi đã thay tệp bằng bản mới — print-bridge.bat chạy lại NGAY, không tính là chết. */
 export const MA_THOAT_DA_CAP_NHAT = 4;
@@ -536,7 +637,7 @@ export function docCauHinhMayIn(s) {
 
 /** Phiếu nào ra máy nào. Hóa đơn / phiếu khách chỉ nhận khi đã khai máy in quầy. */
 export function dichInCua(loai, coQuay) {
-  if (loai === "kitchen_ticket") return "bep";
+  if (loai === "kitchen_ticket" || loai === "cancel_ticket") return "bep";
   if ((loai === "receipt" || loai === "customer_ticket") && coQuay) return "quay";
   return null;
 }
@@ -954,18 +1055,22 @@ async function taiAnhPhieu(jobId, thuLai = true) {
   return Buffer.from(await res.arrayBuffer());
 }
 
-/** In MỘT hóa đơn / phiếu khách ra máy quầy: ảnh PNG có dấu → lệnh in ảnh → USB hoặc LAN. */
+/** In MỘT hóa đơn / phiếu khách ra máy quầy: ảnh PNG có dấu → lệnh in ảnh → USB hoặc LAN. Số liên theo COUNTER_COPIES. */
 async function inRaQuay(job) {
-  const lenh = lenhInAnh(thanhAnhDen(giaiMaPng(await taiAnhPhieu(job.id))));
+  const lenh = lapLien(lenhInAnh(thanhAnhDen(giaiMaPng(await taiAnhPhieu(job.id)))), COUNTER_COPIES);
   if (MAY_QUAY.kieu === "usb") await inQuaWindows(lenh, MAY_QUAY.ten);
   else await thuLaiGui(() => sendToPrinter(lenh, MAY_QUAY.host, MAY_QUAY.port), SO_LAN_THU_LAI);
 }
 
-/** Phiếu bếp (chữ ESC/POS) ra máy in bếp — hoặc ra máy in quầy khi quán dùng chung một máy (PRINT-18). */
-async function inPhieuBep(giay) {
-  if (BEP_RA_QUAY && MAY_QUAY.kieu === "usb") return inQuaWindows(giay, MAY_QUAY.ten);
-  const [host, port] = BEP_RA_QUAY ? [MAY_QUAY.host, MAY_QUAY.port] : [HOST, PORT];
-  await thuLaiGui(() => sendToPrinter(giay, host, port), SO_LAN_THU_LAI);
+/** Máy in Bếp chính: máy bếp LAN, hoặc máy quầy khi quán dùng chung một máy (PRINT-18). */
+const MAY_BEP = BEP_RA_QUAY ? MAY_QUAY : { kieu: "lan", host: HOST, port: PORT };
+
+/** Phiếu bếp / phiếu hủy (chữ ESC/POS) ra máy của bếp/bar nhận phiếu (P37). Trả máy đã dùng. */
+async function inPhieuBep(giay, target) {
+  const may = mayChoNoi(target, { noi: KITCHEN_STATIONS, quay: MAY_QUAY, bep: MAY_BEP });
+  if (may.kieu === "usb") await inQuaWindows(giay, may.ten);
+  else await thuLaiGui(() => sendToPrinter(giay, may.host, may.port), SO_LAN_THU_LAI);
+  return may;
 }
 
 async function pollOnce() {
@@ -981,8 +1086,10 @@ async function pollOnce() {
   let jobs;
   try {
     jobs = await rest(
-      `/print_jobs?select=id,type,payload&tenant_id=eq.${tenantId}` +
-        (MAY_QUAY ? `&type=in.(kitchen_ticket,receipt,customer_ticket)` : `&type=eq.kitchen_ticket`) +
+      `/print_jobs?select=id,type,target_station,payload&tenant_id=eq.${tenantId}` +
+        (MAY_QUAY
+          ? `&type=in.(kitchen_ticket,cancel_ticket,receipt,customer_ticket)`
+          : `&type=in.(kitchen_ticket,cancel_ticket)`) +
         `&status=eq.pending&created_at=gte.${since}&order=created_at.asc&limit=10`
     );
   } catch (err) {
@@ -1013,19 +1120,28 @@ async function pollOnce() {
       continue;
     }
     inFlight.add(job.id);
+    const huy = job.type === "cancel_ticket";
+    const may = mayChoNoi(job.target_station, { noi: KITCHEN_STATIONS, quay: MAY_QUAY, bep: MAY_BEP });
+    // Tình trạng hai máy báo lên POS chỉ đổi theo đúng máy vừa in (máy riêng của bếp/bar khác không phải "máy in bếp").
+    const capNhat = (ok) => {
+      if (may === MAY_BEP) mayInPhanHoi = ok;
+      if (may === MAY_QUAY) quayPhanHoi = ok;
+    };
     try {
-      await inPhieuBep(buildKitchenTicket(job.payload ?? {}));
+      await inPhieuBep(huy ? buildCancelTicket(job.payload ?? {}) : giayPhieuBep(job.payload ?? {}), job.target_station);
     } catch (err) {
-      mayInPhanHoi = false;
-      if (BEP_RA_QUAY) quayPhanHoi = false;
+      capNhat(false);
       await markJob(job.id, { status: "failed" }).catch(() => {});
       log(`IN LỖI phiếu ${job.id} (đã thử ${SO_LAN_THU_LAI + 1} lần): ${err.message} — bấm in lại ở POS sau khi sửa máy in.`);
       inFlight.delete(job.id);
       continue;
     }
-    mayInPhanHoi = true;
-    if (BEP_RA_QUAY) quayPhanHoi = true;
-    await baoDaIn(job, `phiếu ${job.payload?.ticketNo ?? job.id} (đơn #${job.payload?.kitchenNo ?? "?"})`);
+    capNhat(true);
+    const noi = job.payload?.stationName ? ` — ${job.payload.stationName}` : "";
+    await baoDaIn(
+      job,
+      `${huy ? "phiếu HỦY MÓN" : "phiếu"} ${job.payload?.ticketNo ?? job.id} (đơn #${job.payload?.kitchenNo ?? "?"})${noi}`
+    );
     inFlight.delete(job.id);
   }
 

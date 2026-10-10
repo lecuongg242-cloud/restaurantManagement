@@ -229,6 +229,12 @@ export const CASES: Case[] = [
     }),
     updatePatch: { diff: 99 },
   },
+  {
+    // P37 (0087): bếp/bar — đọc mọi thành viên quán, ghi chủ/quản lý.
+    table: "kitchen_stations",
+    insertRow: (t, id) => ({ id, tenant_id: t, name: MARK }),
+    updatePatch: { name: MARK },
+  },
 ];
 
 /** Dòng fixture của tenant B ứng với một bảng. */

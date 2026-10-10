@@ -10,7 +10,8 @@ Thực đơn · Nguyên liệu · Bàn & QR · Báo cáo · Máy in · Cài đ�
 | Xem doanh thu ngày/tuần/tháng, món bán chạy, theo cách thu | **Báo cáo** |
 | Sửa giá, thêm món, bật/tắt món | **Thực đơn** |
 | Thêm/tắt nhân viên, đặt lại PIN | **Nhân viên** (quản lý tạo được Thu ngân/Phục vụ/Bếp; chủ quán tạo thêm được Quản lý) |
-| Xem cầu in/máy in bếp còn chạy không, phiếu lỗi hôm nay | **Máy in** (tự làm mới 30 giây) |
+| Xem cầu in/máy in bếp còn chạy không, phiếu lỗi hôm nay | **Máy in** › tab **Tình trạng** (tự làm mới 30 giây) |
+| Đồ uống in ra quầy pha chế riêng, số liên phiếu bếp, in riêng từng món | **Máy in** › tab **Bếp / Bar** → **+ Thêm bếp/bar**, tích nhóm món. Rồi ở app TechMenu Thu ngân › ☰ › **Cài đặt máy in** chọn máy in cho từng bếp/bar |
 | Thêm bàn, in lại QR | **Bàn & QR** → **+ Thêm bàn** / **Thêm hàng loạt** / **Nhập Excel**; in QR: **In QR** (mọi bàn), **Xem / In** (một bàn) hoặc tích nhiều bàn → **In QR** |
 | Nhập nguyên liệu buổi sáng, kiểm kê cuối ngày (nếu quán dùng) | **Nguyên liệu** |
 | Phí phục vụ, VAT, footer hóa đơn, cách in phiếu, chế độ phục vụ | **Cài đặt** (chủ quán) |

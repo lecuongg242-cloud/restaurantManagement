@@ -83,6 +83,7 @@ export const IDX = {
   supplier_debt_adjustments: 30,
   stock_counts: 31,
   stock_count_lines: 32,
+  kitchen_stations: 33,
   // Khóa chính là (item_id, group_id) → trỏ theo menu_items.
   menu_item_modifier_groups: 2,
 } as const;
@@ -280,6 +281,8 @@ function stepsFor(key: TenantKey, tenantId: string): SeedStep[] {
         counted_base: 1, count_unit: "purchase", theoretical: 1, diff: 0,
       },
     },
+    // P37 (0087): bếp/bar không mặc định — đọc mọi thành viên, ghi chủ/quản lý.
+    { table: "kitchen_stations", row: { id: id(33), ...t, name: label.slice(0, 30), sort_order: 9 } },
   ];
 }
 
@@ -298,6 +301,7 @@ async function seedTenant(admin: SupabaseClient, key: TenantKey, tenantId: strin
  */
 const TEARDOWN: { table: string; column: string; n: number }[] = [
   // recipe_lines → ingredients là ON DELETE RESTRICT: định lượng chết trước nguyên liệu.
+  { table: "kitchen_stations", column: "id", n: 33 },
   { table: "stock_count_lines", column: "id", n: 32 },
   { table: "stock_counts", column: "id", n: 31 },
   { table: "supplier_debt_adjustments", column: "id", n: 30 },

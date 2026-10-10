@@ -8,6 +8,7 @@
 // Không import electron: test được bằng vitest.
 import fs from "node:fs";
 import path from "node:path";
+import { chuanHoaMayNoi } from "./noi-in.mjs";
 
 /** Tăng khi đổi cấu trúc tệp. Tệp khác phiên bản → coi như chưa kích hoạt (hỏi đăng nhập lại), không đoán. */
 export const PHIEN_BAN_CAU_HINH = 1;
@@ -23,8 +24,11 @@ export const PHIEN_BAN_CAU_HINH = 1;
  *   nhieuChiNhanh: boolean,
  *   coMayIn: boolean,
  *   printer: { email: string, matKhauMaHoa: string, supabaseUrl: string, anonKey: string } | null,
- *   mayIn: { bep: MayIn | null, quay: MayIn | null, kho: "80" | "58" },
+ *   mayIn: { bep: MayIn | null, quay: MayIn | null, kho: "80" | "58", noi?: Record<string, MayIn>, lienHoaDon?: number },
  * }} CauHinh
+ *
+ * `bep` = máy của Bếp chính. `noi` (P37) = máy LAN riêng của từng bếp/bar khác, theo id bếp/bar; nơi không có ở đây ra máy
+ * quầy. `lienHoaDon` (P37) = số liên hóa đơn 1–3. Hai trường mới để tùy chọn — tệp cũ đọc ra `{}` / 1, không đổi phiên bản.
  */
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -78,7 +82,13 @@ export function chuanHoa(j) {
     nhieuChiNhanh: Boolean(j.nhieuChiNhanh),
     coMayIn: Boolean(printer),
     printer,
-    mayIn: { bep: chuanHoaMayIn(mi.bep), quay: chuanHoaMayIn(mi.quay), kho: mi.kho === "58" ? "58" : "80" },
+    mayIn: {
+      bep: chuanHoaMayIn(mi.bep),
+      quay: chuanHoaMayIn(mi.quay),
+      kho: mi.kho === "58" ? "58" : "80",
+      noi: chuanHoaMayNoi(mi.noi, chuanHoaMayIn),
+      lienHoaDon: [2, 3].includes(Number(mi.lienHoaDon)) ? Number(mi.lienHoaDon) : 1,
+    },
   };
 }
 

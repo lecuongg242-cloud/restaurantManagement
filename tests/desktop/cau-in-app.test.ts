@@ -169,3 +169,77 @@ describe("cầu in chạy trong app", () => {
     expect(log()).toMatch(/Chưa khai máy in quầy/);
   }, 30_000);
 });
+
+/**
+ * P37 (PRINT-21/22/23) — cầu in THẬT đưa từng phiếu ra đúng máy của bếp/bar. Ở chung tệp này (chạy lần lượt) vì cầu in
+ * giữ khóa một phiên trên cổng cố định: hai tệp test chạy cầu in song song sẽ giành khóa của nhau.
+ */
+describe("P37 cầu in đưa phiếu ra đúng máy của bếp/bar", () => {
+  const S1 = "aaaaaaaa-0000-4000-8000-000000000001"; // Quầy pha chế — có máy riêng
+  const S2 = "aaaaaaaa-0000-4000-8000-000000000002"; // Bếp nướng — chưa cài máy trên máy này
+  const soTo = (b: Buffer) => b.toString("latin1").split("\x1dVB\x00").length - 1;
+  const chu = (m: { nhan: Buffer[] }) => m.nhan.map((b) => b.toString("latin1")).join("|");
+  const phieu = (id: string, target: string, ten: string, them: Record<string, unknown> = {}) => ({
+    id,
+    type: "kitchen_ticket",
+    target_station: target,
+    payload: { kitchenNo: 9, ticketNo: id, items: [{ qty: 1, name: ten, modifiers: [] }], ...them },
+  });
+
+  it("Bếp chính → máy bếp; bar có máy riêng → máy bar (2 liên); bếp/bar chưa cài → máy quầy; HỦY MÓN → máy bar", async () => {
+    const may = await mayChuGia({
+      phieu: [
+        phieu("j-bep", "kitchen", "Pho bo"),
+        phieu("j-bar", S1, "Tra dao", { stationName: "Quầy pha chế", copies: 2 }),
+        phieu("j-nuong", S2, "Suon nuong", { stationName: "Bếp nướng" }),
+        {
+          id: "j-huy",
+          type: "cancel_ticket",
+          target_station: S1,
+          payload: { kitchenNo: 9, ticketNo: "j-huy", tableName: "B3", reason: "Khach doi y", items: [{ qty: 1, name: "Tra dao" }] },
+        },
+      ],
+    });
+    const bep = await mayInGia();
+    const bar = await mayInGia();
+    const quay = await mayInGia();
+    donDep.push(may.dong, bep.dong, bar.dong, quay.dong);
+    const { log } = chayCauIn(
+      {
+        NEXT_PUBLIC_SUPABASE_URL: may.url,
+        PRINTER_HOST: "127.0.0.1",
+        PRINTER_PORT: String(bep.port),
+        COUNTER_PRINTER: `lan:127.0.0.1:${quay.port}`,
+        KITCHEN_STATIONS: JSON.stringify({ [S1]: `lan:127.0.0.1:${bar.port}` }),
+        BRIDGE_TU_CAP_NHAT: "0",
+      },
+      [],
+      false
+    );
+    await doiDen(() => may.danhDau.length >= 4, 30_000, `đánh dấu 4 phiếu\n${log()}`);
+    expect(may.danhDau.map((d) => `${d.id}:${d.status}`).sort()).toEqual(
+      ["j-bar:printed", "j-bep:printed", "j-huy:printed", "j-nuong:printed"]
+    );
+    expect(chu(bep)).toContain("Pho bo");
+    expect(chu(bep)).not.toMatch(/Tra dao|Suon nuong/);
+    expect(chu(bar)).toContain("QUAY PHA CHE");
+    expect(chu(bar)).toContain("HUY MON");
+    expect(chu(quay)).toContain("Suon nuong");
+    expect(chu(quay)).toContain("BEP NUONG");
+    const toBar = bar.nhan.find((b) => b.toString("latin1").includes("PHIEU BEP"))!;
+    expect(soTo(toBar)).toBe(2);
+  }, 60_000);
+
+  it("In thử bếp/bar (TEST_STATION_NAME) → tờ in thử ghi tên nơi đó", async () => {
+    const bar = await mayInGia();
+    donDep.push(bar.dong);
+    const { p } = chayCauIn(
+      { PRINTER_HOST: "127.0.0.1", PRINTER_PORT: String(bar.port), TEST_STATION_NAME: "Quầy pha chế" },
+      ["--test"],
+      false
+    );
+    expect(await thoat(p)).toBe(0);
+    await doiDen(() => bar.nhan.length === 1, 5_000, "máy bar nhận tờ thử");
+    expect(bar.nhan[0].toString("latin1")).toContain("QUAY PHA CHE");
+  }, 30_000);
+});

@@ -47,6 +47,7 @@ import {
 import type { BillView, DiscountType, PaymentMethod } from "@/lib/billing/types";
 import type { SplitPick } from "@/lib/billing/split";
 import type { OrderLineInput, OrderStatus } from "@/lib/orders/types";
+import { queueCancelTickets } from "@/lib/print/cancel-ticket";
 
 export type ActionResult = { ok: true; orderId?: string } | { ok: false; error: string };
 export type BillsActionResult = { ok: true; bills: BillView[] } | { ok: false; error: string };
@@ -1019,6 +1020,16 @@ export async function cancelOrderItem(
   // Món đã ra khỏi hóa đơn thì tiền phải giảm theo (BILL-06).
   await dropCancelledItemsFromOpenBills(tenantId, [input.itemId]);
 
+  // Món đã gửi bếp → phiếu HỦY MÓN ra đúng bếp/bar (P37, PRINT-23).
+  await queueCancelTickets({
+    tenantId,
+    orderIds: [item.order_id as string],
+    itemIds: [input.itemId],
+    reason: reason.slice(0, 300),
+    cancelledByMembershipId: cancelledBy,
+    cancelledAt: now,
+  });
+
   await broadcastOrderStatus(item.order_id);
   revalidatePath(`/r/${slug}/pos`);
   return { ok: true, orderId: item.order_id };
@@ -1140,6 +1151,15 @@ export async function cancelOrder(
     tenantId,
     (cancelledItems ?? []).map((r) => r.id as string)
   );
+
+  await queueCancelTickets({
+    tenantId,
+    orderIds: targetIds,
+    itemIds: (cancelledItems ?? []).map((r) => r.id as string),
+    reason: reasonSlice,
+    cancelledByMembershipId: cancelledBy,
+    cancelledAt: now,
+  });
 
   await broadcastOrderStatuses(targetIds);
   revalidatePath(`/r/${slug}/pos`);
