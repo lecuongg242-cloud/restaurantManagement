@@ -3,7 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canAccess } from "@/lib/auth/rbac";
-import { buildKitchenTicket } from "@/lib/print/kitchen-ticket";
+import { buildKitchenTicket, buildKitchenTickets } from "@/lib/print/kitchen-ticket";
+import { DEFAULT_TARGET } from "@/lib/print/stations";
 import { buildCustomerTicket } from "@/lib/print/customer-ticket";
 import type { OrderPrintState } from "@/lib/print/adapter";
 import { daInGanDay } from "@/lib/print/dedupe";
@@ -29,11 +30,14 @@ async function insertPrintJob(
   if (!session) return { ok: false };
   if (!canAccess(session.role, "pos") && !canAccess(session.role, "kds")) return { ok: false };
 
-  const ticket =
+  // Phiếu bếp gửi cầu in: tách theo bếp/bar (P37). In trình duyệt (`printed`) vẫn một tờ gộp trên máy in của thiết bị.
+  const rows: { target_station: string | null; payload: unknown }[] | null =
     type === "kitchen_ticket"
-      ? await buildKitchenTicket(orderId, session.tenant.id)
-      : await buildCustomerTicket(orderId, session.tenant.id);
-  if (!ticket) return { ok: false };
+      ? status === "pending"
+        ? (await buildKitchenTickets(orderId, session.tenant.id))?.map((t) => ({ target_station: t.target, payload: t.view })) ?? null
+        : await one(buildKitchenTicket(orderId, session.tenant.id), DEFAULT_TARGET)
+      : await one(buildCustomerTicket(orderId, session.tenant.id), null);
+  if (!rows) return { ok: false };
 
   const supabase = await createClient();
 
@@ -61,16 +65,25 @@ async function insertPrintJob(
     await thayTheLuotDangCho(supabase, session.tenant.id, orderId);
   }
 
-  const { error } = await supabase.from("print_jobs").insert({
-    tenant_id: session.tenant.id,
-    type,
-    // Chỉ phiếu bếp mới đi ra máy in bếp; phiếu khách in ở quầy nên không gắn trạm.
-    target_station: type === "kitchen_ticket" ? "kitchen" : null,
-    payload: ticket,
-    status,
-    printed_at: status === "printed" ? new Date().toISOString() : null,
-  });
+  // Một lệnh insert ⇒ các phiếu của cùng lượt in có cùng created_at (toState gộp chúng thành một lượt).
+  const printedAt = status === "printed" ? new Date().toISOString() : null;
+  const { error } = await supabase.from("print_jobs").insert(
+    rows.map((r) => ({
+      tenant_id: session.tenant.id,
+      type,
+      // Phiếu bếp đi ra máy in của bếp/bar; phiếu khách in ở quầy nên không gắn trạm.
+      target_station: r.target_station,
+      payload: r.payload,
+      status,
+      printed_at: printedAt,
+    }))
+  );
   return error ? { ok: false } : { ok: true, cho };
+}
+
+async function one<T>(p: Promise<T | null>, target: string | null) {
+  const v = await p;
+  return v ? [{ target_station: target, payload: v as unknown }] : null;
 }
 
 /**

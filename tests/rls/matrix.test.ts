@@ -22,8 +22,8 @@ afterAll(async () => {
 }, 120_000);
 
 describe("RLS đọc: tenant A ⊥ tenant B", () => {
-  it("ma trận phủ đủ 32 bảng có tenant_id", () => {
-    expect(CASES).toHaveLength(32);
+  it("ma trận phủ đủ 33 bảng có tenant_id", () => {
+    expect(CASES).toHaveLength(33);
   });
 
   it.each(CASES)("$table — đối chứng dương: A đọc dữ liệu của chính A", async (c) => {

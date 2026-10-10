@@ -25,6 +25,26 @@ export type KitchenTicketView = {
   ticketNo: string;
   isReprint: boolean;
   items: { name: string; qty: number; modifiers: string[]; note: string | null }[];
+  /** Tên bếp/bar nhận phiếu — chỉ có khi quán có > 1 nơi (P37); cầu in in đậm đầu phiếu. */
+  stationName?: string | null;
+  /** Số liên (1–3) — cầu in in N tờ giống nhau (P37). Thiếu = 1. */
+  copies?: number;
+  /** Mỗi món một tờ (P37). */
+  perItem?: boolean;
+};
+
+/** Phiếu HỦY MÓN ra bếp/bar (P37, PRINT-23) — cầu in dựng chữ ESC/POS từ đây như phiếu bếp. */
+export type CancelTicketView = {
+  orderId: string;
+  kitchenNo: number | null;
+  tableName: string;
+  ticketNo: string;
+  cancelledAt: string;
+  reason: string;
+  cancelledBy: string | null;
+  stationName: string | null;
+  copies: number;
+  items: { name: string; qty: number; modifiers: string[]; note: string | null }[];
 };
 
 /**

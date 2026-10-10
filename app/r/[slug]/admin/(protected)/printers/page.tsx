@@ -1,4 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { loadStations } from "@/lib/print/stations";
+import { StationManager } from "./StationManager";
 import { getSessionMembership } from "@/lib/auth/session";
 import { canManage, defaultRouteForRole } from "@/lib/auth/rbac";
 import { createClient } from "@/lib/supabase/server";
@@ -61,8 +65,39 @@ function So({ nhan, so, xau = false }: { nhan: string; so: number; xau?: boolean
   );
 }
 
-export default async function PrintersPage({ params }: { params: Promise<{ slug: string }> }) {
+const PILL =
+  "inline-flex min-h-10 shrink-0 items-center rounded-full border px-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1";
+
+/** Hàng tab viên thuốc (như Kho hàng): Tình trạng · Bếp / Bar (P37). */
+function PrinterTabs({ slug, active }: { slug: string; active: "tinh-trang" | "bep-bar" }) {
+  const base = `/r/${slug}/admin/printers`;
+  const tab = (href: string, label: string, on: boolean) => (
+    <Link
+      href={href}
+      scroll={false}
+      aria-current={on ? "page" : undefined}
+      className={cn(PILL, on ? "border-primary bg-primary text-primary-fg" : "border-hairline-strong bg-canvas text-slate hover:bg-surface")}
+    >
+      {label}
+    </Link>
+  );
+  return (
+    <nav aria-label="Máy in" className="-mx-xs mt-md flex gap-sm overflow-x-auto px-xs py-xxs">
+      {tab(base, "Tình trạng", active === "tinh-trang")}
+      {tab(`${base}?tab=bep-bar`, "Bếp / Bar", active === "bep-bar")}
+    </nav>
+  );
+}
+
+export default async function PrintersPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { slug } = await params;
+  const { tab } = await searchParams;
 
   const session = await getSessionMembership(slug);
   if (!session) redirect(`/r/${slug}/admin/login`);
@@ -72,6 +107,29 @@ export default async function PrintersPage({ params }: { params: Promise<{ slug:
 
   const supabase = await createClient();
   const tenantId = session.tenant.id;
+
+  if (tab === "bep-bar") {
+    const [stations, { data: cats }] = await Promise.all([
+      loadStations(supabase, tenantId),
+      supabase
+        .from("menu_categories")
+        .select("id, name, station_id")
+        .eq("tenant_id", tenantId)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+    ]);
+    return (
+      <div className="w-full">
+        <h1 className="font-semibold text-2xl text-ink">Máy in</h1>
+        <PrinterTabs slug={slug} active="bep-bar" />
+        <StationManager
+          slug={slug}
+          stations={stations}
+          categories={(cats ?? []).map((c) => ({ id: c.id as string, name: c.name as string, stationId: (c.station_id as string | null) ?? null }))}
+        />
+      </div>
+    );
+  }
   const [{ data: nhipRow }, dem, nguon] = await Promise.all([
     supabase
       .from("printer_heartbeats")
@@ -112,7 +170,8 @@ export default async function PrintersPage({ params }: { params: Promise<{ slug:
     <div className="w-full">
       <TuLamMoi />
       <h1 className="font-semibold text-2xl text-ink">Máy in</h1>
-      <p className="mt-xxs text-sm text-steel">
+      <PrinterTabs slug={slug} active="tinh-trang" />
+      <p className="mt-md text-sm text-steel">
         Cầu in bếp và máy in bếp có đang hoạt động không. Tự làm mới mỗi 30 giây.
       </p>
 

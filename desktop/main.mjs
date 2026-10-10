@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import electronUpdater from "electron-updater";
 import { docCauHinh, ghiCauHinh, xoaCauHinh, tuPhanHoiKichHoat, duongDanManHinh, chuanHoaMayIn } from "./lib/cau-hinh.mjs";
 import { moiTruongCauIn } from "./lib/moi-truong.mjs";
+import { taiDanhSachNoi, chuanHoaMayNoi } from "./lib/noi-in.mjs";
 import { QuanLyCauIn, inThu } from "./lib/cau-in.mjs";
 import { phatHienCauInCu, goCauInCu, mayInTuEnvCu } from "./lib/cau-in-cu.mjs";
 import { duocCaiBanMoi, KIEM_MOI_MS } from "./lib/cap-nhat.mjs";
@@ -714,11 +715,23 @@ async function dsMayInUsb() {
   return giuMayDaLuu(ds, daLuu?.kieu === "usb" ? daLuu.ten : null);
 }
 
+/** Bếp/bar của quán từ web (P37). Mất mạng / lỗi → null: màn chỉ hiện Bếp chính, cấu hình máy riêng đã lưu giữ nguyên. */
+async function danhSachNoi() {
+  try {
+    const p = cauHinh.printer;
+    return await taiDanhSachNoi({ supabaseUrl: p.supabaseUrl, anonKey: p.anonKey, email: p.email, matKhau: giaiMa(p.matKhauMaHoa) });
+  } catch {
+    return null;
+  }
+}
+
 xuLy("may-in:doc", async () => {
   if (!cauHinh?.coMayIn) return null;
+  const [usb, noi] = await Promise.all([dsMayInUsb(), danhSachNoi()]);
   return {
     mayIn: cauHinh.mayIn,
-    usb: await dsMayInUsb(),
+    usb,
+    noi,
     tenantName: cauHinh.tenantName,
     huongDanCongUsb: `${new URL(cauHinh.apiBase ?? API_BASE).origin}/huong-dan-cai-dat#loi-cong-usb`,
   };
@@ -746,15 +759,33 @@ xuLy("may-in:do-lan", () =>
 function voiMayInNhap(nhap) {
   return {
     ...cauHinh,
-    mayIn: { bep: chuanHoaMayIn(nhap?.bep), quay: chuanHoaMayIn(nhap?.quay), kho: nhap?.kho === "58" ? "58" : "80" },
+    mayIn: {
+      bep: chuanHoaMayIn(nhap?.bep),
+      quay: chuanHoaMayIn(nhap?.quay),
+      kho: nhap?.kho === "58" ? "58" : "80",
+      noi: chuanHoaMayNoi(nhap?.noi, chuanHoaMayIn),
+      lienHoaDon: [2, 3].includes(Number(nhap?.lienHoaDon)) ? Number(nhap.lienHoaDon) : 1,
+    },
   };
 }
 
+/**
+ * `vai`: "quay" | "bep" | { noi: id bếp/bar ("" = Bếp chính), ten } (P37 — tờ in thử ghi tên bếp/bar để biết ra máy nào).
+ */
 xuLy("may-in:in-thu", async (nhap, vai) => {
   if (!cauHinh?.coMayIn) return { ok: false, thongDiep: "Máy này không in." };
   const thu = voiMayInNhap(nhap);
-  if (vai === "quay" ? !thu.mayIn.quay : !thu.mayIn.bep) return { ok: false, thongDiep: "Chưa nhập máy in hợp lệ." };
-  const env = moiTruongCauIn(thu, { matKhau: "in-thu", phienBanApp: app.getVersion(), moiTruongGoc: process.env });
+  let them = {};
+  if (vai && typeof vai === "object") {
+    // Bếp/bar có máy riêng: in thử thẳng tới máy đó như một "máy bếp" (không qua máy quầy).
+    if (vai.noi) thu.mayIn = { ...thu.mayIn, bep: thu.mayIn.noi[vai.noi] ?? null, quay: null };
+    them = { TEST_STATION_NAME: String(vai.ten ?? "").slice(0, 30) };
+    vai = "bep";
+  }
+  if (vai === "quay" ? !thu.mayIn.quay : !thu.mayIn.bep && !thu.mayIn.quay) {
+    return { ok: false, thongDiep: "Chưa nhập máy in hợp lệ." };
+  }
+  const env = { ...moiTruongCauIn(thu, { matKhau: "in-thu", phienBanApp: app.getVersion(), moiTruongGoc: process.env }), ...them };
   return inThu({ node: process.execPath, tepCauIn: TEP_CAU_IN, env, vai: vai === "quay" ? "quay" : "bep" });
 });
 

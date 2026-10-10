@@ -21,6 +21,60 @@ function capNhatHien() {
   $("quay-usb").classList.toggle("an", q !== "usb");
   $("quay-lan").classList.toggle("an", q !== "lan");
   $("quay-thu").classList.toggle("an", q === "khong");
+  $("khoi-lien").classList.toggle("an", q === "khong" || laAndroid);
+  for (const k of khoiNoi) k.lan.classList.toggle("an", k.chon() !== "lan");
+}
+
+// ── Bếp/bar (P37): danh sách từ web; mỗi nơi ngoài Bếp chính một khối chọn máy in ──
+let laAndroid = false;
+/** [{ id, ten, macDinh }] — Bếp chính đầu tiên. null = không tải được; undefined = app chưa hỗ trợ (Android cũ). */
+let dsNoi;
+/** Máy riêng đã lưu theo id — giữ nguyên cho nơi không hiện được (mất mạng) khi lưu lại. */
+let mayNoiDaLuu = {};
+/** Khối giao diện của từng bếp/bar khác. */
+const khoiNoi = [];
+
+function veNoi() {
+  const nhieu = Array.isArray(dsNoi) && dsNoi.length > 1;
+  $("t-bep").textContent = Array.isArray(dsNoi) ? "Máy in bếp / bar" : "Máy in bếp";
+  $("noi-goi-y").classList.toggle("an", !Array.isArray(dsNoi));
+  $("noi-loi").classList.toggle("an", dsNoi !== null);
+  $("ten-bep-chinh").classList.toggle("an", !nhieu);
+  if (nhieu) $("ten-bep-chinh").textContent = dsNoi[0].ten;
+  khoiNoi.length = 0;
+  const vung = $("ds-noi");
+  vung.replaceChildren();
+  if (!nhieu) return;
+  dsNoi.slice(1).forEach((noi, i) => {
+    const el = $("mau-noi").content.firstElementChild.cloneNode(true);
+    el.dataset.id = noi.id;
+    el.querySelector(".ten-noi").textContent = noi.ten;
+    for (const r of el.querySelectorAll('input[type="radio"]')) {
+      r.name = `noi-${i}`;
+      r.addEventListener("change", capNhatHien);
+    }
+    const ip = el.querySelector(".noi-ip");
+    const cong = el.querySelector(".noi-cong");
+    const kq = el.querySelector(".thong-bao");
+    ip.setAttribute("aria-label", `Địa chỉ IP máy in ${noi.ten}`);
+    const may = mayNoiDaLuu[noi.id];
+    if (may) {
+      ip.value = may.host;
+      cong.value = may.port;
+    }
+    el.querySelector(`input[value="${may ? "lan" : "khong"}"]`).checked = true;
+    const k = {
+      id: noi.id,
+      ten: noi.ten,
+      lan: el.querySelector(".noi-lan"),
+      chon: () => el.querySelector(`input[name="noi-${i}"]:checked`)?.value,
+      may: () => ({ kieu: "lan", host: ip.value.trim(), port: Number(cong.value || 9100) }),
+    };
+    khoiNoi.push(k);
+    el.querySelector(".noi-do").addEventListener("click", (e) => doMayIn(e.currentTarget, ip, kq));
+    el.querySelector(".noi-thu").addEventListener("click", (e) => inThuNut(e.currentTarget, { noi: noi.id, ten: noi.ten }, kq));
+    vung.append(el);
+  });
 }
 
 // ── Máy in USB (P33): danh sách từ main.mjs đã ẩn máy in ảo, máy đang kết nối lên đầu ──
@@ -88,7 +142,17 @@ function nhap() {
       : q === "lan"
         ? { kieu: "lan", host: $("quay-ip").value.trim(), port: Number($("quay-cong").value || 9100) }
         : null;
-  return { bep, quay, kho: chon("kho") === "58" ? "58" : "80", giuSang: $("giu-sang").checked };
+  // Bếp/bar không hiện được (mất mạng) giữ máy đã lưu; nơi đang hiện lấy theo màn.
+  const noi = Array.isArray(dsNoi) ? {} : { ...mayNoiDaLuu };
+  for (const k of khoiNoi) if (k.chon() === "lan") noi[k.id] = k.may();
+  return {
+    bep,
+    quay,
+    kho: chon("kho") === "58" ? "58" : "80",
+    giuSang: $("giu-sang").checked,
+    noi,
+    lienHoaDon: Number($("lien-hoa-don").value) || 1,
+  };
 }
 
 async function napLai() {
@@ -104,6 +168,11 @@ async function napLai() {
   veDsUsb(dsUsb, quay?.kieu === "usb" ? quay.ten : motMayKetNoi());
   // App Android (P24): không có máy in USB của Windows; có ô "Giữ màn hình sáng". App Windows không gửi `nenTang`.
   const android = d.nenTang === "android";
+  laAndroid = android;
+  dsNoi = d.noi;
+  mayNoiDaLuu = d.mayIn.noi ?? {};
+  $("lien-hoa-don").value = String(d.mayIn.lienHoaDon ?? 1);
+  veNoi();
   $("chon-usb").classList.toggle("an", android);
   $("khoi-giu-sang").classList.toggle("an", !android);
   $("giu-sang").checked = Boolean(d.mayIn.giuSang);
@@ -123,40 +192,49 @@ async function napLai() {
 
 for (const o of document.querySelectorAll('input[type="radio"]')) o.addEventListener("change", capNhatHien);
 
+/** "Dò máy in": quét LAN, gợi ý IP vào mọi ô IP; tìm thấy đúng một máy thì điền luôn vào ô của nút vừa bấm. */
+async function doMayIn(b, oIp, vung) {
+  const chu = b.textContent;
+  b.disabled = true;
+  b.textContent = "Đang dò… (tới 1 phút)";
+  try {
+    const ds = await window.techmenu.doMayInLan();
+    $("ds-ip").replaceChildren(...ds.map((ip) => Object.assign(document.createElement("option"), { value: ip })));
+    if (ds.length === 1) oIp.value = ds[0];
+    hien(
+      vung,
+      ds.length ? `Tìm thấy: ${ds.join(", ")}` : "Không tìm thấy máy in mạng nào. Kiểm tra máy in đã cắm dây vào cùng router và bật nguồn.",
+      ds.length > 0
+    );
+  } finally {
+    b.disabled = false;
+    b.textContent = chu;
+  }
+}
+
+async function inThuNut(b, vai, vung) {
+  b.disabled = true;
+  hien(vung, "Đang gửi tờ in thử…", true);
+  try {
+    const kq = await window.techmenu.inThu(nhap(), vai);
+    hien(vung, kq.ok ? "Đã gửi — kiểm tra giấy ra ở máy in." : `In thử không được: ${kq.thongDiep || "lỗi không rõ"}`, kq.ok);
+  } finally {
+    b.disabled = false;
+  }
+}
+
 for (const b of document.querySelectorAll("[data-do]")) {
-  b.addEventListener("click", async () => {
-    const chu = b.textContent;
-    b.disabled = true;
-    b.textContent = "Đang dò… (tới 1 phút)";
-    const vung = b.dataset.do.startsWith("bep") ? $("kq-bep") : $("kq-quay");
-    try {
-      const ds = await window.techmenu.doMayInLan();
-      $("ds-ip").replaceChildren(...ds.map((ip) => Object.assign(document.createElement("option"), { value: ip })));
-      if (ds.length === 1) $(b.dataset.do).value = ds[0];
-      hien(
-        vung,
-        ds.length ? `Tìm thấy: ${ds.join(", ")}` : "Không tìm thấy máy in mạng nào. Kiểm tra máy in đã cắm dây vào cùng router và bật nguồn.",
-        ds.length > 0
-      );
-    } finally {
-      b.disabled = false;
-      b.textContent = chu;
-    }
-  });
+  b.addEventListener("click", () =>
+    doMayIn(b, $(b.dataset.do), b.dataset.do.startsWith("bep") ? $("kq-bep") : $("kq-quay"))
+  );
 }
 
 for (const b of document.querySelectorAll("[data-in-thu]")) {
-  b.addEventListener("click", async () => {
+  b.addEventListener("click", () => {
     const vai = b.dataset.inThu;
-    const vung = vai === "bep" ? $("kq-bep") : $("kq-quay");
-    b.disabled = true;
-    hien(vung, "Đang gửi tờ in thử…", true);
-    try {
-      const kq = await window.techmenu.inThu(nhap(), vai);
-      hien(vung, kq.ok ? "Đã gửi — kiểm tra giấy ra ở máy in." : `In thử không được: ${kq.thongDiep || "lỗi không rõ"}`, kq.ok);
-    } finally {
-      b.disabled = false;
-    }
+    // Quán nhiều bếp/bar: tờ in thử của Bếp chính ghi tên để phân biệt với máy các nơi khác.
+    const v = vai === "bep" && Array.isArray(dsNoi) && dsNoi.length > 1 ? { noi: "", ten: dsNoi[0].ten } : vai;
+    return inThuNut(b, v, vai === "bep" ? $("kq-bep") : $("kq-quay"));
   });
 }
 
@@ -165,6 +243,8 @@ $("luu").addEventListener("click", async () => {
   if (chon("bep") === "lan" && !n.bep?.host) return hien($("kq-luu"), "Nhập địa chỉ IP máy in bếp (hoặc chọn Không có).", false);
   if (chon("quay") === "lan" && !n.quay?.host) return hien($("kq-luu"), "Nhập địa chỉ IP máy in quầy.", false);
   if (chon("quay") === "usb" && !n.quay) return hien($("kq-luu"), "Chọn máy in quầy trong danh sách.", false);
+  const thieu = khoiNoi.find((k) => k.chon() === "lan" && !k.may().host);
+  if (thieu) return hien($("kq-luu"), `Nhập địa chỉ IP máy in ${thieu.ten} (hoặc chọn Không có).`, false);
   $("luu").disabled = true;
   try {
     const kq = await window.techmenu.luuMayIn(n);

@@ -16,7 +16,8 @@ export function chuoiMayQuay(may) {
  */
 export function moiTruongCauIn(cauHinh, { matKhau, phienBanApp, moiTruongGoc = {} }) {
   if (!cauHinh.coMayIn || !cauHinh.printer || !matKhau) return null;
-  const { bep, quay, kho } = cauHinh.mayIn;
+  const { bep, quay, kho, noi = {}, lienHoaDon = 1 } = cauHinh.mayIn;
+  const mayNoi = Object.fromEntries(Object.entries(noi).map(([id, m]) => [id, chuoiMayQuay(m)]));
   // Chỉ giữ vài biến hệ thống cầu in cần (PowerShell cho máy in USB cần SystemRoot/PATH). KHÔNG chuyển nguyên
   // môi trường của app: máy dev có thể mang NEXT_PUBLIC_* / khóa khác vào cầu in.
   const goc = {};
@@ -39,6 +40,9 @@ export function moiTruongCauIn(cauHinh, { matKhau, phienBanApp, moiTruongGoc = {
     COUNTER_WIDTH: kho,
     // Không có máy in bếp riêng mà có máy quầy → phiếu bếp in ra máy quầy (PRINT-18, quán một máy in).
     ...(!bep && quay ? { KITCHEN_PRINTER: "counter" } : {}),
+    // P37: máy in riêng của từng bếp/bar + số liên hóa đơn.
+    ...(Object.keys(mayNoi).length ? { KITCHEN_STATIONS: JSON.stringify(mayNoi) } : {}),
+    ...(lienHoaDon > 1 ? { COUNTER_COPIES: String(lienHoaDon) } : {}),
     POS_URL: `${cauHinh.apiBase}/r/${cauHinh.slug}/pos`,
     BRIDGE_AGENT: `app/${phienBanApp}`,
     BRIDGE_TU_CAP_NHAT: "0",
