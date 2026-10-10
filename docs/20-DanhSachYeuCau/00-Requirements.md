@@ -244,6 +244,7 @@
 | BRANCH-07 | Không rò chéo chi nhánh | Ma trận RLS thêm thương hiệu 2 chi nhánh: cashier B1 đọc B2 = **0 dòng** và ghi bị chặn ở **mọi** bảng mang `tenant_id`; owner thương hiệu đọc cả hai. E2E: order ở B2 không hiện ở POS/KDS B1 | P15 | ☑ ma trận 23 bảng × 2 chi nhánh (53/53, không còn tự bỏ qua) + E2E `chuoi.spec` POS/KDS B1 không thấy đơn B2, kể cả qua realtime (15-SUMMARY, 28/09/2026) |
 
 | BRANCH-08 | Thuê bao theo thương hiệu | Một lần ghi nhận gia hạn → mọi chi nhánh đang hoạt động cùng một `paid_until` (= max(hôm nay VN, hạn muộn nhất) + số tháng), trong một giao dịch, một dòng nhật ký. Số tiền = đơn giá × số chi nhánh đang hoạt động, chi nhánh thứ 2 trở đi có giảm (QD-023 D9). Chi nhánh mới giữa kỳ nhận hạn chung, không thu bù; chi nhánh tắt không bị tính | P15 | ☑ 0065; giá gói × số chi nhánh, một ngày chung, bỏ chi nhánh tạm ngưng; E2E khóa → trang Gia hạn chuỗi → /super ghi nhận → mở lại (15-SUMMARY, 28/09/2026) |
+| BRANCH-09 | Chi nhánh chỉ khi super-admin đăng ký chuỗi (QD-023 D2'') | Quán lẻ (`brand_id` rỗng): không có mục "Chi nhánh" ở menu admin và tab Thêm của app Quản lý; mở `/admin/chi-nhanh` → về Tổng quan; chủ quán gọi `create_my_branch` → 42501 "quan chua dang ky chuoi", không tạo thương hiệu / quán. Super-admin tạo thương hiệu + gắn quán → mục hiện, chủ chuỗi tự thêm chi nhánh được | P38 | ☑ E2E `p38-chi-nhanh` 2/2 (bun-bo lẻ / pho-viet chuỗi); RLS `owner-branch` 4/4; 0088 đã áp DB dùng chung 11/10 |
 
 ## REPORT (mở rộng) + CUST — Báo cáo sâu & khách hàng (P16)
 | Mã | Yêu cầu | Tiêu chí chấp nhận | GĐ | TT |

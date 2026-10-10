@@ -6,9 +6,9 @@ import { adminClient } from "./fixtures";
 import { homNayHanDung } from "@/lib/tenant/subscription";
 
 /**
- * P15 (sửa 27/09/2026) — chủ quán TỰ tạo chi nhánh trong admin quán (`create_my_branch`, 0067), như KiotViet /
- * CUKCUK / POS365. Lần đầu tự lập chuỗi, quán hiện tại là chi nhánh gốc. Chỉ đụng quán demo bun-bo; afterAll gỡ
- * sạch (xóa thương hiệu bằng delete_brand — quyền vốn có của chủ bun-bo giữ nguyên, 0066).
+ * P15 — chủ chuỗi tự thêm chi nhánh trong admin quán (`create_my_branch`). Từ 0088 (chủ dự án 10/10/2026) quán lẻ KHÔNG
+ * tự lập chuỗi được: super-admin tạo thương hiệu và gắn quán trước (`create_brand` + `attach_tenant_to_brand`). Chỉ đụng
+ * quán demo bun-bo; afterAll gỡ sạch (xóa thương hiệu bằng delete_brand — quyền vốn có của chủ bun-bo giữ nguyên, 0066).
  */
 const TAG = crypto.randomUUID().slice(0, 6);
 let tenantB = "";
@@ -58,14 +58,26 @@ describe("create_my_branch", () => {
     expect((await adminClient().from("tenants").select("brand_id").eq("id", tenantB).single()).data?.brand_id).toBeNull();
   }, 60_000);
 
-  it("chủ quán lẻ tạo chi nhánh đầu tiên → tự lập chuỗi, quán hiện tại là gốc, chủ quán là chủ chuỗi", async () => {
+  it("chủ quán LẺ gọi → bị từ chối (chưa đăng ký chuỗi), không lập chuỗi, không tạo quán", async () => {
+    const { error } = await ownerB.rpc("create_my_branch", { p_from_tenant: tenantB, p_name: "X", p_slug: `p15-own-le-${TAG}` });
+    expect(error?.code).toBe("42501");
+    expect(error?.message).toMatch(/chua dang ky chuoi/);
+    const a = adminClient();
+    expect((await a.from("tenants").select("brand_id").eq("id", tenantB).single()).data?.brand_id).toBeNull();
+    expect((await a.from("tenants").select("id").eq("slug", `p15-own-le-${TAG}`)).data ?? []).toHaveLength(0);
+  }, 60_000);
+
+  it("super-admin đăng ký chuỗi cho quán → chủ chuỗi tự thêm chi nhánh, quán là gốc", async () => {
+    const { data: brandId, error: e1 } = await superAdmin.rpc("create_brand", { p_name: `P15 ${TAG}`, p_slug: `p15-own-${TAG}` });
+    expect(e1).toBeNull();
+    expect((await superAdmin.rpc("attach_tenant_to_brand", { p_tenant: tenantB, p_brand: brandId })).error).toBeNull();
     const { data: id, error } = await ownerB.rpc("create_my_branch", { p_from_tenant: tenantB, p_name: "Chi nhánh 2", p_slug: `p15-own-cn2-${TAG}` });
     expect(error).toBeNull();
     const a = adminClient();
     const { data: goc } = await a.from("tenants").select("brand_id, name").eq("id", tenantB).single();
-    expect(goc?.brand_id).toBeTruthy();
-    const { data: brand } = await a.from("brands").select("name, root_tenant_id").eq("id", goc!.brand_id).single();
-    expect(brand).toMatchObject({ name: goc!.name, root_tenant_id: tenantB });
+    expect(goc?.brand_id).toBe(brandId);
+    const { data: brand } = await a.from("brands").select("root_tenant_id").eq("id", goc!.brand_id).single();
+    expect(brand).toMatchObject({ root_tenant_id: tenantB });
     const { data: moi } = await a.from("tenants").select("brand_id, paid_until").eq("id", id).single();
     expect(moi?.brand_id).toBe(goc!.brand_id);
     // bun-bo không giới hạn → chi nhánh mới có hạn từ hôm nay (tính vào lần gia hạn), không mở miễn phí.
@@ -74,7 +86,7 @@ describe("create_my_branch", () => {
     expect(((await b.from("tenants").select("id").eq("brand_id", goc!.brand_id)).data ?? []).length).toBe(2);
   }, 60_000);
 
-  it("tạo tiếp → cùng chuỗi, không lập chuỗi mới; mã trùng → lỗi", async () => {
+  it("tạo tiếp → cùng chuỗi; mã trùng → lỗi", async () => {
     const a = adminClient();
     const brand = (await a.from("tenants").select("brand_id").eq("id", tenantB).single()).data!.brand_id;
     expect((await ownerB.rpc("create_my_branch", { p_from_tenant: tenantB, p_name: "Chi nhánh 3", p_slug: `p15-own-cn3-${TAG}` })).error).toBeNull();

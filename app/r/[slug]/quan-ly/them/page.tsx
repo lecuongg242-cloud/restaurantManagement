@@ -50,7 +50,7 @@ export default async function ThemPage({ params }: { params: Promise<{ slug: str
       <section>
         <h2 className="mb-xs px-xxs text-xs font-medium uppercase tracking-wide text-steel">Quản trị đầy đủ</h2>
         <ul className="divide-y divide-hairline-soft overflow-hidden rounded-lg border border-hairline-soft bg-canvas shadow-card">
-          {QUAN_TRI.filter((m) => canManage(session.role, m.quyen)).map(({ chu, duong, Icon }) => (
+          {QUAN_TRI.filter((m) => canManage(session.role, m.quyen) && (m.quyen !== "branches" || !!session.tenant.brand_id)).map(({ chu, duong, Icon }) => (
             <li key={duong}>
               <Link href={`/r/${slug}/admin/${duong}`} className="flex min-h-12 items-center gap-sm px-md active:bg-cream-soft">
                 <Icon className="size-5 text-steel" aria-hidden />

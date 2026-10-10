@@ -75,3 +75,10 @@ Quán lẻ (không thương hiệu) gia hạn như QD-021 D8. Plan: `30-KeHoach/
 | D2' | Super-admin tạo thương hiệu / chi nhánh | **Chủ quán tự tạo chi nhánh** trong admin quán (mục **Chi nhánh** → + Tạo chi nhánh). Lần đầu tự lập chuỗi, quán đang mở là chi nhánh gốc. Không giới hạn số lượng; chi nhánh mới dùng ngay tới hạn chung, **tính vào lần gia hạn sau**; chuỗi đang không giới hạn → chi nhánh mới có hạn từ hôm nay (RPC `create_my_branch`, 0067). `/super` → Thương hiệu giữ để hỗ trợ / sửa | KiotViet ("Tạo chi nhánh"), CUKCUK ("Thêm nhà hàng"), POS365 ("Thêm mới chi nhánh") đều để chủ quán tự làm |
 | D3' | Khu quản trị chuỗi riêng `/b/{brand}/admin` | **Bỏ.** Mọi thứ trong admin quán: mục **Chi nhánh** (tổng quan hôm nay cả chuỗi, tạo chi nhánh, đồng bộ thực đơn), **Báo cáo** có phạm vi "Chi nhánh này / Tất cả chi nhánh", **Gia hạn** tính cả chuỗi. Ô chọn chi nhánh ở góc trên giữ nguyên. Trang khách `/b/{brand}` giữ | Không đối thủ nào có trang quản trị chuỗi riêng; thêm một địa chỉ phải nhớ gây khó cho chủ quán |
 | — | Gỡ nhầm phải sửa tay trong DB | `/super` → Thương hiệu: **Gỡ khỏi thương hiệu**, **Xóa thương hiệu…**; `memberships.brand_id` tách quyền do chuỗi cấp khỏi quyền vốn có (0066) | Gắn nhầm qt-food 27/09/2026 |
+
+## Sửa 11/10/2026 (chủ dự án: "mục chi nhánh chỉ bật khi super admin đăng kí chuỗi nhà hàng cho bên đó")
+
+| # | Trước (D2', 27/09) | Nay | Vì sao |
+|---|---|---|---|
+| D2'' | Chủ quán lẻ tự tạo chi nhánh, lần đầu tự lập chuỗi | **Chỉ super-admin đăng ký chuỗi** (`/super` → Thương hiệu → Tạo thương hiệu / gắn quán). Quán lẻ **không thấy** mục **Chi nhánh** (admin web + app Quản lý), gõ URL thì về Tổng quan; RPC `create_my_branch` từ chối quán chưa có thương hiệu (0088). Quán **đã là chuỗi**: chủ chuỗi vẫn tự **+ Tạo chi nhánh** như D2' | Chuỗi trả giá gói × số chi nhánh (D9) — để chủ quán lẻ tự bấm là phát sinh phí không ai duyệt; quán lẻ (Phòng Lim Quán) thấy mục Chi nhánh là thừa. Khác KiotViet / CUKCUK / POS365 (cho tự tạo) — chủ dự án chốt |
+

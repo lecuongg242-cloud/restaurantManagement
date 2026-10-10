@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 /** "+ Tạo chi nhánh": tên + mã; chép cài đặt từ quán đang mở. */
-export function CreateBranchForm({ slug, laChuoi }: { slug: string; laChuoi: boolean }) {
+export function CreateBranchForm({ slug }: { slug: string }) {
   const [s, action] = useActionState(createBranchAction, {} as KetQuaChiNhanh);
   return (
     <form action={action} className="flex flex-wrap items-end gap-sm">
@@ -23,7 +23,7 @@ export function CreateBranchForm({ slug, laChuoi }: { slug: string; laChuoi: boo
       <SubmitButton pendingLabel="Đang tạo…">+ Tạo chi nhánh</SubmitButton>
       <p className="w-full text-xs text-steel">
         Chép phí phục vụ, VAT, tài khoản nhận chuyển khoản, logo của quán này. Không chép bàn, nhân viên, thực đơn, dữ liệu
-        bán (thực đơn: dùng “Đồng bộ thực đơn”). {laChuoi ? "" : "Quán này sẽ thành chi nhánh gốc của chuỗi. "}Chi nhánh mới dùng
+        bán (thực đơn: dùng “Đồng bộ thực đơn”). Chi nhánh mới dùng
         ngay tới hạn chung của chuỗi; lần gia hạn sau tính thêm chi nhánh này.
       </p>
       {s.error && <p className="w-full text-sm text-status-late">{s.error}</p>}
