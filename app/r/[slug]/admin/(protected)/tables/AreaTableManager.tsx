@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Search } from "lucide-react";
+import { MoreHorizontal, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { ScrollRow } from "@/components/ui/scroll-row";
+import { DragHandle, SortableList } from "@/components/ui/sortable";
 import { cn } from "@/lib/utils";
 import type { Area, Table } from "@/lib/tables/types";
 import { DEFAULT_SEATS, nameKey } from "@/lib/tables/bulk";
@@ -14,9 +15,9 @@ import {
   createArea,
   renameArea,
   deleteArea,
-  reorderArea,
+  reorderAreas,
   deleteTable,
-  reorderTable,
+  reorderTables,
   moveTables,
   setTablesSeats,
   deleteTables,
@@ -29,7 +30,8 @@ type AreaKey = string;
 /**
  * Bàn & QR (P36, TABLE-07…10) — theo KiotViet "Phòng/bàn": khu vực cột trái, bảng bàn bên phải; Thêm bàn / Thêm hàng
  * loạt / Nhập Excel; tích nhiều bàn → Chuyển khu / Đổi số ghế / In QR / Xóa. Điện thoại: khu thành chip cuộn ngang,
- * bảng thành danh sách.
+ * bảng thành danh sách. P38 (chốt 10/10/2026): đổi thứ tự bằng kéo thả — tay nắm ⠿ trên dòng khu và đầu dòng bàn (chỉ khi
+ * xem một khu, không tìm); chip khu trên điện thoại chạm giữ rồi kéo. "Tất cả" và "Chưa xếp khu" đứng yên.
  */
 export function AreaTableManager({
   slug,
@@ -78,6 +80,8 @@ export function AreaTableManager({
   }, [tables, areaKey, query, areaIndex]);
 
   const canReorder = areaKey !== "all" && !query;
+  const tableById = useMemo(() => new Map(tables.map((t) => [t.id, t])), [tables]);
+  const saveTables = (ids: string[]) => reorderTables(slug, areaKey === "none" ? null : areaKey, ids);
   const currentArea = areas.find((a) => a.id === areaKey) ?? null;
   const defaultAreaId = currentArea?.id ?? (areaKey === "none" ? "" : (areas[0]?.id ?? ""));
   const title = areaKey === "all" ? "Tất cả bàn" : areaKey === "none" ? "Chưa xếp khu" : (currentArea?.name ?? "");
@@ -149,15 +153,9 @@ export function AreaTableManager({
     </form>
   );
 
-  const areaMenu = (a: Area, i: number) => (
+  const areaMenu = (a: Area) => (
     <Menu label={`Thao tác khu ${a.name}`}>
       <MenuButton onClick={() => setRenaming(a.id)}>Sửa tên</MenuButton>
-      <MenuForm action={reorderArea} fields={{ slug, id: a.id, dir: "up" }} disabled={i === 0}>
-        Chuyển lên
-      </MenuForm>
-      <MenuForm action={reorderArea} fields={{ slug, id: a.id, dir: "down" }} disabled={i === areas.length - 1}>
-        Chuyển xuống
-      </MenuForm>
       <MenuForm
         action={deleteArea}
         fields={{ slug, id: a.id }}
@@ -169,28 +167,52 @@ export function AreaTableManager({
     </Menu>
   );
 
-  const rowMenuItems = (t: Table, i: number) => (
+  const rowMenuItems = (t: Table) => (
     <>
       <MenuLink href={qrHref([t.id])}>Xem / In QR</MenuLink>
       <MenuButton onClick={() => setEditing(t)}>Sửa</MenuButton>
-      {canReorder && (
-        <>
-          <MenuForm action={reorderTable} fields={{ slug, id: t.id, area_id: t.area_id ?? "", dir: "up" }} disabled={i === 0}>
-            Chuyển lên
-          </MenuForm>
-          <MenuForm
-            action={reorderTable}
-            fields={{ slug, id: t.id, area_id: t.area_id ?? "", dir: "down" }}
-            disabled={i === visible.length - 1}
-          >
-            Chuyển xuống
-          </MenuForm>
-        </>
-      )}
       <MenuForm action={deleteTable} fields={{ slug, id: t.id }} danger confirm={`Xóa bàn "${t.name}"? Mã QR của bàn sẽ mất hiệu lực.`}>
         Xóa
       </MenuForm>
     </>
+  );
+
+  const noneItem = areaItems.find((it) => it.key === "none");
+
+  const areaRow = (it: (typeof areaItems)[number]) => {
+    const active = areaKey === it.key;
+    return (
+      <div className={cn("group flex items-center rounded-md", active ? "bg-cream" : "hover:bg-surface")}>
+        {it.area && <DragHandle label={it.label} className="h-9" />}
+        <button
+          type="button"
+          onClick={() => setSel(it.key)}
+          aria-current={active ? "true" : undefined}
+          className={cn(
+            "flex h-9 min-w-0 flex-1 items-center justify-between gap-sm text-left text-sm",
+            it.area ? "pr-sm" : "px-sm",
+            active ? "font-medium text-ink" : "text-slate"
+          )}
+        >
+          <span className="truncate">{it.label}</span>
+          <span className="tabular-nums text-xs text-steel">{it.count}</span>
+        </button>
+        {it.area && <div className="pr-xxs">{areaMenu(it.area)}</div>}
+      </div>
+    );
+  };
+
+  const chip = (it: (typeof areaItems)[number]) => (
+    <button
+      type="button"
+      onClick={() => setSel(it.key)}
+      className={cn(
+        "h-11 shrink-0 whitespace-nowrap rounded-full border px-md text-sm",
+        areaKey === it.key ? "border-primary bg-primary text-primary-fg" : "border-hairline-strong bg-canvas text-slate"
+      )}
+    >
+      {it.label} · {it.count}
+    </button>
   );
 
   return (
@@ -239,60 +261,51 @@ export function AreaTableManager({
             </button>
           </div>
           {addingArea && <div className="px-xs pb-sm">{newAreaForm}</div>}
-          <ul className="flex flex-col gap-xxs" data-khu-vuc>
-            {areaItems.map((it) => {
-              const i = it.area ? areas.indexOf(it.area) : -1;
-              if (it.area && renaming === it.area.id) {
-                return (
-                  <li key={it.key} className="px-xs py-xxs">
-                    {renameForm(it.area)}
-                  </li>
-                );
-              }
-              const active = areaKey === it.key;
-              return (
-                <li
-                  key={it.key}
-                  className={cn("group flex items-center rounded-md", active ? "bg-cream" : "hover:bg-surface")}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSel(it.key)}
-                    aria-current={active ? "true" : undefined}
-                    className={cn(
-                      "flex h-9 min-w-0 flex-1 items-center justify-between gap-sm px-sm text-left text-sm",
-                      active ? "font-medium text-ink" : "text-slate"
-                    )}
-                  >
-                    <span className="truncate">{it.label}</span>
-                    <span className="tabular-nums text-xs text-steel">{it.count}</span>
-                  </button>
-                  {it.area && <div className="pr-xxs">{areaMenu(it.area, i)}</div>}
-                </li>
-              );
-            })}
-          </ul>
+          {/* "Tất cả" đầu, khu kéo thả được ở giữa, "Chưa xếp khu" cuối. */}
+          <div className="flex flex-col gap-xxs" data-khu-vuc>
+            <ul className="flex flex-col gap-xxs">
+              <li>{areaRow(areaItems[0])}</li>
+            </ul>
+            <SortableList
+              ids={areas.map((a) => a.id)}
+              onSave={(ids) => reorderAreas(slug, ids)}
+              layout="vertical"
+              as="ul"
+              cellAs="li"
+              noun="khu vực"
+              className="flex flex-col gap-xxs"
+            >
+              {(id) => {
+                const it = areaItems.find((x) => x.key === id)!;
+                return renaming === id ? <div className="px-xs py-xxs">{renameForm(it.area!)}</div> : areaRow(it);
+              }}
+            </SortableList>
+            {noneItem && (
+              <ul className="flex flex-col gap-xxs">
+                <li>{areaRow(noneItem)}</li>
+              </ul>
+            )}
+          </div>
         </aside>
 
         {/* Khu vực — điện thoại: chip cuộn ngang */}
         <div className="md:hidden">
           <div className="flex items-center gap-xs">
             <ScrollRow className="min-w-0 flex-1 gap-xs">
-              {areaItems.map((it) => (
-                <button
-                  key={it.key}
-                  type="button"
-                  onClick={() => setSel(it.key)}
-                  className={cn(
-                    "h-11 shrink-0 whitespace-nowrap rounded-full border px-md text-sm",
-                    areaKey === it.key
-                      ? "border-primary bg-primary text-primary-fg"
-                      : "border-hairline-strong bg-canvas text-slate"
-                  )}
-                >
-                  {it.label} · {it.count}
-                </button>
-              ))}
+              {chip(areaItems[0])}
+              {/* Chip khu: chạm giữ rồi kéo để đổi thứ tự; bấm vẫn là chọn khu. */}
+              <SortableList
+                ids={areas.map((a) => a.id)}
+                onSave={(ids) => reorderAreas(slug, ids)}
+                layout="horizontal"
+                activation="press"
+                noun="khu vực"
+                className="contents"
+                cellClassName="shrink-0"
+              >
+                {(id) => chip(areaItems.find((x) => x.key === id)!)}
+              </SortableList>
+              {noneItem && chip(noneItem)}
             </ScrollRow>
             <button
               type="button"
@@ -302,7 +315,7 @@ export function AreaTableManager({
             >
               <Plus className="h-4 w-4" />
             </button>
-            {currentArea && areaMenu(currentArea, areas.indexOf(currentArea))}
+            {currentArea && areaMenu(currentArea)}
           </div>
           {addingArea && <div className="mt-sm">{newAreaForm}</div>}
           {currentArea && renaming === currentArea.id && <div className="mt-sm">{renameForm(currentArea)}</div>}
@@ -346,103 +359,112 @@ export function AreaTableManager({
           ) : (
             <>
               {/* Máy tính: bảng */}
-              <table className="hidden w-full text-left text-sm md:table" data-bang-ban>
-                <thead className="border-b border-hairline-soft text-xs uppercase tracking-wide text-muted">
-                  <tr>
-                    <th className="w-10 py-sm pl-md">
-                      <Checkbox checked={allVisibleChecked} onChange={toggleAll} label="Chọn tất cả bàn đang hiện" />
-                    </th>
-                    <th className="px-sm py-sm font-medium">Tên bàn</th>
-                    <th className="px-sm py-sm font-medium">Khu vực</th>
-                    <th className="px-sm py-sm text-right font-medium">Số ghế</th>
-                    <th className="px-sm py-sm font-medium">Mã QR</th>
-                    {canReorder && <th className="px-sm py-sm font-medium">Thứ tự</th>}
-                    <th className="py-sm pr-md text-right font-medium">
-                      <span className="sr-only">Thao tác</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-hairline-soft">
-                  {visible.map((t, i) => (
-                    <tr key={t.id} className={cn("hover:bg-surface/60", checked.has(t.id) && "bg-cream/50")}>
-                      <td className="py-xs pl-md">
-                        <Checkbox checked={checked.has(t.id)} onChange={() => toggle(t.id)} label={`Chọn ${t.name}`} />
-                      </td>
-                      <td className="px-sm py-xs font-medium text-ink">{t.name}</td>
-                      <td className="px-sm py-xs text-slate">{t.area_id ? areaName.get(t.area_id) : "Chưa xếp khu"}</td>
-                      <td className="px-sm py-xs text-right tabular-nums text-slate">{t.seats}</td>
-                      <td className="px-sm py-xs">
-                        <Link href={qrHref([t.id])} target="_blank" rel="noopener" className="text-primary underline-offset-4 hover:underline">
-                          Xem / In
-                        </Link>
-                      </td>
-                      {canReorder && (
-                        <td className="px-sm py-xs">
-                          <div className="flex items-center">
-                            {(["up", "down"] as const).map((dir) => (
-                              <form action={reorderTable} key={dir}>
-                                <input type="hidden" name="slug" value={slug} />
-                                <input type="hidden" name="id" value={t.id} />
-                                <input type="hidden" name="area_id" value={t.area_id ?? ""} />
-                                <input type="hidden" name="dir" value={dir} />
-                                <button
-                                  type="submit"
-                                  disabled={dir === "up" ? i === 0 : i === visible.length - 1}
-                                  aria-label={`${dir === "up" ? "Chuyển lên" : "Chuyển xuống"} ${t.name}`}
-                                  className="grid h-8 w-8 place-items-center rounded-md text-steel hover:bg-surface disabled:opacity-30"
-                                >
-                                  {dir === "up" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                </button>
-                              </form>
-                            ))}
+                {/* Tay nắm ⠿ chỉ hiện khi xem một khu và không tìm — danh sách khi đó là đủ bàn của khu. */}
+                <SortableList
+                  ids={visible.map((t) => t.id)}
+                  onSave={saveTables}
+                  layout="vertical"
+                  as="tbody"
+                  cellAs="tr"
+                  noun="bàn"
+                  className="divide-y divide-hairline-soft"
+                  cellClassName={(id) => cn("bg-canvas hover:bg-surface/60", checked.has(id) && "bg-cream/50")}
+                  wrap={(tbody) => (
+                    <table className="hidden w-full text-left text-sm md:table" data-bang-ban>
+                      <thead className="border-b border-hairline-soft text-xs uppercase tracking-wide text-muted">
+                        <tr>
+                          <th className="w-10 py-sm pl-md">
+                            <Checkbox checked={allVisibleChecked} onChange={toggleAll} label="Chọn tất cả bàn đang hiện" />
+                          </th>
+                          <th className="px-sm py-sm font-medium">Tên bàn</th>
+                          <th className="px-sm py-sm font-medium">Khu vực</th>
+                          <th className="px-sm py-sm text-right font-medium">Số ghế</th>
+                          <th className="px-sm py-sm font-medium">Mã QR</th>
+                          <th className="py-sm pr-md text-right font-medium">
+                            <span className="sr-only">Thao tác</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      {tbody}
+                    </table>
+                  )}
+                >
+                  {(id) => {
+                    const t = tableById.get(id)!;
+                    return (
+                      <>
+                        <td className="py-xs pl-md">
+                          <div className="flex items-center gap-xxs">
+                            {canReorder && <DragHandle label={t.name} className="-ml-sm h-8" />}
+                            <Checkbox checked={checked.has(t.id)} onChange={() => toggle(t.id)} label={`Chọn ${t.name}`} />
                           </div>
                         </td>
-                      )}
-                      <td className="py-xs pr-md">
-                        <div className="flex items-center justify-end gap-xxs">
-                          <button
-                            type="button"
-                            onClick={() => setEditing(t)}
-                            className="inline-flex h-8 items-center rounded-md px-sm text-primary hover:bg-surface"
-                          >
-                            Sửa
-                          </button>
-                          <form
-                            action={deleteTable}
-                            onSubmit={(e) => {
-                              if (!confirm(`Xóa bàn "${t.name}"? Mã QR của bàn sẽ mất hiệu lực.`)) e.preventDefault();
-                            }}
-                          >
-                            <input type="hidden" name="slug" value={slug} />
-                            <input type="hidden" name="id" value={t.id} />
-                            <button type="submit" className="inline-flex h-8 items-center rounded-md px-sm text-status-late hover:bg-surface">
-                              Xóa
+                        <td className="px-sm py-xs font-medium text-ink">{t.name}</td>
+                        <td className="px-sm py-xs text-slate">{t.area_id ? areaName.get(t.area_id) : "Chưa xếp khu"}</td>
+                        <td className="px-sm py-xs text-right tabular-nums text-slate">{t.seats}</td>
+                        <td className="px-sm py-xs">
+                          <Link href={qrHref([t.id])} target="_blank" rel="noopener" className="text-primary underline-offset-4 hover:underline">
+                            Xem / In
+                          </Link>
+                        </td>
+                        <td className="py-xs pr-md">
+                          <div className="flex items-center justify-end gap-xxs">
+                            <button
+                              type="button"
+                              onClick={() => setEditing(t)}
+                              className="inline-flex h-8 items-center rounded-md px-sm text-primary hover:bg-surface"
+                            >
+                              Sửa
                             </button>
-                          </form>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            <form
+                              action={deleteTable}
+                              onSubmit={(e) => {
+                                if (!confirm(`Xóa bàn "${t.name}"? Mã QR của bàn sẽ mất hiệu lực.`)) e.preventDefault();
+                              }}
+                            >
+                              <input type="hidden" name="slug" value={slug} />
+                              <input type="hidden" name="id" value={t.id} />
+                              <button type="submit" className="inline-flex h-8 items-center rounded-md px-sm text-status-late hover:bg-surface">
+                                Xóa
+                              </button>
+                            </form>
+                          </div>
+                        </td>
+                      </>
+                    );
+                  }}
+                </SortableList>
 
               {/* Điện thoại: danh sách */}
-              <ul className="divide-y divide-hairline-soft md:hidden">
-                {visible.map((t, i) => (
-                  <li key={t.id} className={cn("flex items-center gap-sm px-md py-xs", checked.has(t.id) && "bg-cream/50")}>
-                    <Checkbox checked={checked.has(t.id)} onChange={() => toggle(t.id)} label={`Chọn ${t.name}`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-ink">{t.name}</p>
-                      <p className="truncate text-xs text-steel">
-                        {t.area_id ? areaName.get(t.area_id) : "Chưa xếp khu"} · {t.seats} ghế
-                      </p>
-                    </div>
-                    <Menu label={`Thao tác bàn ${t.name}`} size="lg">
-                      {rowMenuItems(t, i)}
-                    </Menu>
-                  </li>
-                ))}
-              </ul>
+              <SortableList
+                ids={visible.map((t) => t.id)}
+                onSave={saveTables}
+                layout="vertical"
+                as="ul"
+                cellAs="li"
+                noun="bàn"
+                className="divide-y divide-hairline-soft md:hidden"
+                cellClassName={(id) => cn("flex items-center gap-sm bg-canvas px-md py-xs", checked.has(id) && "bg-cream/50")}
+              >
+                {(id) => {
+                  const t = tableById.get(id)!;
+                  return (
+                    <>
+                      {canReorder && <DragHandle label={t.name} className="-ml-xs h-11" />}
+                      <Checkbox checked={checked.has(t.id)} onChange={() => toggle(t.id)} label={`Chọn ${t.name}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-ink">{t.name}</p>
+                        <p className="truncate text-xs text-steel">
+                          {t.area_id ? areaName.get(t.area_id) : "Chưa xếp khu"} · {t.seats} ghế
+                        </p>
+                      </div>
+                      <Menu label={`Thao tác bàn ${t.name}`} size="lg">
+                        {rowMenuItems(t)}
+                      </Menu>
+                    </>
+                  );
+                }}
+              </SortableList>
             </>
           )}
         </section>

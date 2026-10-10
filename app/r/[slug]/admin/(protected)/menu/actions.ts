@@ -13,9 +13,10 @@ import {
   duongDanAnh,
 } from "@/lib/storage/images";
 import { setFlash } from "@/lib/flash";
+import { thuTuHopLe } from "@/lib/menu/reorder";
 
 // Các action cập nhật TẠI CHỖ: revalidatePath + toast (setFlash), KHÔNG redirect(?ok/?error)
-// → URL giữ nguyên /admin/menu. Reorder không toast (tránh ồn).
+// → URL giữ nguyên /admin/menu. ↑↓ danh mục không toast (tránh ồn); kéo thả (P38) báo "Đã lưu thứ tự".
 
 /** Guard chung: chỉ owner/manager quản lý menu của tenant theo slug. */
 async function requireMenuManager(slug: string) {
@@ -61,6 +62,35 @@ async function moveInList(
   const bOrder = a.sort_order === b.sort_order ? swapIdx : b.sort_order;
   await supabase.from(table).update({ sort_order: bOrder }).eq("id", a.id).eq("tenant_id", tenantId);
   await supabase.from(table).update({ sort_order: aOrder }).eq("id", b.id).eq("tenant_id", tenantId);
+}
+
+/**
+ * Ghi cả thứ tự sau kéo thả (P38): `ids` phải đúng bằng tập hàng hiện có trong scope (`thuTuHopLe`) — máy khác vừa
+ * thêm/xóa thì từ chối để người dùng tải lại, không ghi nửa vời. Gán `sort_order` = vị trí (0..n-1), chỉ ghi hàng đổi chỗ.
+ */
+async function saveOrder(
+  table: "menu_categories" | "menu_items",
+  scope: Record<string, string>,
+  tenantId: string,
+  ids: string[]
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  let q = supabase.from(table).select("id, sort_order").eq("tenant_id", tenantId);
+  for (const [k, v] of Object.entries(scope)) q = q.eq(k, v);
+  const { data: rows, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  if (!thuTuHopLe((rows ?? []).map((r) => r.id as string), ids)) {
+    return { ok: false, error: "Thực đơn vừa thay đổi ở máy khác. Tải lại trang rồi sắp xếp lại." };
+  }
+  const cu = new Map((rows ?? []).map((r) => [r.id as string, r.sort_order as number]));
+  const results = await Promise.all(
+    ids
+      .map((id, i) => ({ id, i }))
+      .filter(({ id, i }) => cu.get(id) !== i)
+      .map(({ id, i }) => supabase.from(table).update({ sort_order: i }).eq("id", id).eq("tenant_id", tenantId))
+  );
+  const loi = results.find((r) => r.error)?.error;
+  return loi ? { ok: false, error: loi.message } : { ok: true };
 }
 
 // ---- Danh mục ---------------------------------------------------------------
@@ -139,6 +169,19 @@ export async function reorderCategory(formData: FormData) {
   await moveInList("menu_categories", {}, session.tenant.id, id, dir);
   revalidatePath(menuPath(slug));
   revalidateMenu(session.tenant.id);
+}
+
+/** Kéo thả tab danh mục (P38): `ids` = mọi danh mục của quán theo thứ tự mới. */
+export async function reorderCategories(
+  slug: string,
+  ids: string[]
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireMenuManager(slug);
+  const r = await saveOrder("menu_categories", {}, session.tenant.id, ids);
+  revalidatePath(menuPath(slug));
+  revalidateMenu(session.tenant.id);
+  await setFlash(r.ok ? "ok" : "error", r.ok ? "Đã lưu thứ tự." : r.error);
+  return r;
 }
 
 // ---- Món --------------------------------------------------------------------
@@ -363,16 +406,18 @@ export async function deleteItem(formData: FormData) {
   await setFlash("ok", "Đã xóa món.");
 }
 
-export async function reorderItem(formData: FormData) {
-  const slug = String(formData.get("slug") ?? "");
+/** Kéo thả món trong một danh mục (P38): `ids` = mọi món của danh mục theo thứ tự mới. */
+export async function reorderItems(
+  slug: string,
+  categoryId: string,
+  ids: string[]
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await requireMenuManager(slug);
-  const id = String(formData.get("id") ?? "");
-  const category_id = String(formData.get("category_id") ?? "");
-  const dir = String(formData.get("dir") ?? "up") === "down" ? "down" : "up";
-
-  await moveInList("menu_items", { category_id }, session.tenant.id, id, dir);
+  const r = await saveOrder("menu_items", { category_id: categoryId }, session.tenant.id, ids);
   revalidatePath(menuPath(slug));
   revalidateMenu(session.tenant.id);
+  await setFlash(r.ok ? "ok" : "error", r.ok ? "Đã lưu thứ tự." : r.error);
+  return r;
 }
 
 /**

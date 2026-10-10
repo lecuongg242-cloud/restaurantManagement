@@ -1,12 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { createCategory } from "@/app/r/[slug]/admin/(protected)/menu/actions";
+import { createCategory, reorderCategories } from "@/app/r/[slug]/admin/(protected)/menu/actions";
 
 const PILL =
   "inline-flex min-h-10 shrink-0 items-center gap-xxs rounded-full border px-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1";
@@ -15,6 +33,8 @@ const PILL =
  * Hàng tab danh mục của Thực đơn admin (chủ dự án chốt 04/10/2026): viên thuốc như tab Kho hàng / POS. Bấm tab = lọc (như
  * KiotViet "Nhóm hàng", Sapo "Lọc mặt hàng → Danh mục"). Tab giữ trong `?nhom=` nên sửa / thêm / bật tắt món (revalidate tại
  * chỗ) không nhảy về "Tất cả". Cuối hàng: "+ Danh mục" mở hộp thoại, thêm xong chuyển sang tab danh mục mới.
+ * P38 (chốt 10/10/2026): kéo tab danh mục để đổi thứ tự — chuột kéo > 6px, điện thoại chạm giữ, bàn phím Space; bấm vẫn là
+ * chọn tab. "Tất cả" và "+ Danh mục" đứng yên.
  */
 export function MenuTabs({
   slug,
@@ -29,9 +49,90 @@ export function MenuTabs({
   active: string | null;
 }) {
   const base = `/r/${slug}/admin/menu`;
-  const tab = (href: string, label: string, count: number, on: boolean) => (
+  const idsKey = tabs.map((t) => t.id).join(",");
+  const [order, setOrder] = useState(() => tabs.map((t) => t.id));
+  const [, startTransition] = useTransition();
+  // id cố định cho DndContext — không thì id "DndDescribedBy-N" ở server và trình duyệt lệch nhau (lỗi hydration).
+  const dndId = useId();
+  // Vừa kéo xong thì nuốt cú click rơi vào tab (không chuyển tab ngoài ý muốn).
+  const vuaKeo = useRef(false);
+  useEffect(() => setOrder(idsKey ? idsKey.split(",") : []), [idsKey]);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    // Chạm giữ 250ms mới kéo — vuốt ngang bình thường vẫn cuộn hàng tab.
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      // Enter để mở tab như link thường; Space nhấc / thả.
+      keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space"] },
+    })
+  );
+  const byId = new Map(tabs.map((t) => [t.id, t]));
+
+  function onDragEnd({ active, over }: DragEndEvent) {
+    setTimeout(() => (vuaKeo.current = false), 0);
+    if (!over || active.id === over.id) return;
+    const truoc = order;
+    const moi = arrayMove(order, order.indexOf(String(active.id)), order.indexOf(String(over.id)));
+    setOrder(moi);
+    startTransition(async () => {
+      const r = await reorderCategories(slug, moi);
+      if (!r.ok) setOrder(truoc);
+    });
+  }
+
+  return (
+    // overflow-x-auto: điện thoại vuốt ngang TRONG hàng tab, không cuộn trang.
+    <nav
+      aria-label="Danh mục"
+      className="-mx-xs flex gap-sm overflow-x-auto px-xs py-xxs"
+      onClickCapture={(e) => {
+        if (vuaKeo.current) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+    >
+      <Tab href={base} label="Tất cả" count={total} on={active === null} />
+      <DndContext
+        id={dndId}
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={() => (vuaKeo.current = true)}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setTimeout(() => (vuaKeo.current = false), 0)}
+        accessibility={{
+          announcements: {
+            onDragStart: () => "Đã nhấc danh mục.",
+            onDragOver: () => "Đang di chuyển.",
+            onDragEnd: () => "Đã thả danh mục.",
+            onDragCancel: () => "Đã hủy, danh mục về chỗ cũ.",
+          },
+          screenReaderInstructions: {
+            draggable: "Nhấn Space để nhấc danh mục, mũi tên trái phải để di chuyển, Space để thả, Esc để hủy. Enter để mở.",
+          },
+        }}
+      >
+        <SortableContext items={order} strategy={horizontalListSortingStrategy}>
+          {order.map((id) => {
+            const t = byId.get(id);
+            return t ? (
+              <SortableTab key={id} id={id} href={`${base}?nhom=${id}`} label={t.name} count={t.count} on={active === id} />
+            ) : null;
+          })}
+        </SortableContext>
+      </DndContext>
+      <NewCategoryButton slug={slug} base={base} />
+    </nav>
+  );
+}
+
+type TabProps = { href: string; label: string; count: number; on: boolean };
+
+function Tab({ href, label, count, on }: TabProps) {
+  return (
     <Link
-      key={href}
       href={href}
       scroll={false}
       aria-current={on ? "page" : undefined}
@@ -41,14 +142,26 @@ export function MenuTabs({
       <span className={cn("tabular-nums", on ? "text-primary-fg/80" : "text-steel")}>{count}</span>
     </Link>
   );
+}
 
+function SortableTab({ id, ...p }: TabProps & { id: string }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  // Bỏ role="button" dnd-kit gắn sẵn: tab vẫn là link.
+  const { role: _role, ...attrs } = attributes;
   return (
-    // overflow-x-auto: điện thoại vuốt ngang TRONG hàng tab, không cuộn trang.
-    <nav aria-label="Danh mục" className="-mx-xs flex gap-sm overflow-x-auto px-xs py-xxs">
-      {tab(base, "Tất cả", total, active === null)}
-      {tabs.map((t) => tab(`${base}?nhom=${t.id}`, t.name, t.count, active === t.id))}
-      <NewCategoryButton slug={slug} base={base} />
-    </nav>
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      // select-none + tắt callout: chạm giữ trên điện thoại là kéo, không bật menu "mở link".
+      className={cn("shrink-0 select-none [-webkit-touch-callout:none]", isDragging && "relative z-10 opacity-80")}
+      {...attrs}
+      {...listeners}
+      tabIndex={-1}
+      // Trình duyệt tự kéo link (HTML5 drag) sẽ nuốt mất chuột — chặn để dnd-kit nhận.
+      onDragStart={(e) => e.preventDefault()}
+    >
+      <Tab {...p} />
+    </div>
   );
 }
 

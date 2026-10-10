@@ -65,7 +65,7 @@ describe("mọi hàm ghi thực đơn đều xóa cache", () => {
     expect(seed!.than).toContain("revalidateMenu");
   });
 
-  it("phủ đủ 17 hàm ghi ở hai tệp thực đơn (đổi số này thì phải kiểm lại danh sách)", () => {
-    expect(cacHamXuat(FILE_MENU).length + cacHamXuat(FILE_MODIFIERS).length).toBe(17);
+  it("phủ đủ 18 hàm ghi ở hai tệp thực đơn (đổi số này thì phải kiểm lại danh sách — P38: bỏ reorderItem, thêm reorderItems + reorderCategories)", () => {
+    expect(cacHamXuat(FILE_MENU).length + cacHamXuat(FILE_MODIFIERS).length).toBe(18);
   });
 });

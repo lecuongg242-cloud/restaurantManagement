@@ -12,7 +12,8 @@ import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { ModifierGroupPicker } from "@/components/menu/ModifierGroupPicker";
 import { CategoryManager } from "./CategoryManager";
 import { ItemDialog } from "./ItemDialog";
-import { deleteItem, followChainPrice, reorderItem } from "./actions";
+import { deleteItem, followChainPrice } from "./actions";
+import { DragHandle, SortableItems } from "@/components/admin/menu/SortableItems";
 import { MenuTabs } from "@/components/admin/menu/MenuTabs";
 import {
   CategoryFilter,
@@ -173,152 +174,134 @@ export default async function MenuPage({
                     itemCount={list.length}
                   />
 
-                  <div className="mt-md grid grid-cols-1 gap-md sm:grid-cols-2 xl:grid-cols-3">
-                    {list.map((it, ii) => (
-                      <ItemFilter key={it.id} name={it.name}>
-                        <Card
-                          className={`flex flex-col gap-sm p-md ${it.is_available ? "" : "opacity-70"}`}
-                        >
-                          {/* Ảnh + thông tin */}
-                          <div className="flex gap-md">
-                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-surface">
-                              {it.image_url ? (
-                                <Image
-                                  src={urlAnh(it.image_url)!}
-                                  alt={it.name}
-                                  fill
-                                  /* sizes = 2× bề rộng ô (64px): object-cover trên ảnh NGANG phải
-                                     crop theo chiều cao, nên bản đúng 64w (cao ~36px) bị phóng to
-                                     → mờ. Xin 128w để chiều cao đủ lấp ô vuông, và DPR2 lấy 256w. */
-                                  sizes="128px"
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <span className="grid h-full w-full place-items-center text-[10px] text-muted">
-                                  Không ảnh
-                                </span>
-                              )}
-                              {!it.is_available && (
-                                <span className="absolute left-1 top-1 rounded bg-status-late px-1 text-[10px] font-semibold text-status-late-fg">
-                                  Hết
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-sm">
-                                <span className="line-clamp-2 font-medium leading-snug text-ink">
-                                  {it.name}
-                                </span>
-                                <span className="shrink-0 text-sm font-semibold text-primary">
-                                  {vnd(it.base_price)}
-                                </span>
-                              </div>
-                              {it.description && (
-                                <p className="mt-xxs line-clamp-2 text-xs text-steel">{it.description}</p>
-                              )}
-                              {it.source_id && it.price_locked && (
-                                <form action={followChainPrice} className="mt-xxs flex flex-wrap items-center gap-xs text-xs">
-                                  <input type="hidden" name="slug" value={slug} />
-                                  <input type="hidden" name="id" value={it.id} />
-                                  <span className="text-steel">Giá riêng chi nhánh ·</span>
-                                  <button type="submit" className="text-primary underline-offset-4 hover:underline">
-                                    Theo giá chuỗi
-                                  </button>
-                                </form>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Footer thao tác — chiếm hết chiều ngang thẻ. `flex-wrap` để switch còn/hết
-                              + 4 nút xuống hàng thay vì tràn khỏi thẻ trên màn ~360px. */}
-                          <div className="mt-auto flex flex-wrap items-center justify-between gap-xs border-t border-hairline-soft pt-sm">
-                            <AvailabilityToggle slug={slug} itemId={it.id} available={it.is_available} />
-                            <div className="flex items-center gap-xs">
-                              <form action={reorderItem}>
-                                <input type="hidden" name="slug" value={slug} />
-                                <input type="hidden" name="id" value={it.id} />
-                                <input type="hidden" name="category_id" value={it.category_id} />
-                                <input type="hidden" name="dir" value="up" />
-                                <button
-                                  type="submit"
-                                  disabled={ii === 0}
-                                  aria-label="Chuyển món lên"
-                                  className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface disabled:opacity-40"
-                                >
-                                  ↑
-                                </button>
-                              </form>
-                              <form action={reorderItem}>
-                                <input type="hidden" name="slug" value={slug} />
-                                <input type="hidden" name="id" value={it.id} />
-                                <input type="hidden" name="category_id" value={it.category_id} />
-                                <input type="hidden" name="dir" value="down" />
-                                <button
-                                  type="submit"
-                                  disabled={ii === list.length - 1}
-                                  aria-label="Chuyển món xuống"
-                                  className="grid h-9 w-9 place-items-center rounded-md text-steel hover:bg-surface disabled:opacity-40"
-                                >
-                                  ↓
-                                </button>
-                              </form>
-                              <ItemDialog
-                                slug={slug}
-                                categories={catOptions}
-                                item={it}
-                                trigger={
-                                  <button
-                                    type="button"
-                                    className="inline-flex h-9 items-center rounded-md px-sm text-sm text-primary hover:bg-surface"
-                                  >
-                                    Sửa
-                                  </button>
-                                }
-                              >
-                                <ModifierGroupPicker
-                                  slug={slug}
-                                  allGroups={allGroups}
-                                  attachedIds={groupsByItem.get(it.id) ?? []}
-                                />
-                              </ItemDialog>
-                              <form action={deleteItem}>
-                                <input type="hidden" name="slug" value={slug} />
-                                <input type="hidden" name="id" value={it.id} />
-                                <ConfirmSubmit
-                                  message={`Xóa món "${it.name}"? Thao tác không hoàn tác được.`}
-                                  className="inline-flex h-9 items-center rounded-md px-sm text-sm text-status-late hover:bg-surface"
-                                >
-                                  Xóa
-                                </ConfirmSubmit>
-                              </form>
-                            </div>
-                          </div>
-                        </Card>
-                      </ItemFilter>
-                    ))}
-
-                    {/* Thêm món vào danh mục này */}
-                    <HideWhileSearching>
-                      <div className="grid min-h-[112px] place-items-center rounded-lg border border-dashed border-hairline-strong p-md">
-                        <ItemDialog
-                          slug={slug}
-                          categories={catOptions}
-                          defaultCategoryId={cat.id}
-                          trigger={
-                            <button
-                              type="button"
-                              className="rounded-md px-md py-sm text-sm font-medium text-steel hover:text-primary"
+                  {/* Kéo thả món trong danh mục (P38) — thay ↑↓. Tay nắm ẩn khi đang tìm (danh sách đang lọc). */}
+                  <SortableItems
+                    slug={slug}
+                    categoryId={cat.id}
+                    items={list.map((it) => ({
+                      id: it.id,
+                      node: (
+                          <ItemFilter name={it.name}>
+                            <Card
+                              className={`flex flex-col gap-sm p-md ${it.is_available ? "" : "opacity-70"}`}
                             >
-                              + Thêm món vào &quot;{cat.name}&quot;
-                            </button>
-                          }
-                        >
-                          <ModifierGroupPicker slug={slug} allGroups={allGroups} />
-                        </ItemDialog>
-                      </div>
-                    </HideWhileSearching>
-                  </div>
+                              {/* Ảnh + thông tin */}
+                              <div className="flex gap-md">
+                                <HideWhileSearching>
+                                  <DragHandle label={it.name} className="-ml-xs self-stretch" />
+                                </HideWhileSearching>
+                                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-surface">
+                                  {it.image_url ? (
+                                    <Image
+                                      src={urlAnh(it.image_url)!}
+                                      alt={it.name}
+                                      fill
+                                      /* sizes = 2× bề rộng ô (64px): object-cover trên ảnh NGANG phải
+                                         crop theo chiều cao, nên bản đúng 64w (cao ~36px) bị phóng to
+                                         → mờ. Xin 128w để chiều cao đủ lấp ô vuông, và DPR2 lấy 256w. */
+                                      sizes="128px"
+                                      className="object-cover"
+                                    />
+                                  ) : (
+                                    <span className="grid h-full w-full place-items-center text-[10px] text-muted">
+                                      Không ảnh
+                                    </span>
+                                  )}
+                                  {!it.is_available && (
+                                    <span className="absolute left-1 top-1 rounded bg-status-late px-1 text-[10px] font-semibold text-status-late-fg">
+                                      Hết
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-sm">
+                                    <span className="line-clamp-2 font-medium leading-snug text-ink">
+                                      {it.name}
+                                    </span>
+                                    <span className="shrink-0 text-sm font-semibold text-primary">
+                                      {vnd(it.base_price)}
+                                    </span>
+                                  </div>
+                                  {it.description && (
+                                    <p className="mt-xxs line-clamp-2 text-xs text-steel">{it.description}</p>
+                                  )}
+                                  {it.source_id && it.price_locked && (
+                                    <form action={followChainPrice} className="mt-xxs flex flex-wrap items-center gap-xs text-xs">
+                                      <input type="hidden" name="slug" value={slug} />
+                                      <input type="hidden" name="id" value={it.id} />
+                                      <span className="text-steel">Giá riêng chi nhánh ·</span>
+                                      <button type="submit" className="text-primary underline-offset-4 hover:underline">
+                                        Theo giá chuỗi
+                                      </button>
+                                    </form>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Footer thao tác — chiếm hết chiều ngang thẻ. `flex-wrap` để switch còn/hết
+                                  + 4 nút xuống hàng thay vì tràn khỏi thẻ trên màn ~360px. */}
+                              <div className="mt-auto flex flex-wrap items-center justify-between gap-xs border-t border-hairline-soft pt-sm">
+                                <AvailabilityToggle slug={slug} itemId={it.id} available={it.is_available} />
+                                <div className="flex items-center gap-xs">
+                                  <ItemDialog
+                                    slug={slug}
+                                    categories={catOptions}
+                                    item={it}
+                                    trigger={
+                                      <button
+                                        type="button"
+                                        className="inline-flex h-9 items-center rounded-md px-sm text-sm text-primary hover:bg-surface"
+                                      >
+                                        Sửa
+                                      </button>
+                                    }
+                                  >
+                                    <ModifierGroupPicker
+                                      slug={slug}
+                                      allGroups={allGroups}
+                                      attachedIds={groupsByItem.get(it.id) ?? []}
+                                    />
+                                  </ItemDialog>
+                                  <form action={deleteItem}>
+                                    <input type="hidden" name="slug" value={slug} />
+                                    <input type="hidden" name="id" value={it.id} />
+                                    <ConfirmSubmit
+                                      message={`Xóa món "${it.name}"? Thao tác không hoàn tác được.`}
+                                      className="inline-flex h-9 items-center rounded-md px-sm text-sm text-status-late hover:bg-surface"
+                                    >
+                                      Xóa
+                                    </ConfirmSubmit>
+                                  </form>
+                                </div>
+                              </div>
+                            </Card>
+                          </ItemFilter>
+                      ),
+                    }))}
+                    tail={
+                      /* Thêm món vào danh mục này */
+                      <HideWhileSearching>
+                        <div className="grid min-h-[112px] place-items-center rounded-lg border border-dashed border-hairline-strong p-md">
+                          <ItemDialog
+                            slug={slug}
+                            categories={catOptions}
+                            defaultCategoryId={cat.id}
+                            trigger={
+                              <button
+                                type="button"
+                                className="rounded-md px-md py-sm text-sm font-medium text-steel hover:text-primary"
+                              >
+                                + Thêm món vào &quot;{cat.name}&quot;
+                              </button>
+                            }
+                          >
+                            <ModifierGroupPicker slug={slug} allGroups={allGroups} />
+                          </ItemDialog>
+                        </div>
+                      </HideWhileSearching>
+                    }
+                  />
                 </section>
               </CategoryFilter>
             );
