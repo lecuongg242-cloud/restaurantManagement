@@ -56,7 +56,7 @@ export function AdminShell({
           </div>
         </div>
 
-        <AdminNav base={base} role={role} />
+        <AdminNav base={base} role={role} coChuoi={!!tenant.brand_id} />
 
         {planCard}
         <form action={signOut} className="border-t border-hairline-soft p-sm">

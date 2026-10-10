@@ -32,10 +32,13 @@ type NavItem = {
 export function AdminNav({
   base,
   role,
+  coChuoi,
   onNavigate,
 }: {
   base: string;
   role: Role;
+  /** Quán đã được super-admin đăng ký chuỗi — chỉ khi đó mới có mục "Chi nhánh" (chủ dự án 10/10/2026). */
+  coChuoi: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -55,7 +58,9 @@ export function AdminNav({
     { key: "branches", label: "Chi nhánh", icon: Building2, href: `${base}/chi-nhanh`, section: "branches", setup: true },
     { key: "settings", label: "Cài đặt", icon: Settings, href: `${base}/settings`, section: "settings", setup: true },
   ];
-  const items = allItems.filter((item) => !item.section || canManage(role, item.section));
+  const items = allItems.filter(
+    (item) => (!item.section || canManage(role, item.section)) && (item.key !== "branches" || coChuoi)
+  );
 
   const isActive = (href?: string, match?: readonly string[]) => {
     if (!href) return false;

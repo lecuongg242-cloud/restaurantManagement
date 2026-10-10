@@ -16,6 +16,8 @@ export type TenantInfo = {
   slug: string;
   name: string;
   logo_url: string | null;
+  /** Thương hiệu (chuỗi) quán thuộc về; null = quán lẻ. Chỉ super-admin đăng ký chuỗi (P38). */
+  brand_id: string | null;
 };
 
 export type SessionMembership = {
@@ -46,7 +48,7 @@ export async function getSessionMembership(
   // Tra tenant theo slug (RLS: chỉ thấy tenant mình là thành viên).
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("id, slug, name, logo_url")
+    .select("id, slug, name, logo_url, brand_id")
     .eq("slug", slug)
     .maybeSingle();
   if (!tenant) return null;

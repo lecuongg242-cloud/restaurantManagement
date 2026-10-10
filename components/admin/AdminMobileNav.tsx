@@ -79,7 +79,7 @@ export function AdminMobileNav({
             </Drawer.Close>
           </div>
 
-          <AdminNav base={base} role={role} onNavigate={() => setOpen(false)} />
+          <AdminNav base={base} role={role} coChuoi={!!tenant.brand_id} onNavigate={() => setOpen(false)} />
 
           {planCard}
 

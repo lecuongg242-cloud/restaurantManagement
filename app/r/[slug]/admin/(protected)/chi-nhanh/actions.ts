@@ -8,8 +8,9 @@ import { slugify } from "@/lib/utils";
 export type KetQuaChiNhanh = { ok?: string; error?: string; slug?: string };
 
 /**
- * Chủ quán TỰ tạo chi nhánh (P15, như "Tạo chi nhánh" của KiotViet). Lần đầu tự lập chuỗi, quán hiện tại là chi nhánh
- * gốc (RPC `create_my_branch`, 0067 — kiểm chủ quán + chủ chuỗi, một giao dịch). Chi nhánh mới tính vào lần gia hạn sau.
+ * Chủ chuỗi tự thêm chi nhánh (P15, như "Tạo chi nhánh" của KiotViet) — chỉ khi quán ĐÃ được super-admin đăng ký chuỗi
+ * (0088; trước đó quán lẻ tự lập chuỗi được). RPC `create_my_branch` kiểm chủ quán + chủ chuỗi, một giao dịch. Chi nhánh mới
+ * tính vào lần gia hạn sau.
  */
 export async function createBranchAction(_p: KetQuaChiNhanh, fd: FormData): Promise<KetQuaChiNhanh> {
   const slug = String(fd.get("slug_quan") ?? "");
@@ -27,7 +28,9 @@ export async function createBranchAction(_p: KetQuaChiNhanh, fd: FormData): Prom
     return {
       error: /duplicate key|23505|already exists/i.test(m)
         ? `Mã “${moi}” đã có quán dùng — chọn mã khác.`
-        : /42501|chi chu/.test(`${error.code} ${m}`)
+        : /chua dang ky chuoi/.test(m)
+          ? "Quán chưa được đăng ký chuỗi. Liên hệ TechMenu để mở chuỗi nhiều chi nhánh."
+          : /42501|chi chu/.test(`${error.code} ${m}`)
           ? "Chỉ chủ quán / chủ chuỗi được tạo chi nhánh."
           : m,
     };

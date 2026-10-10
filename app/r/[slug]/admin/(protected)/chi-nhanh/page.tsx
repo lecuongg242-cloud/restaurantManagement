@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Chi nhánh (P15) — NGAY trong admin quán, như "Quản lý chi nhánh" của KiotViet / "Nhà hàng" của CUKCUK: danh sách
- * + tổng quan hôm nay cả chuỗi, chủ quán tự tạo chi nhánh, lối vào đồng bộ thực đơn. Quán lẻ chỉ thấy nút tạo.
+ * + tổng quan hôm nay cả chuỗi, chủ chuỗi tự thêm chi nhánh, lối vào đồng bộ thực đơn. Quán lẻ không vào được: chỉ
+ * super-admin đăng ký chuỗi cho quán (chủ dự án 10/10/2026) — menu ẩn, gõ URL thì về Tổng quan.
  */
 export default async function ChiNhanhPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -20,22 +21,21 @@ export default async function ChiNhanhPage({ params }: { params: Promise<{ slug:
   if (!canManage(session.role, "branches")) redirect(defaultRouteForRole(slug, session.role));
 
   const chuoi = await chuoiCuaQuan(session.tenant.id, session.userId);
-  const laChu = session.role === "owner" && (!chuoi || chuoi.laChuChuoi);
+  if (!chuoi) redirect(`/r/${slug}/admin`);
+  const laChu = session.role === "owner" && chuoi.laChuChuoi;
 
   return (
     <div className="flex flex-col gap-lg">
       <header>
         <h1 className="font-semibold text-2xl text-ink">Chi nhánh</h1>
         <p className="mt-xxs text-sm text-steel">
-          {chuoi
-            ? `Chuỗi ${chuoi.brand.name} · ${chuoi.branches.length} chi nhánh. Chuyển chi nhánh bằng ô chọn ở góc trên.`
-            : "Quán đang có một chi nhánh. Tạo thêm chi nhánh để quản lý chung: một tài khoản, báo cáo gộp, thực đơn đồng bộ, gia hạn một lần."}
+          Chuỗi {chuoi.brand.name} · {chuoi.branches.length} chi nhánh. Chuyển chi nhánh bằng ô chọn ở góc trên.
         </p>
       </header>
 
-      {chuoi && <TongQuanChuoi branches={chuoi.branches} hienTai={slug} />}
+      <TongQuanChuoi branches={chuoi.branches} hienTai={slug} />
 
-      {chuoi && chuoi.laChuChuoi && (
+      {chuoi.laChuChuoi && (
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-md">
             <div>
@@ -58,21 +58,19 @@ export default async function ChiNhanhPage({ params }: { params: Promise<{ slug:
         <Card>
           <CardTitle>Thêm chi nhánh</CardTitle>
           <div className="mt-md">
-            <CreateBranchForm slug={slug} laChuoi={!!chuoi} />
+            <CreateBranchForm slug={slug} />
           </div>
         </Card>
       )}
 
-      {chuoi && (
-        <p className="text-sm text-steel">
-          Báo cáo gộp cả chuỗi: mục <Link href={`/r/${slug}/admin/reports`} className="text-primary underline-offset-4 hover:underline">Báo cáo</Link>{" "}
-          → chọn “Tất cả chi nhánh”. Trang cho khách chọn chi nhánh:{" "}
-          <Link href={`/b/${chuoi.brand.slug}`} className="text-primary underline-offset-4 hover:underline">
-            /b/{chuoi.brand.slug}
-          </Link>
-          .
-        </p>
-      )}
+      <p className="text-sm text-steel">
+        Báo cáo gộp cả chuỗi: mục <Link href={`/r/${slug}/admin/reports`} className="text-primary underline-offset-4 hover:underline">Báo cáo</Link>{" "}
+        → chọn “Tất cả chi nhánh”. Trang cho khách chọn chi nhánh:{" "}
+        <Link href={`/b/${chuoi.brand.slug}`} className="text-primary underline-offset-4 hover:underline">
+          /b/{chuoi.brand.slug}
+        </Link>
+        .
+      </p>
     </div>
   );
 }
