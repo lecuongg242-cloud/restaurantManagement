@@ -1,7 +1,7 @@
 # P37-01 — Tổng kết: in theo bếp/bar, số liên, in riêng từng món, phiếu hủy món (10/10/2026)
 
 Chủ dự án chốt phạm vi (4 phần) + giao diện A + B ngày 10/10/2026 (`00-TongQuan.md`). **Web + app Windows xong; app Android
-CHƯA làm** (máy dev không có JDK/Android SDK — kế hoạch `37-02-PLAN.md`). Phát hành `dev` + `main` 10/10/2026 (`next build` xanh trước khi đẩy); app Windows 1.0.6 chưa build.
+CHƯA làm** (máy dev không có JDK/Android SDK — kế hoạch `37-02-PLAN.md`). Phát hành `dev` + `main` 10/10/2026 (`next build` xanh trước khi đẩy); app Windows 1.0.6 hoãn phát hành (chủ dự án 10/10) — kế hoạch `37-03-PLAN.md`.
 
 ## File đã đổi
 
