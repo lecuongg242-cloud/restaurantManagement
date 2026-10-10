@@ -31,12 +31,14 @@ export function moiTruongCauIn(cauHinh, { matKhau, phienBanApp, moiTruongGoc = {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: cauHinh.printer.anonKey,
     PRINT_BRIDGE_EMAIL: cauHinh.printer.email,
     PRINT_BRIDGE_PASSWORD: matKhau,
-    // Chưa cài máy in bếp: địa chỉ không ai nghe — cầu in vẫn chạy (in máy quầy, báo sống), phiếu bếp báo lỗi rõ.
+    // Chưa cài máy in bếp lẫn máy quầy: địa chỉ không ai nghe — cầu in vẫn chạy (báo sống), phiếu bếp báo lỗi rõ.
     PRINTER_HOST: bep?.kieu === "lan" ? bep.host : "127.0.0.1",
     PRINTER_PORT: String(bep?.kieu === "lan" ? bep.port : 9),
     PRINTER_CHARS: kho === "58" ? "32" : "48",
     COUNTER_PRINTER: chuoiMayQuay(quay),
     COUNTER_WIDTH: kho,
+    // Không có máy in bếp riêng mà có máy quầy → phiếu bếp in ra máy quầy (PRINT-18, quán một máy in).
+    ...(!bep && quay ? { KITCHEN_PRINTER: "counter" } : {}),
     POS_URL: `${cauHinh.apiBase}/r/${cauHinh.slug}/pos`,
     BRIDGE_AGENT: `app/${phienBanApp}`,
     BRIDGE_TU_CAP_NHAT: "0",

@@ -101,6 +101,15 @@ describe("môi trường cầu in", () => {
     });
   });
 
+  it("PRINT-18: không có máy in bếp riêng + có máy quầy → phiếu bếp ra máy quầy; còn lại không đặt", () => {
+    type May = { kieu: "lan"; host: string; port: number } | { kieu: "usb"; ten: string } | null;
+    const env = (bep: May, quay: May) =>
+      moiTruongCauIn({ ...ch(), mayIn: { bep, quay, kho: "80" as const } }, { matKhau: "mk", phienBanApp: "1" });
+    expect(env(null, { kieu: "usb", ten: "XP-80C" })).toMatchObject({ KITCHEN_PRINTER: "counter", COUNTER_PRINTER: "usb:XP-80C" });
+    expect(env({ kieu: "lan", host: "192.168.1.50", port: 9100 }, { kieu: "usb", ten: "XP-80C" })).not.toHaveProperty("KITCHEN_PRINTER");
+    expect(env(null, null)).not.toHaveProperty("KITCHEN_PRINTER");
+  });
+
   it("không chuyển nguyên môi trường của app (khóa lạ không lọt vào cầu in)", () => {
     const env = moiTruongCauIn(ch(), { matKhau: "mk", phienBanApp: "1", moiTruongGoc: { SUPABASE_SERVICE_ROLE_KEY: "bi-mat", PATH: "p" } });
     expect(env).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");

@@ -3,15 +3,18 @@ import net from "node:net";
 
 /**
  * Giả lập cho test app "TechMenu Thu ngân" (P21) — KHÔNG cần database thật:
- *  - `mayChuGia`: Supabase tối thiểu cho cầu in (đăng nhập, tra quán, nhịp tim, hàng đợi rỗng) + các trang/API của
+ *  - `mayChuGia`: Supabase tối thiểu cho cầu in (đăng nhập, tra quán, nhịp tim, hàng đợi — rỗng, hoặc `phieu` chờ in tới khi
+ *    cầu in đánh dấu) + các trang/API của
  *    app web mà vỏ Electron chạm tới (/r/<slug>/pos, /kds, /api/desktop/activate).
  *  - `mayInGia`: máy in LAN (cổng TCP) ghi lại số byte nhận được.
  */
 
 export type NhipTim = Record<string, unknown>;
 
-export async function mayChuGia(opts: { serverCu?: boolean; cong?: number } = {}) {
+export async function mayChuGia(opts: { serverCu?: boolean; cong?: number; phieu?: Record<string, unknown>[] } = {}) {
   const nhipTim: NhipTim[] = [];
+  const choIn = [...(opts.phieu ?? [])];
+  const danhDau: Record<string, unknown>[] = [];
   const goi: string[] = [];
   const kichHoat: Record<string, unknown>[] = [];
   const srv = http.createServer(async (req, res) => {
@@ -39,6 +42,14 @@ export async function mayChuGia(opts: { serverCu?: boolean; cong?: number } = {}
       return json(200, new Date().toISOString());
     }
     if (url.pathname.startsWith("/rest/v1/memberships")) return json(200, [{ tenant_id: "00000000-0000-0000-0000-000000000001" }]);
+    if (url.pathname === "/rest/v1/print_jobs" && req.method === "GET") return json(200, choIn);
+    if (url.pathname === "/rest/v1/print_jobs" && req.method === "PATCH") {
+      const id = (url.searchParams.get("id") ?? "").replace(/^eq\./, "");
+      danhDau.push({ id, ...JSON.parse(body || "{}") });
+      choIn.splice(0, choIn.length, ...choIn.filter((j) => j.id !== id));
+      res.writeHead(204);
+      return res.end();
+    }
     if (url.pathname.startsWith("/rest/v1/")) return req.method === "GET" ? json(200, []) : (res.writeHead(204), res.end());
 
     // Phiên đăng nhập giả bằng cookie `phien` (owner / cashier) — để kiểm cửa sổ Quản trị có phiên RIÊNG với POS (P30).
@@ -103,7 +114,7 @@ export async function mayChuGia(opts: { serverCu?: boolean; cong?: number } = {}
   });
   await new Promise<void>((r) => srv.listen(opts.cong ?? 0, "127.0.0.1", () => r()));
   const port = (srv.address() as net.AddressInfo).port;
-  return { url: `http://127.0.0.1:${port}`, nhipTim, goi, kichHoat, dong: () => new Promise<void>((r) => srv.close(() => r())) };
+  return { url: `http://127.0.0.1:${port}`, nhipTim, goi, kichHoat, danhDau, dong: () => new Promise<void>((r) => srv.close(() => r())) };
 }
 
 export async function mayInGia() {

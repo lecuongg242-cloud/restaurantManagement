@@ -153,6 +153,8 @@ class CauInDichVu : Service() {
         if (bep != null) {
             if (bepPhanHoi == false) loi = true
             phan += if (bepPhanHoi == false) "Máy in bếp không phản hồi" else "Máy in bếp: sẵn sàng"
+        } else if (quay != null) {
+            phan += "Phiếu bếp in ra máy in quầy" // tình trạng nằm ở dòng máy in quầy ngay sau
         } else {
             phan += "Chưa cài máy in bếp"
         }
@@ -229,9 +231,16 @@ class CauInDichVu : Service() {
                 bepPhanHoi = bep?.let { MayInLan.thu(it.optString("host"), it.optInt("port", 9100)) }
                 quayPhanHoi = quay?.let { MayInLan.thu(it.optString("host"), it.optInt("port", 9100)) }
             }
+            // PRINT-18: không có máy in bếp riêng → phiếu bếp ra máy quầy, máy in bếp CHÍNH LÀ máy quầy.
+            if (bep == null && quay != null) bepPhanHoi = quayPhanHoi
+            val diaChiBep = when {
+                bep != null -> "${bep.optString("host")}:${bep.optInt("port", 9100)}"
+                quay != null -> "máy in quầy lan:${quay.optString("host")}:${quay.optInt("port", 9100)}"
+                else -> "127.0.0.1:9"
+            }
             val than = JSONObject()
                 .put("p_printer_ok", bepPhanHoi ?: JSONObject.NULL)
-                .put("p_printer_host", bep?.let { "${it.optString("host")}:${it.optInt("port", 9100)}" } ?: "127.0.0.1:9")
+                .put("p_printer_host", diaChiBep)
                 .put("p_version", PHIEN_BAN_CAU_IN)
                 .put("p_agent", "android/${BuildConfig.VERSION_NAME}")
             if (quay != null) {
@@ -313,10 +322,10 @@ class CauInDichVu : Service() {
             dangIn.add(id)
             try {
                 if (loai == "kitchen_ticket") inBep(p) else if (coQuay) inQuay(id) else continue
-                if (loai == "kitchen_ticket") bepPhanHoi = true else quayPhanHoi = true
+                ghiKetQua(loai, true)
                 baoDaIn(id)
             } catch (_: Exception) {
-                if (loai == "kitchen_ticket") bepPhanHoi = false else quayPhanHoi = false
+                ghiKetQua(loai, false)
                 try {
                     danhDau(id, JSONObject().put("status", "failed"))
                 } catch (_: Exception) {
@@ -329,11 +338,22 @@ class CauInDichVu : Service() {
         return if (phieu.length() > 0) "co-phieu" else "rong"
     }
 
+    /** Kết quả in thật. Phiếu bếp in ra máy quầy (PRINT-18) thì đó cũng là kết quả của máy quầy. */
+    private fun ghiKetQua(loai: String, ok: Boolean) {
+        if (loai != "kitchen_ticket") {
+            quayPhanHoi = ok
+            return
+        }
+        bepPhanHoi = ok
+        if (c.mayIn.optJSONObject("bep") == null && c.mayIn.optJSONObject("quay") != null) quayPhanHoi = ok
+    }
+
     private fun inBep(p: JSONObject) {
-        // Chưa cài máy in bếp: báo lỗi rõ (phiếu `failed`, chip đỏ trên POS) — như app Windows trỏ 127.0.0.1:9.
-        val bep = c.mayIn.optJSONObject("bep") ?: throw IllegalStateException("Chưa cài máy in bếp")
+        // Không có máy in bếp riêng → in ra máy quầy (PRINT-18). Không có cả hai: báo lỗi rõ (phiếu `failed`, chip đỏ).
+        val may = c.mayIn.optJSONObject("bep") ?: c.mayIn.optJSONObject("quay")
+            ?: throw IllegalStateException("Chưa cài máy in bếp lẫn máy in quầy")
         val du = EscPos.phieuBep(p.optJSONObject("payload") ?: JSONObject(), EscPos.soKyTu(c.mayIn.optString("kho", "80")))
-        MayInLan.guiCoThuLai(du, bep.optString("host"), bep.optInt("port", 9100))
+        MayInLan.guiCoThuLai(du, may.optString("host"), may.optInt("port", 9100))
     }
 
     /** Hóa đơn / phiếu khách: ảnh PNG có dấu do máy chủ dựng (QD-020 D4) → lệnh in ảnh → máy in quầy LAN. */

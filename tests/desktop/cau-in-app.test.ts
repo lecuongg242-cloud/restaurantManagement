@@ -135,6 +135,34 @@ describe("cầu in chạy trong app", () => {
     expect(mayIn.nhan[0].length).toBeGreaterThan(50);
   }, 30_000);
 
+  it("PRINT-18: không có máy in bếp riêng → phiếu bếp ra máy in quầy, nhịp tim báo máy bếp theo máy quầy", async () => {
+    const may = await mayChuGia({
+      phieu: [{ id: "job-1", type: "kitchen_ticket", payload: { kitchenNo: 7, ticketNo: "A1", items: [{ qty: 1, name: "Pho bo" }] } }],
+    });
+    const mayIn = await mayInGia();
+    donDep.push(may.dong, mayIn.dong);
+    const { log } = chayCauIn(
+      {
+        NEXT_PUBLIC_SUPABASE_URL: may.url,
+        // Như app khi chọn "Không có": máy bếp trỏ địa chỉ không ai nghe — phải KHÔNG được dùng tới.
+        PRINTER_HOST: "127.0.0.1",
+        PRINTER_PORT: "9",
+        COUNTER_PRINTER: `lan:127.0.0.1:${mayIn.port}`,
+        KITCHEN_PRINTER: "counter",
+        BRIDGE_TU_CAP_NHAT: "0",
+      },
+      [],
+      false
+    );
+    await doiDen(() => may.danhDau.length > 0, 30_000, `đánh dấu phiếu\n${log()}`);
+    expect(may.danhDau[0]).toMatchObject({ id: "job-1", status: "printed" });
+    expect(mayIn.nhan).toHaveLength(1);
+    expect(mayIn.nhan[0].toString("latin1")).toContain("Pho bo");
+
+    const nhip = may.nhipTim[may.nhipTim.length - 1];
+    expect(nhip).toMatchObject({ p_printer_ok: true, p_counter_ok: true, p_printer_host: `máy in quầy lan:127.0.0.1:${mayIn.port}` });
+  }, 60_000);
+
   it("in thử máy in quầy chưa khai → mã 1, câu lỗi rõ", async () => {
     const { p, log } = chayCauIn({ COUNTER_PRINTER: "" }, ["--test", "--vai=quay"], false);
     expect(await thoat(p)).toBe(1);

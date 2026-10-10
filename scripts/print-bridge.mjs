@@ -10,7 +10,7 @@
 //
 // Env (đọc từ .env.local): NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 // PRINT_BRIDGE_EMAIL, PRINT_BRIDGE_PASSWORD (cấp ở /super → "Tài khoản cầu in"),
-// PRINTER_HOST, PRINTER_PORT, PRINTER_CHARS, POLL_MS, MAX_JOB_AGE_MIN.
+// PRINTER_HOST, PRINTER_PORT, PRINTER_CHARS, POLL_MS, MAX_JOB_AGE_MIN, COUNTER_PRINTER, KITCHEN_PRINTER.
 //
 // KHÔNG dùng service-role: máy này đặt tại quán, service-role bỏ qua RLS nên mất máy là lộ dữ
 // liệu MỌI nhà hàng (QD-012 §1). Tenant suy từ token, không cấu hình tay.
@@ -74,6 +74,9 @@ const MAX_JOB_AGE_MIN = Number(process.env.MAX_JOB_AGE_MIN || 30);
 // phiếu bếp, y như trước (hóa đơn vẫn in trình duyệt ở máy quầy).
 const COUNTER_PRINTER = process.env.COUNTER_PRINTER || "";
 const COUNTER_WIDTH = process.env.COUNTER_WIDTH === "58" ? "58" : "80";
+// PRINT-18: "counter" = không có máy in bếp riêng, phiếu bếp in ra máy in QUẦY (quán một máy in, bếp gần quầy).
+// Khi đó PRINTER_HOST/PORT bỏ qua. Không khai máy in quầy thì vô nghĩa — phiếu bếp vẫn gửi PRINTER_HOST như cũ.
+const KITCHEN_PRINTER = process.env.KITCHEN_PRINTER || "";
 
 // ── ESC/POS ────────────────────────────────────────────────────────────────────
 const ESC = 0x1b;
@@ -267,7 +270,8 @@ if (TEST_MODE) {
     ],
   };
   // `--vai=quay` (DESK-06): in thử MÁY IN QUẦY theo COUNTER_PRINTER — app "TechMenu Thu ngân" có nút In thử cho cả hai.
-  const quay = process.argv.includes("--vai=quay");
+  // Phiếu bếp in ra máy quầy (PRINT-18) thì in thử phiếu bếp cũng ra máy quầy.
+  const quay = process.argv.includes("--vai=quay") || KITCHEN_PRINTER === "counter";
   const mayQuay = quay ? docCauHinhMayIn(COUNTER_PRINTER) : null;
   if (quay && !mayQuay) {
     console.error(`Chưa khai máy in quầy hợp lệ (COUNTER_PRINTER="${COUNTER_PRINTER}").`);
@@ -697,6 +701,13 @@ let quayPhanHoi = null;
 if (COUNTER_PRINTER && !MAY_QUAY) {
   log(`COUNTER_PRINTER="${COUNTER_PRINTER}" không hợp lệ (cần usb:<tên> hoặc lan:<ip>) — bỏ qua máy in quầy.`);
 }
+/** PRINT-18: phiếu bếp ra máy in quầy — máy in bếp CHÍNH LÀ máy quầy, tình trạng hai vai là một. */
+const BEP_RA_QUAY = KITCHEN_PRINTER === "counter" && MAY_QUAY !== null;
+if (KITCHEN_PRINTER === "counter" && !MAY_QUAY) {
+  log("KITCHEN_PRINTER=counter nhưng chưa khai máy in quầy — phiếu bếp không có chỗ in, sẽ báo lỗi.");
+}
+/** Địa chỉ máy in bếp báo lên POS / màn Máy in. */
+const DIA_CHI_BEP = BEP_RA_QUAY ? `máy in quầy ${COUNTER_PRINTER.trim()}`.slice(0, 100) : `${HOST}:${PORT}`;
 
 /**
  * Nguồn cầu in (DESK-05): app "TechMenu Thu ngân" đặt `BRIDGE_AGENT` (vd `app/1.0.0`) để màn Máy in phân biệt với
@@ -717,14 +728,15 @@ function baoChoApp(nhipOk) {
 
 async function baoSong() {
   if (inFlight.size === 0) {
-    mayInPhanHoi = await thuMayIn(HOST, PORT);
+    if (!BEP_RA_QUAY) mayInPhanHoi = await thuMayIn(HOST, PORT);
     // Máy quầy LAN: thử kết nối như máy bếp. USB: không thử được rẻ — dùng kết quả lần in gần nhất.
     if (MAY_QUAY?.kieu === "lan") quayPhanHoi = await thuMayIn(MAY_QUAY.host, MAY_QUAY.port);
   }
+  if (BEP_RA_QUAY) mayInPhanHoi = quayPhanHoi;
   const than = () =>
     JSON.stringify({
       p_printer_ok: mayInPhanHoi,
-      p_printer_host: `${HOST}:${PORT}`,
+      p_printer_host: DIA_CHI_BEP,
       p_version: BRIDGE_VERSION,
       ...(MAY_QUAY ? { p_counter_ok: quayPhanHoi, p_counter_target: COUNTER_PRINTER.trim().slice(0, 150) } : {}),
       ...(guiAgent ? { p_agent: String(process.env.BRIDGE_AGENT).slice(0, 40) } : {}),
@@ -770,9 +782,11 @@ if (process.argv.includes("--test-auth")) {
   log("Nhịp tim OK. POS sẽ gửi phiếu bếp qua cầu in này.");
   // Chỉ báo, không làm lệnh thất bại: lúc cài có thể chưa biết IP máy in bếp.
   log(
-    mayInPhanHoi
-      ? `Máy in ${HOST}:${PORT}: phản hồi.`
-      : `Máy in ${HOST}:${PORT}: KHÔNG phản hồi — kiểm tra nguồn, dây mạng, địa chỉ PRINTER_HOST.`
+    BEP_RA_QUAY
+      ? `Phiếu bếp in ra ${DIA_CHI_BEP}.`
+      : mayInPhanHoi
+        ? `Máy in ${HOST}:${PORT}: phản hồi.`
+        : `Máy in ${HOST}:${PORT}: KHÔNG phản hồi — kiểm tra nguồn, dây mạng, địa chỉ PRINTER_HOST.`
   );
   process.exit(0);
 }
@@ -947,6 +961,13 @@ async function inRaQuay(job) {
   else await thuLaiGui(() => sendToPrinter(lenh, MAY_QUAY.host, MAY_QUAY.port), SO_LAN_THU_LAI);
 }
 
+/** Phiếu bếp (chữ ESC/POS) ra máy in bếp — hoặc ra máy in quầy khi quán dùng chung một máy (PRINT-18). */
+async function inPhieuBep(giay) {
+  if (BEP_RA_QUAY && MAY_QUAY.kieu === "usb") return inQuaWindows(giay, MAY_QUAY.ten);
+  const [host, port] = BEP_RA_QUAY ? [MAY_QUAY.host, MAY_QUAY.port] : [HOST, PORT];
+  await thuLaiGui(() => sendToPrinter(giay, host, port), SO_LAN_THU_LAI);
+}
+
 async function pollOnce() {
   // Quán có thể bị tạm ngưng rồi bật lại — thử tra lại thay vì chết hẳn.
   if (!tenantId) {
@@ -993,15 +1014,17 @@ async function pollOnce() {
     }
     inFlight.add(job.id);
     try {
-      await thuLaiGui(() => sendToPrinter(buildKitchenTicket(job.payload ?? {})), SO_LAN_THU_LAI);
+      await inPhieuBep(buildKitchenTicket(job.payload ?? {}));
     } catch (err) {
       mayInPhanHoi = false;
+      if (BEP_RA_QUAY) quayPhanHoi = false;
       await markJob(job.id, { status: "failed" }).catch(() => {});
       log(`IN LỖI phiếu ${job.id} (đã thử ${SO_LAN_THU_LAI + 1} lần): ${err.message} — bấm in lại ở POS sau khi sửa máy in.`);
       inFlight.delete(job.id);
       continue;
     }
     mayInPhanHoi = true;
+    if (BEP_RA_QUAY) quayPhanHoi = true;
     await baoDaIn(job, `phiếu ${job.payload?.ticketNo ?? job.id} (đơn #${job.payload?.kitchenNo ?? "?"})`);
     inFlight.delete(job.id);
   }
