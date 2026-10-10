@@ -120,16 +120,19 @@ export function AreaTableManager({
         await createArea(fd);
         setAddingArea(false);
       }}
-      className="flex items-center gap-xs"
+      // Cột khu chỉ rộng ~240px: ô tên chiếm trọn một hàng, nút xuống hàng dưới (cùng hàng thì ô bị bóp còn vài chữ).
+      className="flex flex-col gap-xs"
     >
       <input type="hidden" name="slug" value={slug} />
-      <Input name="name" required autoFocus maxLength={40} placeholder="Tên khu, vd Tầng 1" className="h-9 min-w-0 flex-1" />
-      <SubmitButton size="sm" pendingLabel="…">
-        Lưu
-      </SubmitButton>
-      <Button type="button" variant="secondary" size="sm" onClick={() => setAddingArea(false)}>
-        Hủy
-      </Button>
+      <Input name="name" required autoFocus maxLength={40} placeholder="Tên khu, vd Tầng 1" className="h-9 w-full" />
+      <div className="flex justify-end gap-xs">
+        <Button type="button" variant="secondary" size="sm" onClick={() => setAddingArea(false)}>
+          Hủy
+        </Button>
+        <SubmitButton size="sm" pendingLabel="…">
+          Lưu
+        </SubmitButton>
+      </div>
     </form>
   );
 
@@ -139,17 +142,20 @@ export function AreaTableManager({
         await renameArea(fd);
         setRenaming(null);
       }}
-      className="flex items-center gap-xs"
+      // Cột khu chỉ rộng ~240px: ô tên chiếm trọn một hàng, nút xuống hàng dưới (cùng hàng thì ô bị bóp còn vài chữ).
+      className="flex flex-col gap-xs"
     >
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="id" value={a.id} />
-      <Input name="name" defaultValue={a.name} required autoFocus maxLength={40} className="h-9 min-w-0 flex-1" />
-      <SubmitButton size="sm" pendingLabel="…">
-        Lưu
-      </SubmitButton>
-      <Button type="button" variant="secondary" size="sm" onClick={() => setRenaming(null)}>
-        Hủy
-      </Button>
+      <Input name="name" defaultValue={a.name} required autoFocus maxLength={40} className="h-9 w-full" />
+      <div className="flex justify-end gap-xs">
+        <Button type="button" variant="secondary" size="sm" onClick={() => setRenaming(null)}>
+          Hủy
+        </Button>
+        <SubmitButton size="sm" pendingLabel="…">
+          Lưu
+        </SubmitButton>
+      </div>
     </form>
   );
 
