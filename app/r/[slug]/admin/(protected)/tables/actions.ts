@@ -17,9 +17,10 @@ import {
   splitDuplicates,
 } from "@/lib/tables/bulk";
 import { readFirstSheet } from "@/lib/tables/xlsx-doc";
+import { thuTuHopLe } from "@/lib/menu/reorder";
 
 // Các action dưới đây cập nhật TẠI CHỖ: revalidatePath + toast (setFlash), KHÔNG
-// redirect(?ok/?error) → URL giữ nguyên /admin/tables. Reorder không toast (tránh ồn).
+// redirect(?ok/?error) → URL giữ nguyên /admin/tables. Kéo thả (P38) báo "Đã lưu thứ tự".
 
 async function requireTableManager(slug: string) {
   const session = await getSessionMembership(slug);
@@ -33,35 +34,35 @@ function tablesPath(slug: string) {
   return `/r/${slug}/admin/tables`;
 }
 
-/** Hoán đổi sort_order với hàng liền kề (cùng scope). Chỉ ghi 2 hàng. */
-async function moveInList(
+/**
+ * Ghi cả thứ tự sau kéo thả (P38): `ids` phải đúng bằng tập hàng hiện có trong scope (`thuTuHopLe`) — máy khác vừa
+ * thêm/xóa thì từ chối, không ghi nửa vời. Gán `sort_order` = vị trí (0..n-1), chỉ ghi hàng đổi chỗ.
+ */
+async function saveOrder(
   table: "areas" | "tables",
   scope: Record<string, string | null>,
   tenantId: string,
-  id: string,
-  dir: "up" | "down"
-) {
+  ids: string[]
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
   let q = supabase.from(table).select("id, sort_order").eq("tenant_id", tenantId);
   for (const [k, v] of Object.entries(scope)) {
     q = v === null ? q.is(k, null) : q.eq(k, v);
   }
-  const { data: rows } = await q
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
-  if (!rows) return;
-
-  const idx = rows.findIndex((r) => r.id === id);
-  if (idx === -1) return;
-  const swapIdx = dir === "up" ? idx - 1 : idx + 1;
-  if (swapIdx < 0 || swapIdx >= rows.length) return;
-
-  const a = rows[idx];
-  const b = rows[swapIdx];
-  const aOrder = a.sort_order === b.sort_order ? idx : a.sort_order;
-  const bOrder = a.sort_order === b.sort_order ? swapIdx : b.sort_order;
-  await supabase.from(table).update({ sort_order: bOrder }).eq("id", a.id).eq("tenant_id", tenantId);
-  await supabase.from(table).update({ sort_order: aOrder }).eq("id", b.id).eq("tenant_id", tenantId);
+  const { data: rows, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  if (!thuTuHopLe((rows ?? []).map((r) => r.id as string), ids)) {
+    return { ok: false, error: "Danh sách vừa thay đổi ở máy khác. Tải lại trang rồi sắp xếp lại." };
+  }
+  const cu = new Map((rows ?? []).map((r) => [r.id as string, r.sort_order as number]));
+  const results = await Promise.all(
+    ids
+      .map((id, i) => ({ id, i }))
+      .filter(({ id, i }) => cu.get(id) !== i)
+      .map(({ id, i }) => supabase.from(table).update({ sort_order: i }).eq("id", id).eq("tenant_id", tenantId))
+  );
+  const loi = results.find((r) => r.error)?.error;
+  return loi ? { ok: false, error: loi.message } : { ok: true };
 }
 
 // ---- Khu vực ----------------------------------------------------------------
@@ -122,14 +123,16 @@ export async function deleteArea(formData: FormData) {
   await setFlash(error ? "error" : "ok", error ? error.message : "Đã xóa khu vực.");
 }
 
-export async function reorderArea(formData: FormData) {
-  const slug = String(formData.get("slug") ?? "");
+/** Kéo thả khu vực (P38): `ids` = mọi khu vực của quán theo thứ tự mới. */
+export async function reorderAreas(
+  slug: string,
+  ids: string[]
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await requireTableManager(slug);
-  const id = String(formData.get("id") ?? "");
-  const dir = String(formData.get("dir") ?? "up") === "down" ? "down" : "up";
-
-  await moveInList("areas", {}, session.tenant.id, id, dir);
+  const r = await saveOrder("areas", {}, session.tenant.id, ids);
   revalidatePath(tablesPath(slug));
+  await setFlash(r.ok ? "ok" : "error", r.ok ? "Đã lưu thứ tự." : r.error);
+  return r;
 }
 
 // ---- Bàn --------------------------------------------------------------------
@@ -406,14 +409,15 @@ export async function deleteTables(formData: FormData) {
   await setFlash(error ? "error" : "ok", error ? error.message : `Đã xóa ${data?.length ?? 0} bàn.`);
 }
 
-export async function reorderTable(formData: FormData) {
-  const slug = String(formData.get("slug") ?? "");
+/** Kéo thả bàn trong một khu (P38): `ids` = mọi bàn của khu (`areaId` null = "Chưa xếp khu") theo thứ tự mới. */
+export async function reorderTables(
+  slug: string,
+  areaId: string | null,
+  ids: string[]
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await requireTableManager(slug);
-  const id = String(formData.get("id") ?? "");
-  const areaRaw = String(formData.get("area_id") ?? "");
-  const area_id = areaRaw ? areaRaw : null;
-  const dir = String(formData.get("dir") ?? "up") === "down" ? "down" : "up";
-
-  await moveInList("tables", { area_id }, session.tenant.id, id, dir);
+  const r = await saveOrder("tables", { area_id: areaId }, session.tenant.id, ids);
   revalidatePath(tablesPath(slug));
+  await setFlash(r.ok ? "ok" : "error", r.ok ? "Đã lưu thứ tự." : r.error);
+  return r;
 }
