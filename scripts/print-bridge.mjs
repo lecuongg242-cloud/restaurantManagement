@@ -494,7 +494,7 @@ export const MA_THOAT_DA_CHAY = 3;
  * deploy (`lib/print/bridge-release.ts`) để công bố bản mới; cầu in ở quán so với nó để biết có bản
  * mới. Bản 1 = mọi cầu in trước 11-06 (không báo phiên bản).
  */
-export const BRIDGE_VERSION = 5;
+export const BRIDGE_VERSION = 6;
 
 /** Mã thoát sau khi đã thay tệp bằng bản mới — print-bridge.bat chạy lại NGAY, không tính là chết. */
 export const MA_THOAT_DA_CAP_NHAT = 4;
